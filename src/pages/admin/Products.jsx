@@ -7,6 +7,9 @@ import {
   addDoc,
   doc,
   Timestamp,
+  query,
+  where,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 
@@ -24,6 +27,7 @@ export default function Products() {
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
+  const [pendingOrders, setPendingOrders] = useState({});
 
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -32,23 +36,48 @@ export default function Products() {
 
   useEffect(() => {
     loadProducts();
+    subscribeToOrders();
   }, []);
 
   const loadProducts = async () => {
-    const snap = await getDocs(collection(db, "products"));
+    const snap = await getDocs(collection(db, "adminProducts"));
     const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     setProducts(list);
     autoLowStockCheck(list);
   };
 
-  // 🔔 LOW STOCK CHECK (SAFE)
+  // 📡 Real-time listener for purchase orders
+  const subscribeToOrders = () => {
+    const ordersQuery = query(
+      collection(db, "purchaseOrders"),
+      where("status", "in", ["PENDING", "ACCEPTED", "REJECTED"])
+    );
+
+    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+      const ordersByProduct = {};
+      
+      snapshot.docs.forEach(docSnap => {
+        const order = { id: docSnap.id, ...docSnap.data() };
+        const productId = order.adminProductId;
+        
+        // Keep only the most recent order per product
+        if (!ordersByProduct[productId] || 
+            order.createdAt?.toMillis() > ordersByProduct[productId].createdAt?.toMillis()) {
+          ordersByProduct[productId] = order;
+        }
+      });
+
+      setPendingOrders(ordersByProduct);
+    });
+
+    return unsubscribe;
+  };
+
+  // 🔔 LOW STOCK CHECK
   const autoLowStockCheck = async (items) => {
     for (const p of items) {
-      if (
-        p.stock <= p.minStock &&
-        p.availability !== "LOW STOCK"
-      ) {
-        await updateDoc(doc(db, "products", p.id), {
+      if (p.stock <= 100 && p.availability !== "LOW STOCK") {
+        await updateDoc(doc(db, "adminProducts", p.id), {
           availability: "LOW STOCK",
           updatedAt: Timestamp.now(),
         });
@@ -56,12 +85,18 @@ export default function Products() {
         if (p.supplierId) {
           await addDoc(collection(db, "notifications"), {
             type: "LOW_STOCK",
-            productId: p.id,
+            recipientId: p.supplierId,
+            recipientType: "supplier",
             supplierId: p.supplierId,
-            message: `LOW STOCK ALERT: ${p.productName} (Stock: ${p.stock})`,
+            productId: p.productId,
+            adminProductId: p.id,
+            productName: p.productName,
+            currentStock: p.stock,
+            message: `⚠️ LOW STOCK ALERT: ${p.productName} is below 100 units (Current: ${p.stock})`,
             read: false,
             createdAt: Timestamp.now(),
           });
+          console.log(`✅ Low stock alert sent to supplier ${p.supplierId} for ${p.productName}`);
         }
       }
     }
@@ -77,7 +112,7 @@ export default function Products() {
     setShowOrderForm(true);
   };
 
-  // 🛒 PLACE ORDER (FIXED)
+  // 🛒 PLACE ORDER
   const placeOrder = async () => {
     if (!orderQty || Number(orderQty) <= 0) {
       alert("Enter valid quantity");
@@ -87,30 +122,53 @@ export default function Products() {
     try {
       setLoading(true);
 
-      await addDoc(collection(db, "purchaseOrders"), {
-        poId: `PO-${Date.now()}`,
+      const poId = `PO-${Date.now()}`;
+      const totalAmount = Number(orderQty) * Number(selectedProduct.wholesalePrice);
+
+      // Create purchase order
+      const orderRef = await addDoc(collection(db, "purchaseOrders"), {
+        poId: poId,
         product: selectedProduct.productName,
-        productId: selectedProduct.id,
+        productId: selectedProduct.productId,
+        adminProductId: selectedProduct.id,
         category: selectedProduct.category,
         quantity: Number(orderQty),
-        reorderLevel: selectedProduct.minStock,
+        reorderLevel: 100,
         supplierId: selectedProduct.supplierId,
         supplierName: selectedProduct.supplierName || "Unknown Supplier",
         unitPrice: Number(selectedProduct.wholesalePrice),
-        amount:
-          Number(orderQty) * Number(selectedProduct.wholesalePrice),
+        amount: totalAmount,
         pharmacy: "MediCareX",
         status: "PENDING",
-        inStatus: "LOW STOCK",
+        orderDate: Timestamp.now(),
         date: new Date().toISOString().split("T")[0],
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
 
-      alert("✅ Order successfully sent to supplier");
+      // 🔔 Send notification to SUPPLIER
+      await addDoc(collection(db, "notifications"), {
+        type: "ORDER_PLACED",
+        recipientId: selectedProduct.supplierId,
+        recipientType: "supplier",
+        supplierId: selectedProduct.supplierId,
+        orderId: orderRef.id,
+        poId: poId,
+        adminProductId: selectedProduct.id,
+        productId: selectedProduct.productId,
+        productName: selectedProduct.productName,
+        quantity: Number(orderQty),
+        totalAmount: totalAmount,
+        message: `🛒 New Order Received: ${orderQty} units of ${selectedProduct.productName} (Total: Rs. ${totalAmount.toFixed(2)})`,
+        read: false,
+        createdAt: Timestamp.now(),
+      });
+
+      console.log(`✅ Order notification sent to supplier ${selectedProduct.supplierId}`);
+
+      alert("✅ Order successfully placed and supplier has been notified");
       setShowOrderForm(false);
       setSelectedProduct(null);
-      loadProducts();
     } catch (err) {
       console.error(err);
       alert("❌ Failed to place order. Check console.");
@@ -119,10 +177,34 @@ export default function Products() {
     }
   };
 
+  // Get order status badge for a product
+  const getOrderStatus = (productId) => {
+    const order = pendingOrders[productId];
+    if (!order) return null;
+
+    const statusConfig = {
+      PENDING: { text: "Pending", className: "status-pending" },
+      ACCEPTED: { text: "Accepted", className: "status-accepted" },
+      REJECTED: { text: "Rejected", className: "status-rejected" },
+    };
+
+    const config = statusConfig[order.status] || { text: order.status, className: "" };
+
+    return (
+      <div className="order-status-info">
+        <span className={`order-status-badge ${config.className}`}>
+          {config.text}
+        </span>
+        <small className="order-qty">Qty: {order.quantity}</small>
+      </div>
+    );
+  };
+
   const filtered = products.filter(p => {
     const matchSearch =
       p.productName?.toLowerCase().includes(search.toLowerCase()) ||
-      p.manufacturer?.toLowerCase().includes(search.toLowerCase());
+      p.manufacturer?.toLowerCase().includes(search.toLowerCase()) ||
+      p.supplierName?.toLowerCase().includes(search.toLowerCase());
 
     const matchCategory =
       category === "All" ||
@@ -134,6 +216,7 @@ export default function Products() {
   return (
     <div className="product-page">
       <h1>Inventory Management</h1>
+      <p className="subtitle">Admin Dashboard - Consolidated Inventory</p>
 
       <input
         className="search-input"
@@ -160,10 +243,12 @@ export default function Products() {
             <th>ID</th>
             <th>PRODUCT</th>
             <th>CATEGORY</th>
+            <th>SUPPLIER</th>
             <th>STOCK</th>
             <th>REORDER</th>
-            <th>SUPPLIER</th>
-            <th>PRICE</th>
+            <th>WHOLESALE</th>
+            <th>RETAIL</th>
+            <th>ORDER STATUS</th>
             <th>ACTION</th>
           </tr>
         </thead>
@@ -172,21 +257,38 @@ export default function Products() {
           {filtered.map(p => (
             <tr key={p.id}>
               <td>{p.productCode}</td>
-              <td>{p.productName}</td>
-              <td>{p.category}</td>
-              <td className={p.stock <= p.minStock ? "low" : ""}>
-                {p.stock}
-              </td>
-              <td>{p.minStock}</td>
-              <td>{p.supplierId || "—"}</td>
-              <td>Rs. {p.wholesalePrice}</td>
               <td>
-                {p.stock <= p.minStock && (
+                <div className="product-info">
+                  <strong>{p.productName}</strong>
+                  {p.manufacturer && (
+                    <small className="manufacturer">{p.manufacturer}</small>
+                  )}
+                </div>
+              </td>
+              <td>{p.category}</td>
+              <td>
+                <span className="supplier-badge">{p.supplierName || "—"}</span>
+              </td>
+              <td className={p.stock <= 100 ? "low" : ""}>
+                {p.stock}
+                {p.stock <= 100 && (
+                  <span className="low-badge">LOW</span>
+                )}
+              </td>
+              <td>100</td>
+              <td>Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : '0.00'}</td>
+              <td>Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : '0.00'}</td>
+              <td>
+                {getOrderStatus(p.id) || <span className="no-order">—</span>}
+              </td>
+              <td>
+                {p.stock <= 100 && (
                   <button
                     className="alert-btn"
                     onClick={() => openOrderForm(p)}
+                    disabled={pendingOrders[p.id]?.status === "PENDING"}
                   >
-                    Alert & Order
+                    {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
                   </button>
                 )}
               </td>
@@ -195,40 +297,58 @@ export default function Products() {
         </tbody>
       </table>
 
+      {filtered.length === 0 && (
+        <div className="no-products">
+          <p>No products found</p>
+        </div>
+      )}
+
       {showOrderForm && selectedProduct && (
         <div className="modal">
           <div className="modal-box">
             <h3>Restock Order</h3>
 
-            <p><b>{selectedProduct.productName}</b></p>
-            <p>Supplier: {selectedProduct.supplierId}</p>
+            <div className="order-details">
+              <p><strong>Product:</strong> {selectedProduct.productName}</p>
+              <p><strong>Supplier:</strong> {selectedProduct.supplierName}</p>
+              <p><strong>Current Stock:</strong> {selectedProduct.stock} units</p>
+              <p><strong>Unit Price:</strong> Rs. {Number(selectedProduct.wholesalePrice).toFixed(2)}</p>
+            </div>
 
-            <input
-              type="number"
-              placeholder="Quantity"
-              value={orderQty}
-              onChange={e => setOrderQty(e.target.value)}
-            />
+            <div className="form-group">
+              <label>Order Quantity *</label>
+              <input
+                type="number"
+                placeholder="Enter quantity"
+                value={orderQty}
+                onChange={e => setOrderQty(e.target.value)}
+                min="1"
+              />
+            </div>
 
-            <p>
-              Total: Rs.
-              {orderQty * selectedProduct.wholesalePrice || 0}
-            </p>
+            <div className="total-section">
+              <p className="total-label">Total Amount:</p>
+              <p className="total-amount">
+                Rs. {(orderQty * selectedProduct.wholesalePrice || 0).toFixed(2)}
+              </p>
+            </div>
 
-            <button
-              className="confirm"
-              onClick={placeOrder}
-              disabled={loading}
-            >
-              {loading ? "Placing..." : "Place Order"}
-            </button>
+            <div className="modal-actions">
+              <button
+                className="confirm"
+                onClick={placeOrder}
+                disabled={loading}
+              >
+                {loading ? "Placing Order..." : "Place Order"}
+              </button>
 
-            <button
-              className="cancel"
-              onClick={() => setShowOrderForm(false)}
-            >
-              Cancel
-            </button>
+              <button
+                className="cancel"
+                onClick={() => setShowOrderForm(false)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

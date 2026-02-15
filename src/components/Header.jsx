@@ -15,7 +15,7 @@ export default function Header() {
         return { title: "Suppliers", subtitle: "Manage supplier partners" };
       case "/admin/products":
         return { title: "Products", subtitle: "View pharmacy products" };
-      case "/admin/orders":
+      case "/admin/ordermanagement":
         return { title: "Orders", subtitle: "Manage purchase orders" };
       case "/admin/financialAnalytics":
         return { title: "Analytics", subtitle: "Sales & profit analysis" };
@@ -23,6 +23,8 @@ export default function Header() {
         return { title: "Notifications", subtitle: "System alerts & updates" };
         case "/admin/analytics":
         return { title: "Sales Analytics", subtitle: "Analyse sales & updates" };
+        case "/admin/adminpayments":
+        return { title: "Payments", subtitle: "Manage payments" };
       default:
         return { title: "Dashboard", subtitle: "Welcome to MediCareX" };
     }

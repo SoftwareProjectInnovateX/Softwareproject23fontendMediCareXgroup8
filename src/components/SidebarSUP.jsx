@@ -1,31 +1,28 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
-import "./Sidebar.css";
+import "./SidebarSUP.css";
 
 export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const menuItems = [
-    { id: 1, icon: "📊", text: "Dashboard", path: "/admin" },
-    { id: 2, icon: "👥", text: "Users", path: "/admin/usermanagement" },
-    { id: 3, icon: "🏭", text: "Suppliers", path: "/admin/suppliers" },
-    { id: 4, icon: "📦", text: "Inventory", path: "/admin/products" },
-    { id: 5, icon: "🔔", text: "Order Management", path: "/admin/ordermanagement" },
-    { id: 6, icon: "🛒", text: "Financials", path: "/admin/financialAnalytics" },
-    { id: 7, icon: "📈", text: "Analytics", path: "/admin/analytics" },
-    { id: 8, icon: "🔔", text: "Notifications", path: "/admin/notifications" },
-     { id: 9, icon: "🔔", text: "Admin Payments", path: "/admin/adminPayments" }
-    
+    { id: 1, icon: "📊", text: "Dashboard", path: "/supplier" },
+    { id: 2, icon: "🔔", text: "Restock Alert", path: "/supplier/restock-alert" },
+    { id: 3, icon: "🛒", text: "Purchase Orders", path: "/supplier/purchase-orders" },
+    { id: 4, icon: "📦", text: "Product Catalog", path: "/supplier/product-catalog" },
+    { id: 5, icon: "🚚", text: "Update Delivery", path: "/supplier/update-delivery" },
+    { id: 6, icon: "📄", text: "Invoice & Payments", path: "/supplier/invoices" },
+    { id: 7, icon: "⚙️", text: "Settings", path: "/supplier/settings" },
   ];
 
   return (
     <div className={`sidebar ${isCollapsed ? "collapsed" : ""}`}>
-      {/* Header */}
       <div className="sidebar-header">
         <div className="logo">
-          <span className="logo-text">
-            {!isCollapsed ? "MediCareX" : "M"}
-          </span>
+          <div className="logo-icon">
+            <span className="logo-symbol">M</span>
+          </div>
+          {!isCollapsed && <span className="logo-text">MediCareX</span>}
         </div>
         <button
           className="collapse-btn"
@@ -35,9 +32,8 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="sidebar-nav">
-        {menuItems.map(item => (
+        {menuItems.map((item) => (
           <NavLink
             key={item.id}
             to={item.path}
@@ -50,6 +46,12 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      <div className="sidebar-footer">
+        <button className="logout-btn">
+          🚪 {!isCollapsed && "Logout"}
+        </button>
+      </div>
     </div>
   );
 }

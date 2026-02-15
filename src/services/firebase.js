@@ -1,9 +1,12 @@
-// Import the functions you need from the SDKs you need
+// Firebase core
 import { initializeApp } from "firebase/app";
+
+// Firebase services
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
-// Your web app's Firebase configuration
+// 🔐 Firebase configuration (shared)
 const firebaseConfig = {
   apiKey: "AIzaSyC64IrEovMCJi6mNKMAb4WPNDKGeubsuVM",
   authDomain: "supplier-management-70b81.firebaseapp.com",
@@ -14,13 +17,16 @@ const firebaseConfig = {
   measurementId: "G-NLMV8D63XD",
 };
 
-// Initialize Firebase
+// 🚀 Initialize Firebase (ONCE)
 const app = initializeApp(firebaseConfig);
 
-// ✅ Firestore database export (THIS FIXES YOUR ERRORS)
+// 🔥 Firestore
 export const db = getFirestore(app);
 
-// ✅ Analytics (safe check – avoids errors in localhost)
+// 🔐 Authentication (for login later)
+export const auth = getAuth(app);
+
+// 📊 Analytics (safe for localhost & Vite)
 let analytics;
 isSupported().then((supported) => {
   if (supported) {

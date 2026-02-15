@@ -75,7 +75,6 @@ export default function AdminDashboard() {
   return (
     <div className="dashboard">
      
-
       {/* SUMMARY CARDS */}
       <div className="cards">
         <Card title="Total Users" value={users} />
