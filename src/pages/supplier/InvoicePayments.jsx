@@ -1,69 +1,41 @@
-// src/pages/InvoicePayments.jsx
 import React, { useState, useEffect } from 'react';
-import { 
-  collection, 
-  getDocs, 
-  doc,
-  updateDoc,
-  addDoc,
-  query,
-  orderBy,
-  where,
-  Timestamp 
+import {
+  collection, getDocs, doc, updateDoc, addDoc,
+  query, orderBy, where, Timestamp,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import './InvoicePayments.css';
+import {
+  MdAttachMoney, MdCheckCircle, MdHourglassEmpty,
+  MdWarning, MdVisibility, MdDownload, MdCreditCard,
+} from 'react-icons/md';
 
 const InvoicePayments = () => {
-  const [invoices, setInvoices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('All');
+  const [invoices, setInvoices]               = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [filterStatus, setFilterStatus]       = useState('All');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
-  const [paymentNote, setPaymentNote] = useState('');
+  const [paymentAmount, setPaymentAmount]     = useState('');
+  const [paymentMethod, setPaymentMethod]     = useState('Bank Transfer');
+  const [paymentNote, setPaymentNote]         = useState('');
 
-  // FETCH ALL INVOICES FROM FIREBASE
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      console.log('Fetching invoices from Firebase...');
-
-      let invoicesQuery;
-      
-      if (filterStatus === 'All') {
-        invoicesQuery = query(
-          collection(db, 'invoices'),
-          orderBy('invoiceDate', 'desc')
-        );
-      } else {
-        invoicesQuery = query(
-          collection(db, 'invoices'),
-          where('paymentStatus', '==', filterStatus),
-          orderBy('invoiceDate', 'desc')
-        );
-      }
+      const invoicesQuery = filterStatus === 'All'
+        ? query(collection(db, 'invoices'), orderBy('invoiceDate', 'desc'))
+        : query(collection(db, 'invoices'), where('paymentStatus', '==', filterStatus), orderBy('invoiceDate', 'desc'));
 
       const snapshot = await getDocs(invoicesQuery);
-      const invoicesData = [];
-
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        invoicesData.push({
-          id: doc.id,
-          ...data,
-          invoiceDate: data.invoiceDate?.toDate ? 
-            data.invoiceDate.toDate().toISOString().split('T')[0] : data.invoiceDate,
-          dueDate: data.dueDate?.toDate ? 
-            data.dueDate.toDate().toISOString().split('T')[0] : data.dueDate,
-          paidDate: data.paidDate?.toDate ? 
-            data.paidDate.toDate().toISOString().split('T')[0] : null
-        });
-      });
-
-      console.log('Invoices fetched:', invoicesData);
-      setInvoices(invoicesData);
+      setInvoices(snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id, ...data,
+          invoiceDate: data.invoiceDate?.toDate ? data.invoiceDate.toDate().toISOString().split('T')[0] : data.invoiceDate,
+          dueDate:     data.dueDate?.toDate     ? data.dueDate.toDate().toISOString().split('T')[0]     : data.dueDate,
+          paidDate:    data.paidDate?.toDate    ? data.paidDate.toDate().toISOString().split('T')[0]    : null,
+        };
+      }));
       setLoading(false);
     } catch (error) {
       console.error('Error fetching invoices:', error);
@@ -72,69 +44,32 @@ const InvoicePayments = () => {
     }
   };
 
-  useEffect(() => {
-    fetchInvoices();
-  }, [filterStatus]);
+  useEffect(() => { fetchInvoices(); }, [filterStatus]);
 
-  // CALCULATE TOTALS
-  const calculateTotals = () => {
-    const total = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-    const paid = invoices
-      .filter(inv => inv.paymentStatus === 'Paid')
-      .reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-    const pending = invoices
-      .filter(inv => inv.paymentStatus === 'Pending')
-      .reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-    const overdue = invoices
-      .filter(inv => inv.paymentStatus === 'Overdue')
-      .reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+  const calculateTotals = () => ({
+    total:   invoices.reduce((s, i) => s + (i.totalAmount || 0), 0),
+    paid:    invoices.filter(i => i.paymentStatus === 'Paid').reduce((s, i) => s + (i.totalAmount || 0), 0),
+    pending: invoices.filter(i => i.paymentStatus === 'Pending').reduce((s, i) => s + (i.totalAmount || 0), 0),
+    overdue: invoices.filter(i => i.paymentStatus === 'Overdue').reduce((s, i) => s + (i.totalAmount || 0), 0),
+  });
 
-    return { total, paid, pending, overdue };
-  };
-
-  // RECORD PAYMENT
   const recordPayment = async () => {
-    if (!selectedInvoice || !paymentAmount) {
-      alert('Please enter payment amount');
-      return;
-    }
-
+    if (!selectedInvoice || !paymentAmount) { alert('Please enter payment amount'); return; }
     const amount = parseFloat(paymentAmount);
-    if (amount <= 0 || amount > selectedInvoice.totalAmount) {
-      alert('Invalid payment amount');
-      return;
-    }
-
+    if (amount <= 0 || amount > selectedInvoice.totalAmount) { alert('Invalid payment amount'); return; }
     try {
-      const invoiceRef = doc(db, 'invoices', selectedInvoice.id);
-      
-      // Update invoice status
-      await updateDoc(invoiceRef, {
-        paymentStatus: 'Paid',
-        paidAmount: amount,
-        paidDate: Timestamp.now(),
-        paymentMethod: paymentMethod,
-        paymentNote: paymentNote,
-        updatedAt: Timestamp.now()
+      await updateDoc(doc(db, 'invoices', selectedInvoice.id), {
+        paymentStatus: 'Paid', paidAmount: amount, paidDate: Timestamp.now(),
+        paymentMethod, paymentNote, updatedAt: Timestamp.now(),
       });
-
-      // Record payment transaction
       await addDoc(collection(db, 'payments'), {
-        invoiceId: selectedInvoice.id,
-        invoiceNumber: selectedInvoice.invoiceNumber,
-        amount: amount,
-        paymentMethod: paymentMethod,
-        paymentDate: Timestamp.now(),
-        note: paymentNote,
-        pharmacy: selectedInvoice.pharmacy,
-        createdAt: Timestamp.now()
+        invoiceId: selectedInvoice.id, invoiceNumber: selectedInvoice.invoiceNumber,
+        amount, paymentMethod, paymentDate: Timestamp.now(),
+        note: paymentNote, pharmacy: selectedInvoice.pharmacy, createdAt: Timestamp.now(),
       });
-
       alert('Payment recorded successfully!');
-      setShowPaymentModal(false);
-      setPaymentAmount('');
-      setPaymentNote('');
-      setSelectedInvoice(null);
+      setShowPaymentModal(false); setPaymentAmount('');
+      setPaymentNote(''); setSelectedInvoice(null);
       fetchInvoices();
     } catch (error) {
       console.error('Error recording payment:', error);
@@ -142,340 +77,130 @@ const InvoicePayments = () => {
     }
   };
 
-  // GENERATE INVOICE/RECEIPT PDF
   const generatePDF = (invoice) => {
-    // Create a printable HTML receipt
-    const receiptWindow = window.open('', '', 'width=800,height=600');
-    
-    const receiptHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Invoice ${invoice.invoiceNumber}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: Arial, sans-serif;
-            padding: 40px;
-            background: white;
-          }
-          .receipt-container {
-            max-width: 800px;
-            margin: 0 auto;
-            border: 2px solid #333;
-            padding: 30px;
-          }
-          .header {
-            display: flex;
-            justify-content: space-between;
-            border-bottom: 2px solid #333;
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-          }
-          .company-info h1 {
-            font-size: 28px;
-            color: #2563eb;
-            margin-bottom: 5px;
-          }
-          .company-info p {
-            color: #666;
-            font-size: 14px;
-          }
-          .invoice-info {
-            text-align: right;
-          }
-          .invoice-info h2 {
-            font-size: 24px;
-            margin-bottom: 10px;
-          }
-          .status-badge {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-top: 5px;
-          }
-          .status-paid {
-            background-color: #dcfce7;
-            color: #166534;
-          }
-          .status-pending {
-            background-color: #fef3c7;
-            color: #92400e;
-          }
-          .status-overdue {
-            background-color: #fee2e2;
-            color: #991b1b;
-          }
-          .details-section {
-            display: flex;
-            justify-content: space-between;
-            margin: 30px 0;
-          }
-          .detail-box h3 {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-          }
-          .detail-box p {
-            font-size: 16px;
-            margin: 5px 0;
-          }
-          .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-          }
-          .items-table th {
-            background-color: #f3f4f6;
-            padding: 12px;
-            text-align: left;
-            border-bottom: 2px solid #333;
-          }
-          .items-table td {
-            padding: 12px;
-            border-bottom: 1px solid #e5e7eb;
-          }
-          .totals-section {
-            margin-top: 20px;
-            text-align: right;
-          }
-          .total-row {
-            display: flex;
-            justify-content: flex-end;
-            margin: 10px 0;
-          }
-          .total-label {
-            width: 200px;
-            text-align: right;
-            padding-right: 20px;
-            font-weight: bold;
-          }
-          .total-amount {
-            width: 150px;
-            text-align: right;
-            font-size: 18px;
-          }
-          .grand-total {
-            border-top: 2px solid #333;
-            padding-top: 10px;
-            margin-top: 10px;
-            font-size: 24px;
-            font-weight: bold;
-            color: #2563eb;
-          }
-          .footer {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
-            text-align: center;
-            color: #666;
-            font-size: 12px;
-          }
-          .payment-info {
-            background-color: #f9fafb;
-            padding: 15px;
-            margin: 20px 0;
-            border-left: 4px solid #2563eb;
-          }
-          @media print {
-            body { padding: 0; }
-            .no-print { display: none; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="receipt-container">
-          <!-- Header -->
-          <div class="header">
-            <div class="company-info">
-              <h1>MedSupply Co.</h1>
-              <p>Supplier Portal</p>
-              <p>123 Medical Street, New York, NY 10001</p>
-              <p>Phone: +1 234 567 8900</p>
-              <p>Email: billing@medsupply.com</p>
-            </div>
-            <div class="invoice-info">
-              <h2>INVOICE</h2>
-              <p><strong>#${invoice.invoiceNumber}</strong></p>
-              <span class="status-badge status-${invoice.paymentStatus.toLowerCase()}">
-                ${invoice.paymentStatus}
-              </span>
-            </div>
-          </div>
-
-          <!-- Bill To / Invoice Details -->
-          <div class="details-section">
-            <div class="detail-box">
-              <h3>Bill To</h3>
-              <p><strong>${invoice.pharmacy}</strong></p>
-              <p>SmartPharma Main</p>
-              <p>456 Pharmacy Ave</p>
-              <p>New York, NY 10002</p>
-            </div>
-            <div class="detail-box">
-              <h3>Invoice Details</h3>
-              <p><strong>Invoice Date:</strong> ${invoice.invoiceDate}</p>
-              <p><strong>Due Date:</strong> ${invoice.dueDate}</p>
-              <p><strong>Order ID:</strong> ${invoice.orderId}</p>
-              ${invoice.paidDate ? `<p><strong>Paid Date:</strong> ${invoice.paidDate}</p>` : ''}
-            </div>
-          </div>
-
-          <!-- Items Table -->
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Quantity</th>
-                <th>Unit Price</th>
-                <th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${invoice.items.map(item => `
-                <tr>
-                  <td>${item.productName}</td>
-                  <td>${item.quantity}</td>
-                  <td>$${item.unitPrice.toFixed(2)}</td>
-                  <td>$${(item.quantity * item.unitPrice).toFixed(2)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <!-- Totals -->
-          <div class="totals-section">
-            <div class="total-row">
-              <div class="total-label">Subtotal:</div>
-              <div class="total-amount">$${invoice.subtotal.toFixed(2)}</div>
-            </div>
-            <div class="total-row">
-              <div class="total-label">Tax (${invoice.taxRate}%):</div>
-              <div class="total-amount">$${invoice.taxAmount.toFixed(2)}</div>
-            </div>
-            <div class="total-row grand-total">
-              <div class="total-label">Total Amount:</div>
-              <div class="total-amount">$${invoice.totalAmount.toFixed(2)}</div>
-            </div>
-          </div>
-
-          ${invoice.paymentStatus === 'Paid' ? `
-            <div class="payment-info">
-              <h3 style="margin-bottom: 10px;">Payment Information</h3>
-              <p><strong>Amount Paid:</strong> $${invoice.paidAmount?.toFixed(2)}</p>
-              <p><strong>Payment Method:</strong> ${invoice.paymentMethod}</p>
-              <p><strong>Payment Date:</strong> ${invoice.paidDate}</p>
-              ${invoice.paymentNote ? `<p><strong>Note:</strong> ${invoice.paymentNote}</p>` : ''}
-            </div>
-          ` : `
-            <div class="payment-info">
-              <h3 style="margin-bottom: 10px;">Payment Instructions</h3>
-              <p><strong>Bank Name:</strong> Bank of America</p>
-              <p><strong>Account Number:</strong> 1234567890</p>
-              <p><strong>Routing Number:</strong> 021000021</p>
-              <p><strong>Reference:</strong> ${invoice.invoiceNumber}</p>
-            </div>
-          `}
-
-          <!-- Footer -->
-          <div class="footer">
-            <p>Thank you for your business!</p>
-            <p>For any questions, please contact billing@medsupply.com</p>
-            <p style="margin-top: 10px;">Generated on ${new Date().toLocaleDateString()}</p>
-          </div>
+    const w = window.open('', '', 'width=800,height=600');
+    w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invoice.invoiceNumber}</title>
+      <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:40px;background:white}
+      .container{max-width:800px;margin:0 auto;border:2px solid #333;padding:30px}
+      .header{display:flex;justify-content:space-between;border-bottom:2px solid #333;padding-bottom:20px;margin-bottom:20px}
+      h1{font-size:28px;color:#2563eb}table{width:100%;border-collapse:collapse;margin:20px 0}
+      th{background:#f3f4f6;padding:12px;text-align:left;border-bottom:2px solid #333}td{padding:12px;border-bottom:1px solid #e5e7eb}
+      .badge{display:inline-block;padding:5px 15px;border-radius:20px;font-size:12px;font-weight:bold}
+      .Paid{background:#dcfce7;color:#166534}.Pending{background:#fef3c7;color:#92400e}.Overdue{background:#fee2e2;color:#991b1b}
+      .totals{text-align:right;margin-top:20px}.total-row{display:flex;justify-content:flex-end;margin:8px 0}
+      .tl{width:200px;text-align:right;padding-right:20px;font-weight:bold}.ta{width:150px;text-align:right}
+      .grand{border-top:2px solid #333;padding-top:10px;font-size:20px;font-weight:bold;color:#2563eb}
+      .info{background:#f9fafb;padding:15px;margin:20px 0;border-left:4px solid #2563eb}
+      .footer{margin-top:40px;padding-top:20px;border-top:1px solid #e5e7eb;text-align:center;color:#666;font-size:12px}
+      @media print{.no-print{display:none}}</style></head><body>
+      <div class="container">
+        <div class="header">
+          <div><h1>MedSupply Co.</h1><p>Supplier Portal</p><p>123 Medical Street</p></div>
+          <div style="text-align:right"><h2>INVOICE</h2><p><strong>#${invoice.invoiceNumber}</strong></p>
+          <span class="badge ${invoice.paymentStatus}">${invoice.paymentStatus}</span></div>
         </div>
-
-        <div class="no-print" style="text-align: center; margin-top: 20px;">
-          <button onclick="window.print()" style="padding: 12px 24px; background-color: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-right: 10px;">
-            Print / Save as PDF
-          </button>
-          <button onclick="window.close()" style="padding: 12px 24px; background-color: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px;">
-            Close
-          </button>
+        <div style="display:flex;justify-content:space-between;margin:20px 0">
+          <div><h3>Bill To</h3><p><strong>${invoice.pharmacy}</strong></p></div>
+          <div><h3>Details</h3><p>Invoice: ${invoice.invoiceDate}</p><p>Due: ${invoice.dueDate}</p></div>
         </div>
-      </body>
-      </html>
-    `;
-
-    receiptWindow.document.write(receiptHTML);
-    receiptWindow.document.close();
+        <table><thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>
+        ${invoice.items.map(i => `<tr><td>${i.productName}</td><td>${i.quantity}</td><td>$${i.unitPrice.toFixed(2)}</td><td>$${(i.quantity*i.unitPrice).toFixed(2)}</td></tr>`).join('')}
+        </tbody></table>
+        <div class="totals">
+          <div class="total-row"><div class="tl">Subtotal:</div><div class="ta">$${invoice.subtotal.toFixed(2)}</div></div>
+          <div class="total-row"><div class="tl">Tax (${invoice.taxRate}%):</div><div class="ta">$${invoice.taxAmount.toFixed(2)}</div></div>
+          <div class="total-row grand"><div class="tl">Total:</div><div class="ta">$${invoice.totalAmount.toFixed(2)}</div></div>
+        </div>
+        <div class="info"><h3>Payment ${invoice.paymentStatus==='Paid'?'Info':'Instructions'}</h3>
+        ${invoice.paymentStatus==='Paid'
+          ? `<p>Paid: $${invoice.paidAmount?.toFixed(2)} via ${invoice.paymentMethod} on ${invoice.paidDate}</p>`
+          : `<p>Bank: Bank of America | Ref: ${invoice.invoiceNumber}</p>`}
+        </div>
+        <div class="footer"><p>Thank you! Generated ${new Date().toLocaleDateString()}</p></div>
+      </div>
+      <div class="no-print" style="text-align:center;margin-top:20px">
+        <button onclick="window.print()" style="padding:12px 24px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;margin-right:10px">Print / Save PDF</button>
+        <button onclick="window.close()" style="padding:12px 24px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer">Close</button>
+      </div></body></html>`);
+    w.document.close();
   };
 
-  // GET STATUS COLOR
-  const getStatusColor = (status) => {
-    const colors = {
-      'Paid': { bg: '#dcfce7', text: '#166534' },
-      'Pending': { bg: '#fef3c7', text: '#92400e' },
-      'Overdue': { bg: '#fee2e2', text: '#991b1b' }
-    };
-    return colors[status] || colors['Pending'];
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'Paid':    return 'bg-emerald-100 text-emerald-800';
+      case 'Pending': return 'bg-amber-100 text-amber-800';
+      case 'Overdue': return 'bg-red-100 text-red-800';
+      default:        return 'bg-gray-100 text-gray-600';
+    }
   };
 
   const totals = calculateTotals();
 
+  const summaryCards = [
+    { label: 'Total Revenue', value: totals.total,   count: null,                                                   accent: 'border-blue-500',    icon: <MdAttachMoney size={26} className="text-blue-600" />,   bg: 'bg-blue-50' },
+    { label: 'Paid',          value: totals.paid,    count: invoices.filter(i => i.paymentStatus === 'Paid').length,    accent: 'border-emerald-500', icon: <MdCheckCircle size={26} className="text-emerald-600" />, bg: 'bg-emerald-50' },
+    { label: 'Pending',       value: totals.pending, count: invoices.filter(i => i.paymentStatus === 'Pending').length, accent: 'border-amber-400',   icon: <MdHourglassEmpty size={26} className="text-amber-500" />, bg: 'bg-amber-50' },
+    { label: 'Overdue',       value: totals.overdue, count: invoices.filter(i => i.paymentStatus === 'Overdue').length, accent: 'border-red-500',     icon: <MdWarning size={26} className="text-red-500" />,        bg: 'bg-red-50' },
+  ];
+
+  /* ---- shared modal wrapper ---- */
+  const ModalWrap = ({ onClose, children }) => (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-5"
+      style={{ animation: 'fadeIn 0.2s' }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl w-full max-w-[800px] max-h-[90vh] overflow-y-auto shadow-2xl"
+        style={{ animation: 'slideUp 0.3s' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+
+  const inputCls = "w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10";
+  const disabledCls = "bg-slate-100 cursor-not-allowed";
+
   return (
-    <div className="invoice-payments-container">
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1>Invoice & Payments</h1>
-          <p>Manage invoices and track payments</p>
-        </div>
+    <div className="p-6 bg-slate-100 min-h-screen">
+
+      {/* Page Header */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-slate-800 mb-1">Invoice & Payments</h1>
+        <p className="text-slate-500 text-base">Manage invoices and track payments</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="summary-cards">
-        <div className="summary-card total">
-          <div className="card-icon">💰</div>
-          <div className="card-content">
-            <p className="card-label">Total Revenue</p>
-            <p className="card-value">Rs.{totals.total.toFixed(2)}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+        {summaryCards.map((card) => (
+          <div
+            key={card.label}
+            className={`bg-white rounded-xl p-5 flex items-center gap-4 shadow-sm border-l-4 ${card.accent} transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
+          >
+            <div className={`${card.bg} w-14 h-14 flex items-center justify-center rounded-lg flex-shrink-0`}>
+              {card.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-slate-500 font-medium mb-1">{card.label}</p>
+              <p className="text-[26px] font-bold text-slate-800 leading-tight">
+                Rs.{card.value.toFixed(2)}
+              </p>
+              {card.count !== null && (
+                <p className="text-xs text-slate-400 mt-0.5">{card.count} invoices</p>
+              )}
+            </div>
           </div>
-        </div>
-
-        <div className="summary-card paid">
-          <div className="card-icon">✓</div>
-          <div className="card-content">
-            <p className="card-label">Paid</p>
-            <p className="card-value">Rs.{totals.paid.toFixed(2)}</p>
-            <p className="card-count">
-              {invoices.filter(i => i.paymentStatus === 'Paid').length} invoices
-            </p>
-          </div>
-        </div>
-
-        <div className="summary-card pending">
-          <div className="card-icon">⏳</div>
-          <div className="card-content">
-            <p className="card-label">Pending</p>
-            <p className="card-value">Rs.{totals.pending.toFixed(2)}</p>
-            <p className="card-count">
-              {invoices.filter(i => i.paymentStatus === 'Pending').length} invoices
-            </p>
-          </div>
-        </div>
-
-        <div className="summary-card overdue">
-          <div className="card-icon">⚠️</div>
-          <div className="card-content">
-            <p className="card-label">Overdue</p>
-            <p className="card-value">Rs.{totals.overdue.toFixed(2)}</p>
-            <p className="card-count">
-              {invoices.filter(i => i.paymentStatus === 'Overdue').length} invoices
-            </p>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Filter Bar */}
-      <div className="filter-bar">
+      <div className="bg-white p-4 rounded-xl shadow-sm mb-6">
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="filter-select"
+          className="px-4 py-2.5 border border-slate-300 rounded-lg text-sm cursor-pointer min-w-[200px] focus:outline-none focus:border-blue-500"
         >
           <option value="All">All Invoices</option>
           <option value="Paid">Paid</option>
@@ -484,268 +209,247 @@ const InvoicePayments = () => {
         </select>
       </div>
 
-      {/* Invoices Table */}
-      <div className="invoices-table-container">
+      {/* Table */}
+      <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         {loading ? (
-          <div className="loading-state">
-            <div className="spinner"></div>
-            <p>Loading invoices...</p>
+          <div className="py-20 text-center">
+            <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-slate-500">Loading invoices...</p>
           </div>
         ) : invoices.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">📄</div>
-            <p>No invoices found</p>
+          <div className="py-20 text-center">
+            <MdDownload size={56} className="text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500 text-base">No invoices found</p>
           </div>
         ) : (
-          <table className="invoices-table">
-            <thead>
-              <tr>
-                <th>Invoice #</th>
-                <th>Pharmacy</th>
-                <th>Order ID</th>
-                <th>Invoice Date</th>
-                <th>Due Date</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => {
-                const statusColor = getStatusColor(invoice.paymentStatus);
-                return (
-                  <tr key={invoice.id}>
-                    <td className="invoice-number">{invoice.invoiceNumber}</td>
-                    <td>{invoice.pharmacy}</td>
-                    <td>{invoice.orderId}</td>
-                    <td>{invoice.invoiceDate}</td>
-                    <td>{invoice.dueDate}</td>
-                    <td className="amount">Rs.{invoice.totalAmount.toFixed(2)}</td>
-                    <td>
-                      <span
-                        className="status-badge"
-                        style={{
-                          backgroundColor: statusColor.bg,
-                          color: statusColor.text
-                        }}
-                      >
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[800px]">
+              <thead className="bg-slate-50 border-b-2 border-slate-200">
+                <tr>
+                  {['Invoice #', 'Pharmacy', 'Order ID', 'Invoice Date', 'Due Date', 'Amount', 'Status', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-4 font-semibold text-blue-600 text-sm">{invoice.invoiceNumber}</td>
+                    <td className="px-4 py-4 text-sm text-slate-800">{invoice.pharmacy}</td>
+                    <td className="px-4 py-4 text-sm text-slate-600">{invoice.orderId}</td>
+                    <td className="px-4 py-4 text-sm text-slate-600">{invoice.invoiceDate}</td>
+                    <td className="px-4 py-4 text-sm text-slate-600">{invoice.dueDate}</td>
+                    <td className="px-4 py-4 text-sm font-semibold text-slate-800">Rs.{invoice.totalAmount.toFixed(2)}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyle(invoice.paymentStatus)}`}>
                         {invoice.paymentStatus}
                       </span>
                     </td>
-                    <td>
-                      <div className="action-buttons">
+                    <td className="px-4 py-4">
+                      <div className="flex gap-2">
                         <button
-                          onClick={() => setSelectedInvoice(invoice)}
-                          className="btn-view"
                           title="View Details"
+                          onClick={() => setSelectedInvoice(invoice)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 border-none cursor-pointer transition-colors"
                         >
-                          👁️
+                          <MdVisibility size={16} />
                         </button>
                         <button
-                          onClick={() => generatePDF(invoice)}
-                          className="btn-download"
                           title="Download Receipt"
+                          onClick={() => generatePDF(invoice)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-600 border-none cursor-pointer transition-colors"
                         >
-                          📥
+                          <MdDownload size={16} />
                         </button>
                         {invoice.paymentStatus !== 'Paid' && (
                           <button
-                            onClick={() => {
-                              setSelectedInvoice(invoice);
-                              setPaymentAmount(invoice.totalAmount.toString());
-                              setShowPaymentModal(true);
-                            }}
-                            className="btn-pay"
                             title="Record Payment"
+                            onClick={() => { setSelectedInvoice(invoice); setPaymentAmount(invoice.totalAmount.toString()); setShowPaymentModal(true); }}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-600 border-none cursor-pointer transition-colors"
                           >
-                            💳
+                            <MdCreditCard size={16} />
                           </button>
                         )}
                       </div>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* Invoice Details Modal */}
       {selectedInvoice && !showPaymentModal && (
-        <div className="modal-overlay" onClick={() => setSelectedInvoice(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Invoice Details</h2>
-              <button onClick={() => setSelectedInvoice(null)} className="close-btn">×</button>
-            </div>
-
-            <div className="modal-body">
-              <div className="invoice-detail-grid">
-                <div className="detail-item">
-                  <label>Invoice Number</label>
-                  <p>{selectedInvoice.invoiceNumber}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Pharmacy</label>
-                  <p>{selectedInvoice.pharmacy}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Order ID</label>
-                  <p>{selectedInvoice.orderId}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Invoice Date</label>
-                  <p>{selectedInvoice.invoiceDate}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Due Date</label>
-                  <p>{selectedInvoice.dueDate}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Status</label>
-                  <span
-                    className="status-badge"
-                    style={{
-                      backgroundColor: getStatusColor(selectedInvoice.paymentStatus).bg,
-                      color: getStatusColor(selectedInvoice.paymentStatus).text
-                    }}
-                  >
-                    {selectedInvoice.paymentStatus}
-                  </span>
-                </div>
-              </div>
-
-              <div className="items-section">
-                <h3>Items</h3>
-                <table className="items-table">
-                  <thead>
-                    <tr>
-                      <th>Product</th>
-                      <th>Quantity</th>
-                      <th>Unit Price</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedInvoice.items.map((item, index) => (
-                      <tr key={index}>
-                        <td>{item.productName}</td>
-                        <td>{item.quantity}</td>
-                        <td>${item.unitPrice.toFixed(2)}</td>
-                        <td>${(item.quantity * item.unitPrice).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="totals-section">
-                <div className="total-row">
-                  <span>Subtotal:</span>
-                  <span>${selectedInvoice.subtotal.toFixed(2)}</span>
-                </div>
-                <div className="total-row">
-                  <span>Tax ({selectedInvoice.taxRate}%):</span>
-                  <span>${selectedInvoice.taxAmount.toFixed(2)}</span>
-                </div>
-                <div className="total-row grand-total">
-                  <span>Total:</span>
-                  <span>${selectedInvoice.totalAmount.toFixed(2)}</span>
-                </div>
-              </div>
-
-              {selectedInvoice.paymentStatus === 'Paid' && (
-                <div className="payment-info-box">
-                  <h4>Payment Information</h4>
-                  <p><strong>Paid Amount:</strong> ${selectedInvoice.paidAmount?.toFixed(2)}</p>
-                  <p><strong>Payment Date:</strong> {selectedInvoice.paidDate}</p>
-                  <p><strong>Payment Method:</strong> {selectedInvoice.paymentMethod}</p>
-                  {selectedInvoice.paymentNote && (
-                    <p><strong>Note:</strong> {selectedInvoice.paymentNote}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="modal-footer">
-              <button onClick={() => generatePDF(selectedInvoice)} className="btn-primary">
-                Download Receipt
-              </button>
-              <button onClick={() => setSelectedInvoice(null)} className="btn-secondary">
-                Close
-              </button>
-            </div>
+        <ModalWrap onClose={() => setSelectedInvoice(null)}>
+          {/* Header */}
+          <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200">
+            <h2 className="text-2xl font-bold text-slate-800">Invoice Details</h2>
+            <button onClick={() => setSelectedInvoice(null)} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 transition-colors">×</button>
           </div>
-        </div>
+
+          {/* Body */}
+          <div className="p-6">
+            {/* Detail Grid */}
+            <div className="grid grid-cols-2 gap-5 mb-6">
+              {[
+                { label: 'Invoice Number', value: selectedInvoice.invoiceNumber },
+                { label: 'Pharmacy',       value: selectedInvoice.pharmacy },
+                { label: 'Order ID',       value: selectedInvoice.orderId },
+                { label: 'Invoice Date',   value: selectedInvoice.invoiceDate },
+                { label: 'Due Date',       value: selectedInvoice.dueDate },
+              ].map((item) => (
+                <div key={item.label}>
+                  <label className="block text-xs text-slate-500 font-medium mb-1">{item.label}</label>
+                  <p className="text-base text-slate-800 font-medium m-0">{item.value}</p>
+                </div>
+              ))}
+              <div>
+                <label className="block text-xs text-slate-500 font-medium mb-1">Status</label>
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyle(selectedInvoice.paymentStatus)}`}>
+                  {selectedInvoice.paymentStatus}
+                </span>
+              </div>
+            </div>
+
+            {/* Items */}
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">Items</h3>
+            <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
+              <table className="w-full border-collapse">
+                <thead className="bg-slate-50">
+                  <tr>
+                    {['Product', 'Quantity', 'Unit Price', 'Total'].map((h) => (
+                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 border-b border-slate-200">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedInvoice.items.map((item, i) => (
+                    <tr key={i} className="border-b border-slate-100 last:border-none">
+                      <td className="px-3 py-3 text-sm text-slate-800">{item.productName}</td>
+                      <td className="px-3 py-3 text-sm text-slate-700">{item.quantity}</td>
+                      <td className="px-3 py-3 text-sm text-slate-700">${item.unitPrice.toFixed(2)}</td>
+                      <td className="px-3 py-3 text-sm font-semibold text-slate-800">${(item.quantity * item.unitPrice).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals */}
+            <div className="bg-slate-50 rounded-lg p-4 mb-6">
+              {[
+                { label: `Subtotal:`, value: `$${selectedInvoice.subtotal.toFixed(2)}` },
+                { label: `Tax (${selectedInvoice.taxRate}%):`, value: `$${selectedInvoice.taxAmount.toFixed(2)}` },
+              ].map((row) => (
+                <div key={row.label} className="flex justify-between py-2 text-sm text-slate-700">{row.label}<span>{row.value}</span></div>
+              ))}
+              <div className="flex justify-between py-3 mt-2 border-t-2 border-slate-200 text-lg font-bold text-blue-600">
+                <span>Total:</span><span>${selectedInvoice.totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Payment info box */}
+            {selectedInvoice.paymentStatus === 'Paid' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-blue-800 mb-3">Payment Information</h4>
+                {[
+                  { label: 'Paid Amount',     value: `$${selectedInvoice.paidAmount?.toFixed(2)}` },
+                  { label: 'Payment Date',    value: selectedInvoice.paidDate },
+                  { label: 'Payment Method',  value: selectedInvoice.paymentMethod },
+                  ...(selectedInvoice.paymentNote ? [{ label: 'Note', value: selectedInvoice.paymentNote }] : []),
+                ].map((item) => (
+                  <p key={item.label} className="text-sm text-blue-700 mb-1 m-0">
+                    <strong>{item.label}:</strong> {item.value}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
+            <button onClick={() => generatePDF(selectedInvoice)} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
+              Download Receipt
+            </button>
+            <button onClick={() => setSelectedInvoice(null)} className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
+              Close
+            </button>
+          </div>
+        </ModalWrap>
       )}
 
       {/* Payment Modal */}
       {showPaymentModal && selectedInvoice && (
-        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Record Payment</h2>
-              <button onClick={() => setShowPaymentModal(false)} className="close-btn">×</button>
+        <ModalWrap onClose={() => setShowPaymentModal(false)}>
+          <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200">
+            <h2 className="text-2xl font-bold text-slate-800">Record Payment</h2>
+            <button onClick={() => setShowPaymentModal(false)} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 transition-colors">×</button>
+          </div>
+
+          <div className="p-6 flex flex-col gap-4">
+            {/* Read-only fields */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Invoice Number</label>
+              <input type="text" value={selectedInvoice.invoiceNumber} disabled className={`${inputCls} ${disabledCls}`} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Total Amount</label>
+              <input type="text" value={`$${selectedInvoice.totalAmount.toFixed(2)}`} disabled className={`${inputCls} ${disabledCls}`} />
             </div>
 
-            <div className="modal-body">
-              <div className="payment-form">
-                <div className="form-group">
-                  <label>Invoice Number</label>
-                  <input type="text" value={selectedInvoice.invoiceNumber} disabled />
-                </div>
-
-                <div className="form-group">
-                  <label>Total Amount</label>
-                  <input type="text" value={`$${selectedInvoice.totalAmount.toFixed(2)}`} disabled />
-                </div>
-
-                <div className="form-group">
-                  <label>Payment Amount *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    placeholder="0.00"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Payment Method *</label>
-                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Check">Check</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Online Payment">Online Payment</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Payment Note</label>
-                  <textarea
-                    rows="3"
-                    value={paymentNote}
-                    onChange={(e) => setPaymentNote(e.target.value)}
-                    placeholder="Add any notes about this payment..."
-                  />
-                </div>
-              </div>
+            {/* Payment Amount */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Payment Amount *</label>
+              <input
+                type="number" step="0.01" placeholder="0.00"
+                value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)}
+                className={inputCls}
+              />
             </div>
 
-            <div className="modal-footer">
-              <button onClick={recordPayment} className="btn-primary">
-                Record Payment
-              </button>
-              <button onClick={() => setShowPaymentModal(false)} className="btn-secondary">
-                Cancel
-              </button>
+            {/* Payment Method */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Payment Method *</label>
+              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={inputCls}>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Check">Check</option>
+                <option value="Cash">Cash</option>
+                <option value="Credit Card">Credit Card</option>
+                <option value="Online Payment">Online Payment</option>
+              </select>
+            </div>
+
+            {/* Payment Note */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-slate-700">Payment Note</label>
+              <textarea
+                rows={3} placeholder="Add any notes about this payment..."
+                value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)}
+                className={`${inputCls} resize-none`}
+              />
             </div>
           </div>
-        </div>
+
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
+            <button onClick={recordPayment} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
+              Record Payment
+            </button>
+            <button onClick={() => setShowPaymentModal(false)} className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
+              Cancel
+            </button>
+          </div>
+        </ModalWrap>
       )}
+
+      {/* Keyframe animations */}
+      <style>{`
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+      `}</style>
     </div>
   );
 };

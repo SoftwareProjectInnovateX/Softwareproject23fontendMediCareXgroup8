@@ -1,268 +1,174 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  collection,
-  getDocs,
-  doc,
-  updateDoc,
-  query,
-  where,
-  orderBy,
-  addDoc,
-  Timestamp,
-  getDoc,
+  collection, getDocs, doc, updateDoc, query, where,
+  orderBy, addDoc, Timestamp, getDoc,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../../services/firebase";
-import "./PurchaseOrders.css";
 
 export default function PurchaseOrders() {
-  const [supplierId, setSupplierId] = useState(null);
+  const [supplierId, setSupplierId]     = useState(null);
   const [supplierName, setSupplierName] = useState("");
-
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders]             = useState([]);
+  const [loading, setLoading]           = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filterStatus, setFilterStatus] = useState("All Orders");
-
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [orderToReject, setOrderToReject] = useState(null);
 
-  /* ================= AUTH USER ================= */
+  /* ================= AUTH ================= */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setSupplierId(user.uid);
-        
-        // Try to fetch supplier name from suppliers collection first
         try {
           let userDoc = await getDoc(doc(db, "suppliers", user.uid));
           if (userDoc.exists()) {
             setSupplierName(userDoc.data().name || user.email);
           } else {
-            // Fallback to users collection
             userDoc = await getDoc(doc(db, "users", user.uid));
-            if (userDoc.exists()) {
-              setSupplierName(userDoc.data().name || userDoc.data().fullName || user.email);
-            } else {
-              setSupplierName(user.email);
-            }
+            setSupplierName(userDoc.exists()
+              ? userDoc.data().name || userDoc.data().fullName || user.email
+              : user.email);
           }
-        } catch (error) {
-          console.error("Error fetching user:", error);
-          setSupplierName(user.email);
-        }
+        } catch { setSupplierName(user.email); }
       } else {
-        setSupplierId(null);
-        setSupplierName("");
+        setSupplierId(null); setSupplierName("");
       }
     });
     return () => unsub();
   }, []);
 
-  /* ================= FETCH ORDERS ================= */
+  /* ================= FETCH ================= */
   const fetchOrders = useCallback(async () => {
-    if (!supplierId) {
-      setLoading(false);
-      return;
-    }
-
+    if (!supplierId) { setLoading(false); return; }
     try {
       setLoading(true);
-
-      const q =
-        filterStatus === "All Orders"
-          ? query(
-              collection(db, "purchaseOrders"),
-              where("supplierId", "==", supplierId),
-              orderBy("createdAt", "desc")
-            )
-          : query(
-              collection(db, "purchaseOrders"),
-              where("supplierId", "==", supplierId),
-              where("status", "==", filterStatus),
-              orderBy("createdAt", "desc")
-            );
-
+      const q = filterStatus === "All Orders"
+        ? query(collection(db, "purchaseOrders"), where("supplierId", "==", supplierId), orderBy("createdAt", "desc"))
+        : query(collection(db, "purchaseOrders"), where("supplierId", "==", supplierId), where("status", "==", filterStatus), orderBy("createdAt", "desc"));
       const snapshot = await getDocs(q);
-
-      const data = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
-
-      setOrders(data);
+      setOrders(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (error) {
       console.error("Error loading orders:", error);
       alert("Error loading orders: " + error.message);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [supplierId, filterStatus]);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  /* ================= APPROVE ORDER ================= */
+  /* ================= APPROVE ================= */
   const approveOrder = async (orderId, order) => {
     try {
-      // Check if supplier has enough stock
-      const productRef = doc(db, "products", order.productId);
+      const productRef  = doc(db, "products", order.productId);
       const productSnap = await getDoc(productRef);
-
-      if (!productSnap.exists()) {
-        alert("❌ Product not found in your inventory");
-        return;
-      }
-
+      if (!productSnap.exists()) { alert("Product not found in your inventory"); return; }
       const currentStock = productSnap.data().stock;
-
       if (currentStock < order.quantity) {
-        alert(`❌ Insufficient stock!\n\nRequired: ${order.quantity} units\nAvailable: ${currentStock} units`);
-        return;
+        alert(`Insufficient stock!\n\nRequired: ${order.quantity} units\nAvailable: ${currentStock} units`); return;
       }
+      if (!window.confirm(`Approve this order?\n\nProduct: ${order.product || order.productName}\nQuantity: ${order.quantity} units\nAmount: Rs. ${Number(order.amount || order.totalAmount).toFixed(2)}\n\nThis will deduct ${order.quantity} units from your stock.`)) return;
 
-      const confirmApprove = window.confirm(
-        `Approve this order?\n\nProduct: ${order.product || order.productName}\nQuantity: ${order.quantity} units\nAmount: Rs. ${Number(order.amount || order.totalAmount).toFixed(2)}\n\nThis will deduct ${order.quantity} units from your stock.`
-      );
-
-      if (!confirmApprove) return;
-
-      // Update order status
-      await updateDoc(doc(db, "purchaseOrders", orderId), {
-        status: "APPROVED",
-        approvedAt: Timestamp.now(),
-        approvalDate: Timestamp.now(),
-        updatedAt: Timestamp.now()
-      });
-
-      // Deduct from supplier's stock
-      await updateDoc(productRef, {
-        stock: currentStock - order.quantity,
-        updatedAt: Timestamp.now()
-      });
-
-      // 🔔 Notify admin about approval
+      await updateDoc(doc(db, "purchaseOrders", orderId), { status: "APPROVED", approvedAt: Timestamp.now(), approvalDate: Timestamp.now(), updatedAt: Timestamp.now() });
+      await updateDoc(productRef, { stock: currentStock - order.quantity, updatedAt: Timestamp.now() });
       await addDoc(collection(db, "notifications"), {
-        type: "ORDER_APPROVED",
-        recipientId: "admin",
-        recipientType: "admin",
-        orderId: orderId,
-        poId: order.poId,
-        supplierId: supplierId,
-        supplierName: supplierName,
+        type: "ORDER_APPROVED", recipientId: "admin", recipientType: "admin",
+        orderId, poId: order.poId, supplierId, supplierName,
         productName: order.product || order.productName,
-        quantity: order.quantity,
-        totalAmount: order.amount || order.totalAmount,
+        quantity: order.quantity, totalAmount: order.amount || order.totalAmount,
         adminProductId: order.adminProductId,
-        message: `✅ Order Approved: ${supplierName} approved order ${order.poId} for ${order.quantity} units of ${order.product || order.productName}`,
-        read: false,
-        createdAt: Timestamp.now(),
+        message: `Order Approved: ${supplierName} approved order ${order.poId} for ${order.quantity} units of ${order.product || order.productName}`,
+        read: false, createdAt: Timestamp.now(),
       });
-
-      console.log(`✅ Approval notification sent to admin for order ${order.poId}`);
-
-      alert("✅ Order approved successfully!\n\nStock has been deducted from your inventory.\nAdmin has been notified.");
-      fetchOrders();
-      setSelectedOrder(null);
+      alert("Order approved successfully!\n\nStock has been deducted from your inventory.\nAdmin has been notified.");
+      fetchOrders(); setSelectedOrder(null);
     } catch (error) {
       console.error("Error approving order:", error);
-      alert("❌ Failed to approve order: " + error.message);
+      alert("Failed to approve order: " + error.message);
     }
   };
 
-  /* ================= REJECT ORDER ================= */
-  const openRejectModal = (order) => {
-    setOrderToReject(order);
-    setRejectReason("");
-    setShowRejectModal(true);
-  };
+  /* ================= REJECT ================= */
+  const openRejectModal = (order) => { setOrderToReject(order); setRejectReason(""); setShowRejectModal(true); };
 
   const rejectOrder = async () => {
-    if (!rejectReason.trim()) {
-      alert("Please provide a reason for rejection");
-      return;
-    }
-
+    if (!rejectReason.trim()) { alert("Please provide a reason for rejection"); return; }
     try {
-      // Update order status
-      await updateDoc(doc(db, "purchaseOrders", orderToReject.id), {
-        status: "REJECTED",
-        rejectedAt: Timestamp.now(),
-        rejectionReason: rejectReason,
-        rejectionDate: Timestamp.now(),
-        updatedAt: Timestamp.now()
-      });
-
-      // 🔔 Notify admin about rejection
+      await updateDoc(doc(db, "purchaseOrders", orderToReject.id), { status: "REJECTED", rejectedAt: Timestamp.now(), rejectionReason: rejectReason, rejectionDate: Timestamp.now(), updatedAt: Timestamp.now() });
       await addDoc(collection(db, "notifications"), {
-        type: "ORDER_REJECTED",
-        recipientId: "admin",
-        recipientType: "admin",
-        orderId: orderToReject.id,
-        poId: orderToReject.poId,
-        supplierId: supplierId,
-        supplierName: supplierName,
+        type: "ORDER_REJECTED", recipientId: "admin", recipientType: "admin",
+        orderId: orderToReject.id, poId: orderToReject.poId, supplierId, supplierName,
         productName: orderToReject.product || orderToReject.productName,
-        quantity: orderToReject.quantity,
-        totalAmount: orderToReject.amount || orderToReject.totalAmount,
+        quantity: orderToReject.quantity, totalAmount: orderToReject.amount || orderToReject.totalAmount,
         rejectionReason: rejectReason,
-        message: `❌ Order Rejected: ${supplierName} rejected order ${orderToReject.poId} - Reason: ${rejectReason}`,
-        read: false,
-        createdAt: Timestamp.now(),
+        message: `Order Rejected: ${supplierName} rejected order ${orderToReject.poId} - Reason: ${rejectReason}`,
+        read: false, createdAt: Timestamp.now(),
       });
-
-      console.log(`✅ Rejection notification sent to admin for order ${orderToReject.poId}`);
-
-      alert("✅ Order rejected successfully.\nAdmin has been notified.");
-      setShowRejectModal(false);
-      setOrderToReject(null);
-      setRejectReason("");
-      fetchOrders();
-      setSelectedOrder(null);
+      alert("Order rejected successfully.\nAdmin has been notified.");
+      setShowRejectModal(false); setOrderToReject(null); setRejectReason("");
+      fetchOrders(); setSelectedOrder(null);
     } catch (error) {
       console.error("Error rejecting order:", error);
-      alert("❌ Failed to reject order: " + error.message);
+      alert("Failed to reject order: " + error.message);
     }
   };
 
-  /* ================= STATUS COLOR ================= */
-  const getStatusColor = (status) =>
-    ({
-      PENDING: "status-pending",
-      APPROVED: "status-approved",
-      REJECTED: "status-rejected",
-      COMPLETED: "status-completed",
-    }[status] || "status-pending");
+  /* ================= HELPERS ================= */
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case "PENDING":   return "bg-amber-100 text-amber-800";
+      case "APPROVED":  return "bg-blue-100 text-blue-800";
+      case "REJECTED":  return "bg-red-100 text-red-800";
+      case "COMPLETED": return "bg-emerald-100 text-emerald-800";
+      default:          return "bg-amber-100 text-amber-800";
+    }
+  };
 
-  /* ================= FORMAT DATE ================= */
   const formatDate = (timestamp) => {
     if (!timestamp) return "N/A";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
+
+  /* ================= SHARED MODAL WRAPPER ================= */
+  const ModalWrap = ({ onClose, maxW = "max-w-[700px]", children }) => (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
+      style={{ animation: "fadeIn 0.2s ease-out" }}
+      onClick={onClose}
+    >
+      <div
+        className={`bg-white rounded-2xl ${maxW} w-full max-h-[90vh] overflow-y-auto shadow-2xl`}
+        style={{ animation: "slideUp 0.3s ease-out" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
 
   /* ================= UI ================= */
   return (
-    <div className="po-container">
-      <div className="po-header">
-        <h1>Purchase Orders</h1>
-        <p>Orders received from MediCareX pharmacy</p>
-        {supplierName && <p className="supplier-info">Logged in as: {supplierName}</p>}
+    <div className="p-8 bg-slate-50 min-h-screen">
+
+      {/* Page Header */}
+      <div className="mb-7 bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-2xl text-white shadow-md">
+        <h1 className="text-[28px] font-bold mb-1">Purchase Orders</h1>
+        <p className="text-blue-100 text-sm">Orders received from MediCareX pharmacy</p>
+        {supplierName && (
+          <span className="inline-block mt-3 bg-white/10 text-amber-100 text-[13px] font-medium px-3 py-1 rounded-full">
+            Logged in as: {supplierName}
+          </span>
+        )}
       </div>
 
-      {/* FILTER */}
-      <div className="po-filters">
+      {/* Filters + Stats */}
+      <div className="bg-white p-5 rounded-xl shadow-sm mb-6 flex justify-between items-center flex-wrap gap-4">
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
+          className="px-4 py-2.5 border-2 border-slate-200 rounded-lg text-sm cursor-pointer bg-white min-w-[200px] transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
         >
           <option>All Orders</option>
           <option>PENDING</option>
@@ -271,240 +177,236 @@ export default function PurchaseOrders() {
           <option>COMPLETED</option>
         </select>
 
-        <div className="po-stats">
-          <span>Total: <b>{orders.length}</b></span>
-          <span>
-            Pending: <b>{orders.filter(o => o.status === "PENDING").length}</b>
-          </span>
-          <span>
-            Approved: <b>{orders.filter(o => o.status === "APPROVED").length}</b>
-          </span>
+        <div className="flex gap-6 text-sm text-slate-500 flex-wrap">
+          {[
+            { label: "Total",    value: orders.length },
+            { label: "Pending",  value: orders.filter((o) => o.status === "PENDING").length },
+            { label: "Approved", value: orders.filter((o) => o.status === "APPROVED").length },
+          ].map((s) => (
+            <span key={s.label}>
+              {s.label}: <strong className="text-slate-800 font-semibold">{s.value}</strong>
+            </span>
+          ))}
         </div>
       </div>
 
-      {/* TABLE */}
-      <div className="po-table-wrapper">
+      {/* Table */}
+      <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         {loading ? (
-          <div className="po-empty">Loading orders...</div>
+          <div className="py-20 text-center text-slate-500 text-lg">Loading orders...</div>
         ) : orders.length === 0 ? (
-          <div className="po-empty">
-            <p>No orders found</p>
-            <small>Orders from MediCareX will appear here</small>
+          <div className="py-20 text-center">
+            <p className="text-lg text-slate-500 mb-2">No orders found</p>
+            <small className="text-sm text-slate-400">Orders from MediCareX will appear here</small>
           </div>
         ) : (
-          <table className="po-table">
-            <thead>
-              <tr>
-                <th>PO ID</th>
-                <th>Product</th>
-                <th>Qty</th>
-                <th>Unit Price</th>
-                <th>Total Amount</th>
-                <th>Order Date</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id}>
-                  <td className="po-id">{o.poId}</td>
-                  <td>
-                    <div className="product-cell">
-                      <strong>{o.product || o.productName}</strong>
-                      <small>{o.productCode}</small>
-                    </div>
-                  </td>
-                  <td>{o.quantity} units</td>
-                  <td>Rs. {Number(o.unitPrice).toFixed(2)}</td>
-                  <td className="amount-cell">Rs. {Number(o.amount || o.totalAmount).toFixed(2)}</td>
-                  <td>{formatDate(o.orderDate || o.createdAt)}</td>
-                  <td>
-                    <span className={`po-status ${getStatusColor(o.status)}`}>
-                      {o.status}
-                    </span>
-                  </td>
-                  <td className="po-actions">
-                    <button className="view-btn" onClick={() => setSelectedOrder(o)}>
-                      View
-                    </button>
-
-                    {o.status === "PENDING" && (
-                      <>
-                        <button
-                          className="approve-btn"
-                          onClick={() => approveOrder(o.id, o)}
-                          title="Approve Order"
-                        >
-                          ✓ Approve
-                        </button>
-                        <button
-                          className="reject-btn"
-                          onClick={() => openRejectModal(o)}
-                          title="Reject Order"
-                        >
-                          ✕ Reject
-                        </button>
-                      </>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[800px]">
+              <thead className="bg-slate-50">
+                <tr>
+                  {["PO ID", "Product", "Qty", "Unit Price", "Total Amount", "Order Date", "Status", "Action"].map((h) => (
+                    <th key={h} className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {orders.map((o) => (
+                  <tr key={o.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
+                    <td className="px-4 py-4 font-mono font-semibold text-blue-600 text-sm">{o.poId}</td>
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-slate-800 text-sm m-0">{o.product || o.productName}</p>
+                      <p className="text-xs text-slate-400 font-mono mt-0.5 m-0">{o.productCode}</p>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-slate-700">{o.quantity} units</td>
+                    <td className="px-4 py-4 text-sm text-slate-700">Rs. {Number(o.unitPrice).toFixed(2)}</td>
+                    <td className="px-4 py-4 text-sm font-semibold text-emerald-600">
+                      Rs. {Number(o.amount || o.totalAmount).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-4 text-sm text-slate-600">{formatDate(o.orderDate || o.createdAt)}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(o.status)}`}>
+                        {o.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => setSelectedOrder(o)}
+                          className="px-3 py-1.5 bg-slate-500 hover:bg-slate-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px"
+                        >
+                          View
+                        </button>
+                        {o.status === "PENDING" && (
+                          <>
+                            <button
+                              onClick={() => approveOrder(o.id, o)}
+                              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
+                            >
+                              ✓ Approve
+                            </button>
+                            <button
+                              onClick={() => openRejectModal(o)}
+                              className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
+                            >
+                              ✕ Reject
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* ORDER DETAILS MODAL */}
+      {/* Order Details Modal */}
       {selectedOrder && (
-        <div className="po-modal-backdrop">
-          <div className="po-modal">
-            <div className="modal-header">
-              <h2>Order Details</h2>
-              <button className="close-icon" onClick={() => setSelectedOrder(null)}>×</button>
+        <ModalWrap onClose={() => setSelectedOrder(null)}>
+          {/* Header */}
+          <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
+            <h2 className="text-2xl font-bold text-slate-800 m-0">Order Details</h2>
+            <button onClick={() => setSelectedOrder(null)} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 hover:text-slate-600 transition-colors">×</button>
+          </div>
+
+          {/* Body */}
+          <div className="p-7">
+            {/* PO ID + Status */}
+            <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-slate-100">
+              <span className="text-xl font-bold text-blue-600 font-mono">{selectedOrder.poId}</span>
+              <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(selectedOrder.status)}`}>
+                {selectedOrder.status}
+              </span>
             </div>
 
-            <div className="modal-content">
-              <div className="order-id-header">
-                <span className="po-id-large">{selectedOrder.poId}</span>
-                <span className={`po-status ${getStatusColor(selectedOrder.status)}`}>
-                  {selectedOrder.status}
-                </span>
-              </div>
-
-              <div className="details-grid">
-                <div className="detail-item">
-                  <label>Product Name</label>
-                  <p>{selectedOrder.product || selectedOrder.productName}</p>
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-5 mb-6">
+              {[
+                { label: "Product Name",  value: selectedOrder.product || selectedOrder.productName },
+                { label: "Product Code",  value: selectedOrder.productCode, mono: true },
+                { label: "Category",      value: selectedOrder.category },
+                { label: "Quantity",      value: `${selectedOrder.quantity} units` },
+                { label: "Unit Price",    value: `Rs. ${Number(selectedOrder.unitPrice).toFixed(2)}` },
+                { label: "Total Amount",  value: `Rs. ${Number(selectedOrder.amount || selectedOrder.totalAmount).toFixed(2)}`, highlight: "text-emerald-600 text-lg font-bold" },
+                { label: "Order Date",    value: formatDate(selectedOrder.orderDate || selectedOrder.createdAt) },
+                ...(selectedOrder.approvalDate  ? [{ label: "Approval Date",  value: formatDate(selectedOrder.approvalDate) }]  : []),
+                ...(selectedOrder.rejectionDate ? [{ label: "Rejection Date", value: formatDate(selectedOrder.rejectionDate) }] : []),
+              ].map((item) => (
+                <div key={item.label} className="flex flex-col">
+                  <label className="text-[13px] text-slate-500 font-medium mb-1.5">{item.label}</label>
+                  <p className={`m-0 text-[15px] text-slate-800 font-medium ${item.highlight || ""} ${item.mono ? "font-mono text-sm" : ""}`}>
+                    {item.value}
+                  </p>
                 </div>
-                <div className="detail-item">
-                  <label>Product Code</label>
-                  <p>{selectedOrder.productCode}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Category</label>
-                  <p>{selectedOrder.category}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Quantity</label>
-                  <p>{selectedOrder.quantity} units</p>
-                </div>
-                <div className="detail-item">
-                  <label>Unit Price</label>
-                  <p>Rs. {Number(selectedOrder.unitPrice).toFixed(2)}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Total Amount</label>
-                  <p className="total-amount">Rs. {Number(selectedOrder.amount || selectedOrder.totalAmount).toFixed(2)}</p>
-                </div>
-                <div className="detail-item">
-                  <label>Order Date</label>
-                  <p>{formatDate(selectedOrder.orderDate || selectedOrder.createdAt)}</p>
-                </div>
-                {selectedOrder.approvalDate && (
-                  <div className="detail-item">
-                    <label>Approval Date</label>
-                    <p>{formatDate(selectedOrder.approvalDate)}</p>
-                  </div>
-                )}
-                {selectedOrder.rejectionDate && (
-                  <div className="detail-item">
-                    <label>Rejection Date</label>
-                    <p>{formatDate(selectedOrder.rejectionDate)}</p>
-                  </div>
-                )}
-              </div>
-
-              {selectedOrder.notes && (
-                <div className="notes-section">
-                  <label>Notes from Admin</label>
-                  <p>{selectedOrder.notes}</p>
-                </div>
-              )}
-
-              {selectedOrder.rejectionReason && (
-                <div className="rejection-section">
-                  <label>Rejection Reason</label>
-                  <p>{selectedOrder.rejectionReason}</p>
-                </div>
-              )}
-
-              {selectedOrder.status === "PENDING" && (
-                <div className="modal-actions">
-                  <button
-                    className="approve-btn-modal"
-                    onClick={() => approveOrder(selectedOrder.id, selectedOrder)}
-                  >
-                    ✓ Approve Order
-                  </button>
-                  <button
-                    className="reject-btn-modal"
-                    onClick={() => {
-                      setSelectedOrder(null);
-                      openRejectModal(selectedOrder);
-                    }}
-                  >
-                    ✕ Reject Order
-                  </button>
-                </div>
-              )}
+              ))}
             </div>
 
+            {/* Notes */}
+            {selectedOrder.notes && (
+              <div className="bg-slate-50 px-4 py-4 rounded-lg mb-5">
+                <label className="block text-[13px] text-slate-500 font-semibold mb-2">Notes from Admin</label>
+                <p className="m-0 text-sm text-slate-800 leading-relaxed">{selectedOrder.notes}</p>
+              </div>
+            )}
+
+            {/* Rejection Reason */}
+            {selectedOrder.rejectionReason && (
+              <div className="bg-red-50 border-l-4 border-red-500 px-4 py-4 rounded-lg mb-5">
+                <label className="block text-[13px] text-red-700 font-semibold mb-2">Rejection Reason</label>
+                <p className="m-0 text-sm text-red-900 leading-relaxed">{selectedOrder.rejectionReason}</p>
+              </div>
+            )}
+
+            {/* Approve / Reject actions */}
+            {selectedOrder.status === "PENDING" && (
+              <div className="flex gap-3 mt-6 pt-5 border-t-2 border-slate-100">
+                <button
+                  onClick={() => approveOrder(selectedOrder.id, selectedOrder)}
+                  className="flex-1 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+                >
+                  ✓ Approve Order
+                </button>
+                <button
+                  onClick={() => { setSelectedOrder(null); openRejectModal(selectedOrder); }}
+                  className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+                >
+                  ✕ Reject Order
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Close Button */}
+          <div className="px-7 pb-6">
             <button
-              className="close-btn"
               onClick={() => setSelectedOrder(null)}
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium rounded-lg border-none cursor-pointer transition-colors duration-200"
             >
               Close
             </button>
           </div>
-        </div>
+        </ModalWrap>
       )}
 
-      {/* REJECT REASON MODAL */}
+      {/* Reject Reason Modal */}
       {showRejectModal && orderToReject && (
-        <div className="po-modal-backdrop">
-          <div className="po-modal reject-modal">
-            <div className="modal-header">
-              <h2>Reject Order</h2>
-              <button className="close-icon" onClick={() => setShowRejectModal(false)}>×</button>
+        <ModalWrap onClose={() => setShowRejectModal(false)} maxW="max-w-[500px]">
+          {/* Header */}
+          <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
+            <h2 className="text-2xl font-bold text-slate-800 m-0">Reject Order</h2>
+            <button onClick={() => setShowRejectModal(false)} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 hover:text-slate-600 transition-colors">×</button>
+          </div>
+
+          {/* Body */}
+          <div className="p-7">
+            <p className="text-[15px] text-slate-800 mb-2">
+              You are about to reject order <strong>{orderToReject.poId}</strong>
+            </p>
+            <p className="text-sm text-slate-500 mb-6">
+              Product: {orderToReject.product || orderToReject.productName}
+            </p>
+
+            <div className="flex flex-col mb-6">
+              <label className="text-[15px] font-semibold text-slate-800 mb-2">
+                Reason for Rejection <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="e.g., Out of stock, Product discontinued, Pricing issue..."
+                rows={4}
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg text-sm font-[inherit] resize-y transition-all duration-200 focus:outline-none focus:border-red-400 focus:ring-4 focus:ring-red-400/10 box-border"
+              />
             </div>
 
-            <div className="modal-content">
-              <p className="reject-warning">
-                You are about to reject order <strong>{orderToReject.poId}</strong>
-              </p>
-              <p className="reject-info">Product: {orderToReject.product || orderToReject.productName}</p>
-              
-              <div className="form-group">
-                <label>Reason for Rejection *</label>
-                <textarea
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="e.g., Out of stock, Product discontinued, Pricing issue..."
-                  rows="4"
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  className="confirm-reject-btn"
-                  onClick={rejectOrder}
-                  disabled={!rejectReason.trim()}
-                >
-                  Confirm Rejection
-                </button>
-                <button
-                  className="cancel-btn"
-                  onClick={() => setShowRejectModal(false)}
-                >
-                  Cancel
-                </button>
-              </div>
+            <div className="flex gap-3 pt-5 border-t-2 border-slate-100">
+              <button
+                onClick={rejectOrder}
+                disabled={!rejectReason.trim()}
+                className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:not(:disabled):-translate-y-0.5 hover:not(:disabled):shadow-lg"
+              >
+                Confirm Rejection
+              </button>
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-lg border-none cursor-pointer transition-colors duration-200"
+              >
+                Cancel
+              </button>
             </div>
           </div>
-        </div>
+        </ModalWrap>
       )}
+
+      {/* Keyframe animations */}
+      <style>{`
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes slideUp { from{transform:translateY(30px);opacity:0} to{transform:translateY(0);opacity:1} }
+      `}</style>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import "./Header.css";
+import { FiBell, FiUser } from "react-icons/fi";
 
 export default function Header() {
   const location = useLocation();
@@ -21,9 +21,9 @@ export default function Header() {
         return { title: "Analytics", subtitle: "Sales & profit analysis" };
       case "/admin/notifications":
         return { title: "Notifications", subtitle: "System alerts & updates" };
-        case "/admin/analytics":
+      case "/admin/analytics":
         return { title: "Sales Analytics", subtitle: "Analyse sales & updates" };
-        case "/admin/adminpayments":
+      case "/admin/adminpayments":
         return { title: "Payments", subtitle: "Manage payments" };
       default:
         return { title: "Dashboard", subtitle: "Welcome to MediCareX" };
@@ -33,28 +33,39 @@ export default function Header() {
   const { title, subtitle } = getPageTitle();
 
   return (
-    <header className="header">
-      <div className="header-left">
-        <h1 className="page-title">{title}</h1>
-        <p className="page-subtitle">{subtitle}</p>
+    <header className="h-[70px] bg-[#9fbaf2] border-b border-gray-200 px-6 flex justify-between items-center">
+      
+      {/* LEFT — Page title & subtitle */}
+      <div>
+        <h1 className="text-[22px] font-semibold text-gray-900">{title}</h1>
+        <p className="text-[13px] text-gray-500">{subtitle}</p>
       </div>
 
-      <div className="header-right">
-        <button className="icon-btn">
-          🔔
-          <span className="badge">3</span>
+      {/* RIGHT — Bell + Profile */}
+      <div className="flex items-center gap-5">
+
+        {/* Notification Bell */}
+        <button className="relative p-2 rounded-full hover:bg-white/30 transition-colors cursor-pointer bg-transparent border-none">
+          <FiBell size={22} className="text-gray-800" />
+          <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+            3
+          </span>
         </button>
 
+        {/* Profile */}
         <div
-          className="profile"
+          className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => navigate("/admin/settings")}
         >
-          <span className="avatar">👤</span>
+          <div className="w-9 h-9 rounded-full bg-white/40 flex items-center justify-center">
+            <FiUser size={20} className="text-gray-800" />
+          </div>
           <div>
-            <p className="name">Admin</p>
-            <p className="role">Administrator</p>
+            <p className="text-sm font-semibold text-gray-900 leading-tight">Admin</p>
+            <p className="text-xs text-gray-600 leading-tight">Administrator</p>
           </div>
         </div>
+
       </div>
     </header>
   );

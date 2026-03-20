@@ -1,4 +1,3 @@
-// src/pages/AdminNotifications/AdminNotifications.jsx
 import React, { useState, useEffect } from 'react';
 import {
   collection,
@@ -10,10 +9,16 @@ import {
   updateDoc,
   getDoc,
   Timestamp,
-  deleteDoc
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-import './Notifications.css';
+import {
+  MdShoppingCart,
+  MdCheckCircle,
+  MdCancel,
+  MdWarning,
+  MdCampaign,
+} from 'react-icons/md';
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -22,9 +27,14 @@ const Notifications = () => {
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [processing, setProcessing] = useState(false);
 
-  const notificationTypes = ['All', 'ORDER_PLACED', 'ORDER_APPROVED', 'ORDER_REJECTED', 'LOW_STOCK_ALERT'];
+  const notificationTypes = [
+    'All',
+    'ORDER_PLACED',
+    'ORDER_APPROVED',
+    'ORDER_REJECTED',
+    'LOW_STOCK_ALERT',
+  ];
 
-  // Fetch notifications
   const fetchNotifications = async () => {
     try {
       setLoading(true);
@@ -33,14 +43,8 @@ const Notifications = () => {
         where('recipientType', '==', 'admin'),
         orderBy('createdAt', 'desc')
       );
-
       const snapshot = await getDocs(notificationsQuery);
-      const notificationsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      setNotifications(notificationsData);
+      setNotifications(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -49,37 +53,29 @@ const Notifications = () => {
     }
   };
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
+  useEffect(() => { fetchNotifications(); }, []);
 
-  // Filter notifications
-  const filteredNotifications = filter === 'All' 
-    ? notifications 
-    : notifications.filter(n => n.type === filter);
+  const filteredNotifications =
+    filter === 'All' ? notifications : notifications.filter((n) => n.type === filter);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // Mark as read
   const markAsRead = async (notificationId) => {
     try {
-      await updateDoc(doc(db, 'notifications', notificationId), {
-        read: true
-      });
+      await updateDoc(doc(db, 'notifications', notificationId), { read: true });
       fetchNotifications();
     } catch (error) {
       console.error('Error marking as read:', error);
     }
   };
 
-  // Mark all as read
   const markAllAsRead = async () => {
     try {
-      const unreadNotifications = notifications.filter(n => !n.read);
-      const updatePromises = unreadNotifications.map(n =>
-        updateDoc(doc(db, 'notifications', n.id), { read: true })
+      await Promise.all(
+        notifications
+          .filter((n) => !n.read)
+          .map((n) => updateDoc(doc(db, 'notifications', n.id), { read: true }))
       );
-      await Promise.all(updatePromises);
       fetchNotifications();
     } catch (error) {
       console.error('Error marking all as read:', error);
@@ -87,11 +83,8 @@ const Notifications = () => {
     }
   };
 
-  // Delete notification
   const deleteNotification = async (notificationId) => {
-    const confirmDelete = window.confirm('Delete this notification?');
-    if (!confirmDelete) return;
-
+    if (!window.confirm('Delete this notification?')) return;
     try {
       await deleteDoc(doc(db, 'notifications', notificationId));
       fetchNotifications();
@@ -102,169 +95,135 @@ const Notifications = () => {
     }
   };
 
-  // Handle order approval (mark as received)
   const handleOrderApproval = async (notification) => {
     try {
       setProcessing(true);
-
-      // Get order details
       const orderRef = doc(db, 'purchaseOrders', notification.orderId);
       const orderSnap = await getDoc(orderRef);
 
-      if (!orderSnap.exists()) {
-        alert('Order not found');
-        return;
-      }
+      if (!orderSnap.exists()) { alert('Order not found'); return; }
 
       const order = orderSnap.data();
-
-      // Check if order is approved
       if (order.status !== 'APPROVED') {
         alert('Order must be APPROVED before marking as received');
         return;
       }
 
-      const confirmReceive = window.confirm(
+      if (!window.confirm(
         `Mark order ${order.poId} as RECEIVED?\n\nThis will:\n- Update order status to COMPLETED\n- Add ${order.quantity} units to your inventory\n- Update product availability`
-      );
+      )) { setProcessing(false); return; }
 
-      if (!confirmReceive) {
-        setProcessing(false);
-        return;
-      }
-
-      // Update order to COMPLETED
       await updateDoc(orderRef, {
         status: 'COMPLETED',
         completionDate: Timestamp.now(),
-        updatedAt: Timestamp.now()
+        updatedAt: Timestamp.now(),
       });
 
-      // Update adminProducts stock
       const adminProductRef = doc(db, 'adminProducts', order.adminProductId);
       const adminProductSnap = await getDoc(adminProductRef);
-
       if (adminProductSnap.exists()) {
-        const currentStock = adminProductSnap.data().stock || 0;
         await updateDoc(adminProductRef, {
-          stock: currentStock + order.quantity,
+          stock: (adminProductSnap.data().stock || 0) + order.quantity,
           availability: 'in stock',
           lastRestocked: Timestamp.now(),
-          updatedAt: Timestamp.now()
+          updatedAt: Timestamp.now(),
         });
       }
 
-      // Mark notification as read
-      await updateDoc(doc(db, 'notifications', notification.id), {
-        read: true
-      });
-
-      alert('✅ Order marked as received!\n\nInventory has been updated.');
+      await updateDoc(doc(db, 'notifications', notification.id), { read: true });
+      alert('Order marked as received!\n\nInventory has been updated.');
       fetchNotifications();
       setSelectedNotification(null);
     } catch (error) {
       console.error('Error handling order approval:', error);
-      alert('❌ Failed to process order: ' + error.message);
+      alert('Failed to process order: ' + error.message);
     } finally {
       setProcessing(false);
     }
   };
 
-  // Format date
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit',
     });
   };
 
-  // Get notification icon
-  const getNotificationIcon = (type) => {
+  const getNotificationIcon = (type, size = 24) => {
     switch (type) {
-      case 'ORDER_PLACED':
-        return '🛒';
-      case 'ORDER_APPROVED':
-        return '✅';
-      case 'ORDER_REJECTED':
-        return '❌';
-      case 'LOW_STOCK_ALERT':
-        return '⚠️';
-      default:
-        return '📢';
+      case 'ORDER_PLACED':    return <MdShoppingCart size={size} className="text-blue-500" />;
+      case 'ORDER_APPROVED':  return <MdCheckCircle  size={size} className="text-emerald-500" />;
+      case 'ORDER_REJECTED':  return <MdCancel       size={size} className="text-red-500" />;
+      case 'LOW_STOCK_ALERT': return <MdWarning      size={size} className="text-amber-500" />;
+      default:                return <MdCampaign     size={size} className="text-slate-500" />;
     }
   };
 
-  // Get notification type label
-  const getTypeLabel = (type) => {
-    return type.replace(/_/g, ' ');
-  };
+  const getTypeLabel = (type) => type.replace(/_/g, ' ');
 
-  // Get notification class
-  const getNotificationClass = (type) => {
+  const getCardAccent = (type, unread) => {
+    if (unread) return 'border-blue-600';
     switch (type) {
-      case 'ORDER_PLACED':
-        return 'notif-order-placed';
-      case 'ORDER_APPROVED':
-        return 'notif-order-approved';
-      case 'ORDER_REJECTED':
-        return 'notif-order-rejected';
-      case 'LOW_STOCK_ALERT':
-        return 'notif-low-stock';
-      default:
-        return '';
+      case 'ORDER_PLACED':    return 'border-blue-400';
+      case 'ORDER_APPROVED':  return 'border-emerald-400';
+      case 'ORDER_REJECTED':  return 'border-red-400';
+      case 'LOW_STOCK_ALERT': return 'border-amber-400';
+      default:                return 'border-slate-300';
     }
   };
+
+  const statCards = [
+    { label: 'Total',          value: notifications.length,                                          accent: 'border-slate-300' },
+    { label: 'Unread',         value: unreadCount,                                                   accent: 'border-amber-400' },
+    { label: 'Order Approved', value: notifications.filter((n) => n.type === 'ORDER_APPROVED').length, accent: 'border-emerald-400' },
+    { label: 'Low Stock',      value: notifications.filter((n) => n.type === 'LOW_STOCK_ALERT').length, accent: 'border-red-400' },
+  ];
 
   return (
-    <div className="notifications-container">
-      <div className="notifications-header">
+    <div className="p-8 bg-slate-50 min-h-screen">
+
+      {/* Page Header */}
+      <div className="flex justify-between items-start mb-7 flex-wrap gap-4">
         <div>
-          <h1>Notifications</h1>
-          <p>Stay updated with supplier responses and stock alerts</p>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Notifications</h1>
+          <p className="text-slate-500 text-[15px]">Stay updated with supplier responses and stock alerts</p>
         </div>
         {unreadCount > 0 && (
-          <button className="mark-all-read-btn" onClick={markAllAsRead}>
+          <button
+            onClick={markAllAsRead}
+            className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+          >
             Mark All as Read ({unreadCount})
           </button>
         )}
       </div>
 
-      {/* Statistics */}
-      <div className="notif-stats">
-        <div className="stat-item">
-          <span className="stat-label">Total</span>
-          <span className="stat-value">{notifications.length}</span>
-        </div>
-        <div className="stat-item unread">
-          <span className="stat-label">Unread</span>
-          <span className="stat-value">{unreadCount}</span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-label">Order Approved</span>
-          <span className="stat-value">
-            {notifications.filter(n => n.type === 'ORDER_APPROVED').length}
-          </span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-label">Low Stock</span>
-          <span className="stat-value">
-            {notifications.filter(n => n.type === 'LOW_STOCK_ALERT').length}
-          </span>
-        </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-7">
+        {statCards.map((card) => (
+          <div
+            key={card.label}
+            className={`bg-white px-6 py-5 rounded-xl shadow-sm border-l-4 ${card.accent} flex justify-between items-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
+          >
+            <span className="text-sm text-slate-500 font-medium">{card.label}</span>
+            <span className="text-3xl font-bold text-slate-800">{card.value}</span>
+          </div>
+        ))}
       </div>
 
       {/* Filters */}
-      <div className="notif-filters">
-        {notificationTypes.map(type => (
+      <div className="bg-white p-5 rounded-xl shadow-sm mb-6 flex gap-3 flex-wrap">
+        {notificationTypes.map((type) => (
           <button
             key={type}
-            className={`filter-btn ${filter === type ? 'active' : ''}`}
             onClick={() => setFilter(type)}
+            className={`px-4 py-2 rounded-full border-2 text-sm font-medium cursor-pointer transition-all duration-200
+              ${filter === type
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+              }`}
           >
             {type === 'All' ? 'All' : getTypeLabel(type)}
           </button>
@@ -272,138 +231,156 @@ const Notifications = () => {
       </div>
 
       {/* Notifications List */}
-      <div className="notifications-list">
+      <div className="flex flex-col gap-4">
         {loading ? (
-          <div className="loading-state">
-            <p>Loading notifications...</p>
+          <div className="bg-white rounded-xl shadow-sm py-20 text-center text-slate-500 text-lg">
+            Loading notifications...
           </div>
         ) : filteredNotifications.length === 0 ? (
-          <div className="empty-state">
-            <p>No notifications found</p>
-            <small>You'll see updates from suppliers here</small>
+          <div className="bg-white rounded-xl shadow-sm py-20 text-center">
+            <p className="text-lg text-slate-500 mb-2">No notifications found</p>
+            <small className="text-sm text-slate-400">You'll see updates from suppliers here</small>
           </div>
         ) : (
-          filteredNotifications.map(notification => (
+          filteredNotifications.map((notification) => (
             <div
               key={notification.id}
-              className={`notification-card ${!notification.read ? 'unread' : ''} ${getNotificationClass(notification.type)}`}
               onClick={() => setSelectedNotification(notification)}
+              className={`relative bg-white px-6 py-5 rounded-xl shadow-sm border-l-4 ${getCardAccent(notification.type, !notification.read)}
+                flex gap-4 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md
+                ${!notification.read ? 'bg-slate-50' : ''}`}
             >
-              <div className="notif-icon">{getNotificationIcon(notification.type)}</div>
-              
-              <div className="notif-content">
-                <div className="notif-header-row">
-                  <span className="notif-type">{getTypeLabel(notification.type)}</span>
-                  <span className="notif-date">{formatDate(notification.createdAt)}</span>
-                </div>
-                
-                <p className="notif-message">{notification.message}</p>
-                
-                {notification.supplierName && (
-                  <div className="notif-meta">
-                    <span>Supplier: {notification.supplierName}</span>
-                  </div>
-                )}
+              {/* Icon */}
+              <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-full bg-slate-100">
+                {getNotificationIcon(notification.type, 22)}
+              </div>
 
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center mb-1.5 flex-wrap gap-1">
+                  <span className="text-[13px] font-semibold text-blue-600 uppercase tracking-wide">
+                    {getTypeLabel(notification.type)}
+                  </span>
+                  <span className="text-[13px] text-slate-400">{formatDate(notification.createdAt)}</span>
+                </div>
+                <p className="text-[15px] text-slate-800 mb-1.5 leading-relaxed m-0">{notification.message}</p>
+                {notification.supplierName && (
+                  <p className="text-[13px] text-slate-500 mt-1 m-0">Supplier: {notification.supplierName}</p>
+                )}
                 {notification.productName && (
-                  <div className="notif-meta">
-                    <span>Product: {notification.productName}</span>
-                    {notification.quantity && <span> • Qty: {notification.quantity}</span>}
-                  </div>
+                  <p className="text-[13px] text-slate-500 mt-1 m-0">
+                    Product: {notification.productName}
+                    {notification.quantity && ` • Qty: ${notification.quantity}`}
+                  </p>
                 )}
               </div>
 
-              {!notification.read && <div className="unread-badge"></div>}
+              {/* Unread dot */}
+              {!notification.read && (
+                <div className="absolute top-5 right-5 w-2.5 h-2.5 bg-blue-600 rounded-full" />
+              )}
             </div>
           ))
         )}
       </div>
 
-      {/* Notification Details Modal */}
+      {/* Modal */}
       {selectedNotification && (
-        <div className="modal-overlay" onClick={() => setSelectedNotification(null)}>
-          <div className="notif-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Notification Details</h2>
-              <button className="close-btn" onClick={() => setSelectedNotification(null)}>×</button>
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
+          onClick={() => setSelectedNotification(null)}
+          style={{ animation: 'fadeIn 0.2s ease-out' }}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-[600px] max-h-[90vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ animation: 'slideUp 0.3s ease-out' }}
+          >
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
+              <h2 className="text-2xl font-bold text-slate-800 m-0">Notification Details</h2>
+              <button
+                onClick={() => setSelectedNotification(null)}
+                className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 hover:text-slate-600 transition-all duration-200"
+              >
+                ×
+              </button>
             </div>
 
-            <div className="modal-body">
-              <div className="notif-detail-header">
-                <span className="notif-icon-large">{getNotificationIcon(selectedNotification.type)}</span>
+            {/* Modal Body */}
+            <div className="p-7">
+
+              {/* Type + Date */}
+              <div className="flex gap-4 items-start mb-6 pb-5 border-b-2 border-slate-100">
+                <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                  {getNotificationIcon(selectedNotification.type, 30)}
+                </div>
                 <div>
-                  <h3>{getTypeLabel(selectedNotification.type)}</h3>
-                  <p className="notif-date">{formatDate(selectedNotification.createdAt)}</p>
+                  <h3 className="text-lg font-semibold text-slate-800 m-0 mb-1 uppercase tracking-wide">
+                    {getTypeLabel(selectedNotification.type)}
+                  </h3>
+                  <p className="text-[13px] text-slate-400 m-0">{formatDate(selectedNotification.createdAt)}</p>
                 </div>
               </div>
 
-              <div className="notif-message-box">
-                <p>{selectedNotification.message}</p>
+              {/* Message Box */}
+              <div className="bg-slate-50 border-l-4 border-blue-500 px-4 py-4 rounded-lg mb-6">
+                <p className="m-0 text-[15px] text-slate-800 leading-relaxed">{selectedNotification.message}</p>
               </div>
 
-              <div className="notif-details-grid">
-                {selectedNotification.poId && (
-                  <div className="detail-item">
-                    <label>PO ID</label>
-                    <p>{selectedNotification.poId}</p>
-                  </div>
-                )}
-                {selectedNotification.supplierName && (
-                  <div className="detail-item">
-                    <label>Supplier</label>
-                    <p>{selectedNotification.supplierName}</p>
-                  </div>
-                )}
-                {selectedNotification.productName && (
-                  <div className="detail-item">
-                    <label>Product</label>
-                    <p>{selectedNotification.productName}</p>
-                  </div>
-                )}
-                {selectedNotification.quantity && (
-                  <div className="detail-item">
-                    <label>Quantity</label>
-                    <p>{selectedNotification.quantity} units</p>
-                  </div>
-                )}
-                {selectedNotification.totalAmount && (
-                  <div className="detail-item">
-                    <label>Total Amount</label>
-                    <p>Rs. {Number(selectedNotification.totalAmount).toFixed(2)}</p>
-                  </div>
-                )}
+              {/* Details Grid */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                {[
+                  selectedNotification.poId          && { label: 'PO ID',        value: selectedNotification.poId },
+                  selectedNotification.supplierName  && { label: 'Supplier',     value: selectedNotification.supplierName },
+                  selectedNotification.productName   && { label: 'Product',      value: selectedNotification.productName },
+                  selectedNotification.quantity      && { label: 'Quantity',     value: `${selectedNotification.quantity} units` },
+                  selectedNotification.totalAmount   && { label: 'Total Amount', value: `Rs. ${Number(selectedNotification.totalAmount).toFixed(2)}` },
+                ]
+                  .filter(Boolean)
+                  .map((item) => (
+                    <div key={item.label} className="flex flex-col">
+                      <label className="text-[13px] text-slate-500 font-medium mb-1.5">{item.label}</label>
+                      <p className="m-0 text-[15px] text-slate-800 font-semibold">{item.value}</p>
+                    </div>
+                  ))}
               </div>
 
-              {/* Action buttons based on notification type */}
+              {/* Approve Action */}
               {selectedNotification.type === 'ORDER_APPROVED' && (
-                <div className="action-section">
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 text-center mb-6">
                   <button
-                    className="receive-order-btn"
                     onClick={() => handleOrderApproval(selectedNotification)}
                     disabled={processing || selectedNotification.read}
+                    className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 hover:not(:disabled):-translate-y-0.5 hover:not(:disabled):shadow-lg mb-2"
                   >
-                    {processing ? 'Processing...' : selectedNotification.read ? 'Already Processed' : '✓ Mark as Received'}
+                    {processing
+                      ? 'Processing...'
+                      : selectedNotification.read
+                      ? 'Already Processed'
+                      : '✓ Mark as Received'}
                   </button>
-                  <p className="action-hint">
-                    {selectedNotification.read 
-                      ? 'This order has been processed' 
+                  <p className="m-0 text-[13px] text-blue-700">
+                    {selectedNotification.read
+                      ? 'This order has been processed'
                       : 'Click to confirm product receipt and update inventory'}
                   </p>
                 </div>
               )}
 
-              <div className="modal-actions">
+              {/* Modal Footer Actions */}
+              <div className="flex gap-3 pt-5 border-t-2 border-slate-100 flex-wrap">
                 {!selectedNotification.read && (
                   <button
-                    className="mark-read-btn"
                     onClick={() => markAsRead(selectedNotification.id)}
+                    className="flex-1 py-3 px-5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
                   >
                     Mark as Read
                   </button>
                 )}
                 <button
-                  className="delete-btn"
                   onClick={() => deleteNotification(selectedNotification.id)}
+                  className="flex-1 py-3 px-5 bg-slate-100 hover:bg-red-500 text-red-500 hover:text-white border-2 border-red-400 text-sm font-semibold rounded-lg cursor-pointer transition-all duration-200"
                 >
                   Delete
                 </button>
@@ -412,6 +389,18 @@ const Notifications = () => {
           </div>
         </div>
       )}
+
+      {/* Keyframe animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { transform: translateY(30px); opacity: 0; }
+          to   { transform: translateY(0);    opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };

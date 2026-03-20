@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../../services/firebase";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import "./AdminDashboard.css";
+import Card from "../../components/Card";
+import StatusBadge from "../../components/StatusBadge";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState(0);
@@ -19,12 +27,10 @@ export default function AdminDashboard() {
 
   const fetchAllData = async () => {
     try {
-      // Fetch counts
       const usersSnap = await getDocs(collection(db, "users"));
       const suppliersSnap = await getDocs(collection(db, "suppliers"));
       const productsSnap = await getDocs(collection(db, "products"));
-      
-      // Fetch orders and purchase orders
+
       const ordersSnap = await getDocs(collection(db, "orders"));
       const purchaseOrdersSnap = await getDocs(collection(db, "purchaseOrders"));
 
@@ -32,60 +38,68 @@ export default function AdminDashboard() {
       setSuppliers(suppliersSnap.size);
       setProducts(productsSnap.size);
 
-      // Calculate total revenue from orders
-      const orders = ordersSnap.docs.map(doc => doc.data());
-      const revenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+      const orders = ordersSnap.docs.map((doc) => doc.data());
+      const revenue = orders.reduce(
+        (sum, order) => sum + (order.totalAmount || 0),
+        0
+      );
       setTotalRevenue(revenue);
 
-      // Calculate total cost from purchase orders
-      const purchaseOrders = purchaseOrdersSnap.docs.map(doc => doc.data());
-      const cost = purchaseOrders.reduce((sum, po) => sum + (po.amount || 0), 0);
+      const purchaseOrders = purchaseOrdersSnap.docs.map((doc) => doc.data());
+      const cost = purchaseOrders.reduce(
+        (sum, po) => sum + (po.amount || 0),
+        0
+      );
 
-      // Calculate profit
-      const profit = revenue - cost;
-      setTotalProfit(profit);
+      setTotalProfit(revenue - cost);
 
-      // Fetch recent purchase orders
       const recentQ = query(
         collection(db, "purchaseOrders"),
         orderBy("createdAt", "desc"),
         limit(5)
       );
       const recentSnap = await getDocs(recentQ);
-      setRecentOrders(recentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setRecentOrders(
+        recentSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
 
-      // Calculate category sales from orders
       const categoryMap = {};
-      orders.forEach(order => {
+      orders.forEach((order) => {
         const category = order.category || "Uncategorized";
-        categoryMap[category] = (categoryMap[category] || 0) + (order.totalAmount || 0);
+        categoryMap[category] =
+          (categoryMap[category] || 0) + (order.totalAmount || 0);
       });
 
-      const categoryData = Object.keys(categoryMap).map(key => ({
-        category: key,
-        total: categoryMap[key]
-      }));
-
-      setCategorySales(categoryData);
+      setCategorySales(
+        Object.keys(categoryMap).map((key) => ({
+          category: key,
+          total: categoryMap[key],
+        }))
+      );
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     }
   };
 
   return (
-    <div className="dashboard">
-     
+    <div className="p-6 bg-[#f5f7fb] min-h-screen">
+
       {/* SUMMARY CARDS */}
-      <div className="cards">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card title="Total Users" value={users} />
         <Card title="Suppliers" value={suppliers} />
         <Card title="Products" value={products} />
-        <Card title="Total Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} />
+        <Card
+          title="Total Revenue"
+          value={`Rs. ${totalRevenue.toLocaleString()}`}
+        />
       </div>
 
       {/* CHART */}
-      <div className="chart-box">
-        <h3>Sales by Category</h3>
+      <div className="bg-white p-6 rounded-2xl mt-8 shadow-[0_8px_20px_rgba(0,0,0,0.05)]">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Sales by Category
+        </h3>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={categorySales}>
             <XAxis dataKey="category" />
@@ -97,34 +111,37 @@ export default function AdminDashboard() {
       </div>
 
       {/* RECENT ORDERS */}
-      <div className="table-box">
-        <h3>Recent Orders</h3>
-        <table>
-          <thead>
+      <div className="bg-white p-6 rounded-2xl mt-8 shadow-[0_8px_20px_rgba(0,0,0,0.05)]">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Recent Orders
+        </h3>
+        <table className="w-full border-collapse text-sm">
+          <thead className="bg-slate-100">
             <tr>
-              <th>Order ID</th>
-              <th>Product</th>
-              <th>Quantity</th>
-              <th>Status</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Order ID</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Product</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Quantity</th>
+              <th className="p-3 text-left font-semibold text-gray-700">Status</th>
             </tr>
           </thead>
           <tbody>
             {recentOrders.length === 0 ? (
               <tr>
-                <td colSpan="4" style={{ textAlign: "center", color: "#9e9e9e" }}>
+                <td colSpan="4" className="p-3 text-center text-gray-400">
                   No recent orders
                 </td>
               </tr>
             ) : (
-              recentOrders.map(order => (
-                <tr key={order.id}>
-                  <td>{order.poId || order.id}</td>
-                  <td>{order.product || "N/A"}</td>
-                  <td>{order.quantity || 0}</td>
-                  <td>
-                    <span className={`status-badge ${(order.status || "pending").toLowerCase()}`}>
-                      {order.status || "PENDING"}
-                    </span>
+              recentOrders.map((order) => (
+                <tr
+                  key={order.id}
+                  className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  <td className="p-3 text-gray-600">{order.poId || order.id}</td>
+                  <td className="p-3 text-gray-600">{order.product || "N/A"}</td>
+                  <td className="p-3 text-gray-600">{order.quantity || 0}</td>
+                  <td className="p-3">
+                    <StatusBadge status={order.status || "pending"} />
                   </td>
                 </tr>
               ))
@@ -136,11 +153,5 @@ export default function AdminDashboard() {
   );
 }
 
-function Card({ title, value }) {
-  return (
-    <div className="card">
-      <p>{title}</p>
-      <h3>{value}</h3>
-    </div>
-  );
-}
+
+
