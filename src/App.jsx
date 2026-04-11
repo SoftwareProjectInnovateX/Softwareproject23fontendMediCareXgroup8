@@ -3,7 +3,8 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 /* ================== AUTH PAGES ================== */
-import Auth from "./pages/auth/Auth";
+import Auth from "./pages/auth/Login";
+import Auth from "./pages/auth/Register";
 
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
@@ -28,15 +29,16 @@ import Notifications from "./pages/admin/Notifications";
 import UserManagement from "./pages/admin/UserManagement";
 import OrderManagement from "./pages/admin/OrderManagement";
 import AdminPayments from "./pages/admin/AdminPayments";
+import Login from "./pages/auth/Login";
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
         {/* ========== PUBLIC AUTH ROUTES ========== */}
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/login" element={<Navigate to="/auth" replace />} />
-        <Route path="/register" element={<Navigate to="/auth" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/auth" element={<Navigate to="/login" replace />} /> 
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/auth" replace />} />
@@ -80,7 +82,7 @@ export default function App() {
         </Route>
 
         {/* ========== 404 - NOT FOUND ========== */}
-        <Route path="*" element={<Navigate to="/auth" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </AuthProvider>
   );
