@@ -3,8 +3,8 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 /* ================== AUTH PAGES ================== */
-import Auth from "./pages/auth/Login";
-import Auth from "./pages/auth/Register";
+import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
 
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
@@ -29,7 +29,6 @@ import Notifications from "./pages/admin/Notifications";
 import UserManagement from "./pages/admin/UserManagement";
 import OrderManagement from "./pages/admin/OrderManagement";
 import AdminPayments from "./pages/admin/AdminPayments";
-import Login from "./pages/auth/Login";
 
 export default function App() {
   return (
