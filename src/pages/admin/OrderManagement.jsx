@@ -183,7 +183,7 @@ const OrderManagement = () => {
                 {filteredOrders.map((order) => (
                   <tr key={order.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
                     <td className="px-4 py-4 font-mono font-semibold text-blue-600 text-sm">
-                      {order.poId}
+                      {order.productId}
                     </td>
                     <td className="px-4 py-4">
                       <p className="font-semibold text-slate-800 text-sm m-0">{order.productName}</p>
@@ -193,7 +193,7 @@ const OrderManagement = () => {
                     <td className="px-4 py-4 text-sm text-slate-800">{order.quantity} units</td>
                     <td className="px-4 py-4 text-sm text-slate-800">Rs. {Number(order.unitPrice).toFixed(2)}</td>
                     <td className="px-4 py-4 text-sm font-semibold text-emerald-600">
-                      Rs. {Number(order.totalAmount).toFixed(2)}
+                      Rs. {(order.quantity * order.unitPrice).toFixed(2)}
                     </td>
                     <td className="px-4 py-4">
                       <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(order.status)}`}>
