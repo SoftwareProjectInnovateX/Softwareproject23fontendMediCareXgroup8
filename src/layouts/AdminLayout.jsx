@@ -9,7 +9,7 @@ export default function AdminLayout() {
 
       <div style={{ marginLeft: "240px", width: "100%" }}>
         <Header />
-        <main style={{ padding: "20px" }}>
+        <main style={{ padding: "20px"  }}>
           <Outlet />
         </main>
       </div>
