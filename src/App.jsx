@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 /* ================== AUTH PAGES ================== */
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import ForgotPassword from "./pages/auth/ForgotPassword";
 
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
@@ -37,6 +38,7 @@ export default function App() {
         {/* ========== PUBLIC AUTH ROUTES ========== */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} /> 
 
         {/* Default redirect */}
