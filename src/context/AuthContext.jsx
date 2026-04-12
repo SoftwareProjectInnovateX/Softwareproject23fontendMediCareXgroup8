@@ -12,6 +12,7 @@ import {
   getDoc,
   collection,
   getDocs,
+  addDoc,
   Timestamp
 } from 'firebase/firestore';
 import { auth, db } from "../services/firebase";
@@ -52,43 +53,92 @@ export function AuthProvider({ children }) {
 
   // Register new user
   const register = async (userData) => {
-  const { fullName, email, password, phone } = userData;
+  const { role } = userData;
 
   try {
-    // 1. Create Firebase Auth account
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+    if (role === 'customer') {
+      // ── Customer: create account immediately ──
+      const { fullName, email, password, phone } = userData;
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      const customerId = await generateNextId('users', 'C');
 
-    // 2. Generate customer ID
-    const customerId = await generateNextId('users', 'C');
+      const savedUserData = {
+        customerId,
+        userId:    user.uid,
+        fullName,
+        email,
+        phone:     phone || '',
+        role:      'customer',
+        status:    'active',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
 
-    // 3. Save to Firestore — always customer
-    const savedUserData = {
-      customerId,
-      userId:    user.uid,
-      fullName,
-      email,
-      phone:     phone || '',
-      role:      'customer',   // ← always customer
-      status:    'active',
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    };
+      await setDoc(doc(db, 'users', user.uid), savedUserData);
+      sessionStorage.setItem('userId',    user.uid);
+      sessionStorage.setItem('userRole',  'customer');
+      sessionStorage.setItem('userName',  fullName);
+      sessionStorage.setItem('userEmail', email);
+      setUserRole('customer');
 
-    await setDoc(doc(db, 'users', user.uid), savedUserData);
+      return {
+        success: true,
+        user: { uid: user.uid, email, role: 'customer', ...savedUserData },
+      };
 
-    // 4. Store in sessionStorage
-    sessionStorage.setItem('userId',    user.uid);
-    sessionStorage.setItem('userRole',  'customer');
-    sessionStorage.setItem('userName',  fullName);
-    sessionStorage.setItem('userEmail', email);
+    } else if (role === 'supplier') {
+      // ── Supplier: save as pending request (NO Firebase Auth yet) ──
+      const {
+        companyName, email, password, contactPerson, phone,
+        businessRegNo, businessAddress, categories,
+        bankName, accountNumber, accountHolderName,
+      } = userData;
 
-    setUserRole('customer');
+      // Save request to pendingRequests collection
+      await addDoc(collection(db, 'pendingRequests'), {
+        type:               'supplier',
+        companyName,
+        email,
+        password,           // will be used when admin approves
+        contactPerson,
+        phone,
+        businessRegNo,
+        businessAddress,
+        categories:         categories || [],
+        bankName,
+        accountNumber,
+        accountHolderName,
+        status:             'pending',
+        requestedAt:        Timestamp.now(),
+      });
 
-    return {
-      success: true,
-      user: { uid: user.uid, email: user.email, role: 'customer', ...savedUserData },
-    };
+      return { success: true, pending: true };
+
+    } else if (role === 'pharmacist') {
+      // ── Pharmacist: save as pending request (NO Firebase Auth yet) ──
+      const {
+        fullName, email, password, phone,
+        nicNumber, licenseNumber, licenseExpiry, specialization,
+      } = userData;
+
+      await addDoc(collection(db, 'pendingRequests'), {
+        type:          'pharmacist',
+        fullName,
+        email,
+        password,      // will be used when admin approves
+        phone,
+        nicNumber,
+        licenseNumber,
+        licenseExpiry,
+        specialization,
+        status:        'pending',
+        requestedAt:   Timestamp.now(),
+      });
+
+      return { success: true, pending: true };
+    }
+
   } catch (error) {
     console.error('Registration error:', error);
     let message = 'Registration failed';
