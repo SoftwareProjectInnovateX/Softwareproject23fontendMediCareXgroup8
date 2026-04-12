@@ -31,7 +31,7 @@ import Notifications from "./pages/admin/Notifications";
 import UserManagement from "./pages/admin/UserManagement";
 import OrderManagement from "./pages/admin/OrderManagement";
 import AdminPayments from "./pages/admin/AdminPayments";
-import AdminRegister from "./pages/admin/AdminRegister";
+import AccountRequests from "./pages/admin/AccountRequests";
 
 export default function App() {
   return (
@@ -83,7 +83,7 @@ export default function App() {
           <Route path="usermanagement" element={<UserManagement />} />
           <Route path="ordermanagement" element={<OrderManagement />} />
           <Route path="adminPayments" element={<AdminPayments />} />
-          <Route path="register-user" element={<AdminRegister />} />
+          <Route path="account-requests" element={<AccountRequests />} />
         </Route>
 
         {/* ========== 404 - NOT FOUND ========== */}
