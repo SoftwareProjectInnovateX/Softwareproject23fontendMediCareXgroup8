@@ -6,6 +6,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import CustomerDashboard from "./pages/customer/CustomerDashboard"; //to use for testings
 
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
@@ -41,9 +42,10 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} /> 
+        <Route path="/customer" element={<CustomerDashboard />} /> 
 
         {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/auth" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* ========== SUPPLIER ROUTES (Protected) ========== */}
         <Route
