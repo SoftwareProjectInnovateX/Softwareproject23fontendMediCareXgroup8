@@ -3,7 +3,10 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 /* ================== AUTH PAGES ================== */
-import Auth from "./pages/auth/Auth";
+import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import CustomerDashboard from "./pages/customer/CustomerDashboard"; //to use for testings
 
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
@@ -28,18 +31,21 @@ import Notifications from "./pages/admin/Notifications";
 import UserManagement from "./pages/admin/UserManagement";
 import OrderManagement from "./pages/admin/OrderManagement";
 import AdminPayments from "./pages/admin/AdminPayments";
+import AccountRequests from "./pages/admin/AccountRequests";
 
 export default function App() {
   return (
     <AuthProvider>
       <Routes>
         {/* ========== PUBLIC AUTH ROUTES ========== */}
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/login" element={<Navigate to="/auth" replace />} />
-        <Route path="/register" element={<Navigate to="/auth" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/auth" element={<Navigate to="/login" replace />} /> 
+        <Route path="/customer" element={<CustomerDashboard />} /> 
 
         {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/auth" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
 
         {/* ========== SUPPLIER ROUTES (Protected) ========== */}
         <Route
@@ -77,10 +83,11 @@ export default function App() {
           <Route path="usermanagement" element={<UserManagement />} />
           <Route path="ordermanagement" element={<OrderManagement />} />
           <Route path="adminPayments" element={<AdminPayments />} />
+          <Route path="account-requests" element={<AccountRequests />} />
         </Route>
 
         {/* ========== 404 - NOT FOUND ========== */}
-        <Route path="*" element={<Navigate to="/auth" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </AuthProvider>
   );

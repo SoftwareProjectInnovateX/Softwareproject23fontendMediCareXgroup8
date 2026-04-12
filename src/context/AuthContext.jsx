@@ -12,6 +12,7 @@ import {
   getDoc,
   collection,
   getDocs,
+  addDoc,
   Timestamp
 } from 'firebase/firestore';
 import { auth, db } from "../services/firebase";
@@ -52,133 +53,101 @@ export function AuthProvider({ children }) {
 
   // Register new user
   const register = async (userData) => {
-    const { fullName, email, password, role, phone, contactPerson, categories, licenseNumber } = userData;
+  const { role } = userData;
 
-    try {
-      // 1. Create Firebase Auth account
+  try {
+    if (role === 'customer') {
+      // ── Customer: create account immediately ──
+      const { fullName, email, password, phone } = userData;
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      const customerId = await generateNextId('users', 'C');
 
-      let savedUserData = null;
-
-      // 2. Save to role-specific collections
-      switch (role) {
-        case 'supplier':
-          // Save to suppliers collection
-          const supplierId = await generateNextId('suppliers', 'S');
-          savedUserData = {
-            supplierId: supplierId,
-            userId: user.uid,
-            name: fullName,
-            email: email,
-            phone: phone || '',
-            contactPerson: contactPerson || fullName,
-            categories: categories || [],
-            rating: 0,
-            status: 'active',
-            role: 'supplier',
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
-          };
-          await setDoc(doc(db, 'suppliers', user.uid), savedUserData);
-          console.log(`✅ Supplier saved to suppliers collection with ID: ${supplierId}`);
-          break;
-
-        case 'customer':
-          // Save to users collection (customers)
-          const customerId = await generateNextId('users', 'C');
-          savedUserData = {
-            customerId: customerId,
-            userId: user.uid,
-            fullName: fullName,
-            email: email,
-            phone: phone || '',
-            role: 'customer',
-            status: 'active',
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
-          };
-          await setDoc(doc(db, 'users', user.uid), savedUserData);
-          console.log(`✅ Customer saved to users collection with ID: ${customerId}`);
-          break;
-
-        case 'pharmacist':
-          // Save to pharmacists collection
-          const pharmacistId = await generateNextId('pharmacists', 'P');
-          savedUserData = {
-            pharmacistId: pharmacistId,
-            userId: user.uid,
-            name: fullName,
-            email: email,
-            phone: phone || '',
-            licenseNumber: licenseNumber || '',
-            specialization: categories?.[0] || 'General',
-            role: 'pharmacist',
-            status: 'active',
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
-          };
-          await setDoc(doc(db, 'pharmacists', user.uid), savedUserData);
-          console.log(`✅ Pharmacist saved to pharmacists collection with ID: ${pharmacistId}`);
-          break;
-
-        case 'admin':
-          // Save to admins collection
-          const adminId = await generateNextId('admins', 'A');
-          savedUserData = {
-            adminId: adminId,
-            userId: user.uid,
-            fullName: fullName,
-            email: email,
-            phone: phone || '',
-            role: 'admin',
-            permissions: ['all'],
-            status: 'active',
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
-          };
-          await setDoc(doc(db, 'admins', user.uid), savedUserData);
-          console.log(`✅ Admin saved to admins collection with ID: ${adminId}`);
-          break;
-
-        default:
-          throw new Error('Invalid role specified');
-      }
-
-      // 3. Store user info in sessionStorage (tab-specific)
-      sessionStorage.setItem('userId', user.uid);
-      sessionStorage.setItem('userRole', role);
-      sessionStorage.setItem('userName', fullName);
-      sessionStorage.setItem('userEmail', email);
-
-      // Set states
-      setUserRole(role);
-
-      // Return user data with role
-      return { 
-        success: true, 
-        user: {
-          uid: user.uid,
-          email: user.email,
-          role: role,
-          ...savedUserData
-        }
+      const savedUserData = {
+        customerId,
+        userId:    user.uid,
+        fullName,
+        email,
+        phone:     phone || '',
+        role:      'customer',
+        status:    'active',
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       };
-    } catch (error) {
-      console.error('Registration error:', error);
-      
-      let message = 'Registration failed';
-      if (error.code === 'auth/email-already-in-use') {
-        message = 'Email already registered';
-      } else if (error.code === 'auth/weak-password') {
-        message = 'Password should be at least 6 characters';
-      } else if (error.code === 'auth/invalid-email') {
-        message = 'Invalid email address';
-      }
-      
-      throw new Error(message);
+
+      await setDoc(doc(db, 'users', user.uid), savedUserData);
+      sessionStorage.setItem('userId',    user.uid);
+      sessionStorage.setItem('userRole',  'customer');
+      sessionStorage.setItem('userName',  fullName);
+      sessionStorage.setItem('userEmail', email);
+      setUserRole('customer');
+
+      return {
+        success: true,
+        user: { uid: user.uid, email, role: 'customer', ...savedUserData },
+      };
+
+    } else if (role === 'supplier') {
+      // ── Supplier: save as pending request (NO Firebase Auth yet) ──
+      const {
+        companyName, email, password, contactPerson, phone,
+        businessRegNo, businessAddress, categories,
+        bankName, accountNumber, accountHolderName,
+      } = userData;
+
+      // Save request to pendingRequests collection
+      await addDoc(collection(db, 'pendingRequests'), {
+        type:               'supplier',
+        companyName,
+        email,
+        password,           // will be used when admin approves
+        contactPerson,
+        phone,
+        businessRegNo,
+        businessAddress,
+        categories:         categories || [],
+        bankName,
+        accountNumber,
+        accountHolderName,
+        status:             'pending',
+        requestedAt:        Timestamp.now(),
+      });
+
+      return { success: true, pending: true };
+
+    } else if (role === 'pharmacist') {
+      // ── Pharmacist: save as pending request (NO Firebase Auth yet) ──
+      const {
+        fullName, email, password, phone,
+        nicNumber, licenseNumber, licenseExpiry, specialization,
+      } = userData;
+
+      await addDoc(collection(db, 'pendingRequests'), {
+        type:          'pharmacist',
+        fullName,
+        email,
+        password,      // will be used when admin approves
+        phone,
+        nicNumber,
+        licenseNumber,
+        licenseExpiry,
+        specialization,
+        status:        'pending',
+        requestedAt:   Timestamp.now(),
+      });
+
+      return { success: true, pending: true };
     }
-  };
+
+  } catch (error) {
+    console.error('Registration error:', error);
+    let message = 'Registration failed';
+    if (error.code === 'auth/email-already-in-use') message = 'Email already registered';
+    else if (error.code === 'auth/weak-password')   message = 'Password too weak';
+    else if (error.code === 'auth/invalid-email')   message = 'Invalid email address';
+    throw new Error(message);
+  }
+};
 
   // Login user - REMOVED role validation to allow concurrent logins
   const login = async (email, password) => {
