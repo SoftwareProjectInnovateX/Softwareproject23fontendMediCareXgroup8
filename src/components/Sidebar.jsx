@@ -13,7 +13,7 @@ import {
   MdLogout,
   MdChevronLeft,
   MdChevronRight,
-  MdPersonAdd,
+  MdAssignmentInd,
 } from "react-icons/md";
 
 export default function Sidebar() {
@@ -30,8 +30,7 @@ export default function Sidebar() {
     { id: 7, icon: <MdBarChart size={22} />, text: "Analytics", path: "/admin/analytics" },
     { id: 8, icon: <MdNotifications size={22} />, text: "Notifications", path: "/admin/notifications" },
     { id: 9, icon: <MdPayment size={22} />, text: "Admin Payments", path: "/admin/adminPayments" },
-    { id: 10, icon: <MdPersonAdd size={22} />, text: "Register User", path: "/admin/register-user" },
-    //{ id: 10, icon: <MdPersonAdd size={22} />, text: "Registration", path: "/admin/register-user" },
+    { id: 10, icon: <MdAssignmentInd size={22} />, text: "Account Requests", path: "/admin/account-requests" },
   ];
 
   const handleLogout = () => {
