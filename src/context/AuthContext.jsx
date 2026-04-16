@@ -31,135 +31,138 @@ export function AuthProvider({ children }) {
       const collectionRef = collection(db, collectionName);
       const snapshot = await getDocs(collectionRef);
       
-      // Get the highest number
       let maxNum = 0;
       snapshot.forEach(doc => {
         const data = doc.data();
-        const idField = `${collectionName.slice(0, -1)}Id`; // e.g., supplierId, customerId
+        const idField = `${collectionName.slice(0, -1)}Id`;
         if (data[idField]) {
           const num = parseInt(data[idField].replace(prefix, ''));
           if (num > maxNum) maxNum = num;
         }
       });
       
-      // Generate next ID
       const nextNum = maxNum + 1;
       return `${prefix}${String(nextNum).padStart(3, '0')}`;
     } catch (error) {
       console.error(`Error generating ${collectionName} ID:`, error);
-      return `${prefix}${String(Date.now()).slice(-3)}`; // Fallback
+      return `${prefix}${String(Date.now()).slice(-3)}`;
     }
   };
 
   // Register new user
   const register = async (userData) => {
-  const { role } = userData;
+    const { role } = userData;
 
-  try {
-    if (role === 'customer') {
-      // ── Customer: create account immediately ──
-      const { fullName, email, password, phone } = userData;
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      const customerId = await generateNextId('users', 'C');
+    try {
+      if (role === 'customer') {
+        const { fullName, email, password, phone } = userData;
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
 
-      const savedUserData = {
-        customerId,
-        userId:    user.uid,
-        fullName,
-        email,
-        phone:     phone || '',
-        role:      'customer',
-        status:    'active',
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
+        // ✅ Fix: correctly find the highest existing customerId
+        const snapshot = await getDocs(collection(db, 'users'));
+        let maxNum = 0;
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.customerId) {
+            const num = parseInt(data.customerId.replace('C', ''));
+            if (num > maxNum) maxNum = num;
+          }
+        });
+        const customerId = `C${String(maxNum + 1).padStart(3, '0')}`;
 
-      await setDoc(doc(db, 'users', user.uid), savedUserData);
-      sessionStorage.setItem('userId',    user.uid);
-      sessionStorage.setItem('userRole',  'customer');
-      sessionStorage.setItem('userName',  fullName);
-      sessionStorage.setItem('userEmail', email);
-      setUserRole('customer');
+        const savedUserData = {
+          customerId,
+          userId:    user.uid,
+          fullName,
+          email,
+          phone:     phone || '',
+          role:      'customer',
+          status:    'active',
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        };
 
-      return {
-        success: true,
-        user: { uid: user.uid, email, role: 'customer', ...savedUserData },
-      };
+        await setDoc(doc(db, 'users', user.uid), savedUserData);
+        sessionStorage.setItem('userId',    user.uid);
+        sessionStorage.setItem('userRole',  'customer');
+        sessionStorage.setItem('userName',  fullName);
+        sessionStorage.setItem('userEmail', email);
+        setUserRole('customer');
 
-    } else if (role === 'supplier') {
-      // ── Supplier: save as pending request (NO Firebase Auth yet) ──
-      const {
-        companyName, email, password, contactPerson, phone,
-        businessRegNo, businessAddress, categories,
-        bankName, accountNumber, accountHolderName,
-      } = userData;
+        return {
+          success: true,
+          user: { uid: user.uid, email, role: 'customer', ...savedUserData },
+        };
 
-      // Save request to pendingRequests collection
-      await addDoc(collection(db, 'pendingRequests'), {
-        type:               'supplier',
-        companyName,
-        email,
-        password,           // will be used when admin approves
-        contactPerson,
-        phone,
-        businessRegNo,
-        businessAddress,
-        categories:         categories || [],
-        bankName,
-        accountNumber,
-        accountHolderName,
-        status:             'pending',
-        requestedAt:        Timestamp.now(),
-      });
+      } else if (role === 'supplier') {
+        const {
+          companyName, email, password, contactPerson, phone,
+          businessRegNo, businessAddress, categories,
+          bankName, accountNumber, accountHolderName,
+        } = userData;
 
-      return { success: true, pending: true };
+        await addDoc(collection(db, 'pendingRequests'), {
+          type:               'supplier',
+          companyName,
+          email,
+          password,
+          contactPerson,
+          phone,
+          businessRegNo,
+          businessAddress,
+          categories:         categories || [],
+          bankName,
+          accountNumber,
+          accountHolderName,
+          status:             'pending',
+          requestedAt:        Timestamp.now(),
+        });
 
-    } else if (role === 'pharmacist') {
-      // ── Pharmacist: save as pending request (NO Firebase Auth yet) ──
-      const {
-        fullName, email, password, phone,
-        nicNumber, licenseNumber, licenseExpiry, specialization,
-      } = userData;
+        return { success: true, pending: true };
 
-      await addDoc(collection(db, 'pendingRequests'), {
-        type:          'pharmacist',
-        fullName,
-        email,
-        password,      // will be used when admin approves
-        phone,
-        nicNumber,
-        licenseNumber,
-        licenseExpiry,
-        specialization,
-        status:        'pending',
-        requestedAt:   Timestamp.now(),
-      });
+      } else if (role === 'pharmacist') {
+        const {
+          fullName, email, password, phone,
+          nicNumber, licenseNumber, licenseExpiry, specialization,
+        } = userData;
 
-      return { success: true, pending: true };
+        await addDoc(collection(db, 'pendingRequests'), {
+          type:          'pharmacist',
+          fullName,
+          email,
+          password,
+          phone,
+          nicNumber,
+          licenseNumber,
+          licenseExpiry,
+          specialization,
+          status:        'pending',
+          requestedAt:   Timestamp.now(),
+        });
+
+        return { success: true, pending: true };
+      }
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      let message = 'Registration failed';
+      if (error.code === 'auth/email-already-in-use') message = 'Email already registered';
+      else if (error.code === 'auth/weak-password')   message = 'Password too weak';
+      else if (error.code === 'auth/invalid-email')   message = 'Invalid email address';
+      throw new Error(message);
     }
+  };
 
-  } catch (error) {
-    console.error('Registration error:', error);
-    let message = 'Registration failed';
-    if (error.code === 'auth/email-already-in-use') message = 'Email already registered';
-    else if (error.code === 'auth/weak-password')   message = 'Password too weak';
-    else if (error.code === 'auth/invalid-email')   message = 'Invalid email address';
-    throw new Error(message);
-  }
-};
-
-  // Login user - REMOVED role validation to allow concurrent logins
+  // Login user
   const login = async (email, password) => {
     try {
-      // 1. Sign in with Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       let userData = null;
       let actualRole = null;
 
-      // 2. Search all collections to find user's actual role
       const roleCollections = {
         'supplier': 'suppliers',
         'customer': 'users',
@@ -167,7 +170,6 @@ export function AuthProvider({ children }) {
         'admin': 'admins'
       };
 
-      // Search all collections to find the user
       for (const [role, collectionName] of Object.entries(roleCollections)) {
         const userDoc = await getDoc(doc(db, collectionName, user.uid));
         if (userDoc.exists()) {
@@ -177,20 +179,17 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // If user data not found, throw error
       if (!userData) {
         await signOut(auth);
         throw new Error('User profile not found. Please contact administrator.');
       }
 
-      // 3. Update last login
       const collectionName = roleCollections[actualRole];
       await setDoc(doc(db, collectionName, user.uid), {
         ...userData,
         lastLogin: Timestamp.now()
       }, { merge: true });
 
-      // 4. Store user info in sessionStorage (tab-specific)
       sessionStorage.setItem('userId', user.uid);
       sessionStorage.setItem('userRole', actualRole);
       sessionStorage.setItem('userName', userData.fullName || userData.name);
@@ -200,7 +199,6 @@ export function AuthProvider({ children }) {
 
       console.log(`✅ User logged in as ${actualRole} in this tab`);
 
-      // 5. Return user data with role
       return { 
         success: true, 
         user: {
@@ -246,7 +244,6 @@ export function AuthProvider({ children }) {
     if (!currentUser) return null;
 
     try {
-      // Try to get from appropriate collection based on role
       const role = sessionStorage.getItem('userRole');
       let collectionName;
       
@@ -292,19 +289,15 @@ export function AuthProvider({ children }) {
         setUser(currentUser);
         setCurrentUser(currentUser);
         
-        // Check if we have role in sessionStorage (tab-specific)
         const storedRole = sessionStorage.getItem('userRole');
         
         if (storedRole) {
-          // Use the stored role for this tab
           setUserRole(storedRole);
           setLoading(false);
           return;
         }
         
-        // If no stored role, fetch from database
         try {
-          // Try suppliers first
           let userDoc = await getDoc(doc(db, 'suppliers', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
@@ -317,7 +310,6 @@ export function AuthProvider({ children }) {
             return;
           }
 
-          // Try pharmacists
           userDoc = await getDoc(doc(db, 'pharmacists', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
@@ -330,7 +322,6 @@ export function AuthProvider({ children }) {
             return;
           }
 
-          // Try admins
           userDoc = await getDoc(doc(db, 'admins', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
@@ -343,7 +334,6 @@ export function AuthProvider({ children }) {
             return;
           }
 
-          // Try users (for customers)
           userDoc = await getDoc(doc(db, 'users', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
