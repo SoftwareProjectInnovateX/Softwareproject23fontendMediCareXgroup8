@@ -8,6 +8,8 @@ import {
   doc,
   Timestamp,
   getDoc,
+  addDoc,
+  where,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 
@@ -48,6 +50,8 @@ const OrderManagement = () => {
       filtered = filtered.filter(
         (o) =>
           o.poId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          o.productId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          o.product?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           o.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           o.supplierName?.toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -67,6 +71,8 @@ const OrderManagement = () => {
         completionDate: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
+
+      // Update inventory stock
       const adminProductRef = doc(db, 'adminProducts', order.adminProductId);
       const adminProductSnap = await getDoc(adminProductRef);
       if (adminProductSnap.exists()) {
@@ -77,7 +83,52 @@ const OrderManagement = () => {
           updatedAt: Timestamp.now(),
         });
       }
-      alert('Order marked as received and stock updated!');
+
+      // Resolve field names defensively — handles both naming conventions
+      const resolvedProductName = order.productName || order.product || 'N/A';
+      const resolvedPoId        = order.poId || order.productId || orderId;
+      const resolvedTotal       = order.totalAmount ?? (order.quantity * order.unitPrice) ?? 0;
+
+      // Unlock the FINAL payment so it appears in AdminPayments
+      const paymentsSnap = await getDocs(
+        query(
+          collection(db, 'payments'),
+          where('purchaseOrderId', '==', orderId),
+          where('paymentType', '==', 'FINAL')
+        )
+      );
+
+      if (!paymentsSnap.empty) {
+        // Final payment record exists but was locked — make it PENDING
+        await updateDoc(doc(db, 'payments', paymentsSnap.docs[0].id), {
+          status: 'PENDING',
+          unlockedAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+      } else {
+        // Final payment record doesn't exist yet — create it now
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 14); // 14 days to pay
+
+        await addDoc(collection(db, 'payments'), {
+          purchaseOrderId: orderId,
+          orderId:         resolvedPoId,
+          supplierId:      order.supplierId   || null,
+          supplierName:    order.supplierName || 'N/A',
+          productName:     resolvedProductName,
+          quantity:        order.quantity     || 0,
+          amount:          resolvedTotal / 2,           // final 50%
+          totalOrderAmount: resolvedTotal,
+          paymentType:     'FINAL',
+          paymentLabel:    'Final Payment (50%)',
+          status:          'PENDING',
+          dueDate:         Timestamp.fromDate(dueDate),
+          createdAt:       Timestamp.now(),
+          updatedAt:       Timestamp.now(),
+        });
+      }
+
+      alert('Order marked as received and stock updated!\n\nFinal payment is now available in Payments.');
       fetchOrders();
       setShowDetailsModal(false);
     } catch (error) {
@@ -106,11 +157,11 @@ const OrderManagement = () => {
   };
 
   const stats = [
-    { label: 'Total Orders',  value: orders.length,                                      accent: 'border-slate-400' },
-    { label: 'Pending',       value: orders.filter((o) => o.status === 'PENDING').length,   accent: 'border-amber-400' },
-    { label: 'Approved',      value: orders.filter((o) => o.status === 'APPROVED').length,  accent: 'border-blue-400' },
-    { label: 'Completed',     value: orders.filter((o) => o.status === 'COMPLETED').length, accent: 'border-emerald-400' },
-    { label: 'Total Amount',  value: `Rs. ${orders.reduce((s, o) => s + (o.totalAmount || 0), 0).toFixed(2)}`, accent: 'border-violet-400' },
+    { label: 'Total Orders', value: orders.length,                                                              accent: 'border-slate-400' },
+    { label: 'Pending',      value: orders.filter((o) => o.status === 'PENDING').length,                        accent: 'border-amber-400' },
+    { label: 'Approved',     value: orders.filter((o) => o.status === 'APPROVED').length,                       accent: 'border-blue-400' },
+    { label: 'Completed',    value: orders.filter((o) => o.status === 'COMPLETED').length,                      accent: 'border-emerald-400' },
+    { label: 'Total Amount', value: `Rs. ${orders.reduce((s, o) => s + (o.totalAmount || 0), 0).toFixed(2)}`,  accent: 'border-violet-400' },
   ];
 
   return (
@@ -183,17 +234,17 @@ const OrderManagement = () => {
                 {filteredOrders.map((order) => (
                   <tr key={order.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
                     <td className="px-4 py-4 font-mono font-semibold text-blue-600 text-sm">
-                      {order.productId}
+                      {order.poId || order.productId}
                     </td>
                     <td className="px-4 py-4">
-                      <p className="font-semibold text-slate-800 text-sm m-0">{order.productName}</p>
+                      <p className="font-semibold text-slate-800 text-sm m-0">{order.productName || order.product}</p>
                       <p className="text-xs text-slate-400 font-mono mt-0.5 m-0">{order.productCode}</p>
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-800">{order.supplierName}</td>
                     <td className="px-4 py-4 text-sm text-slate-800">{order.quantity} units</td>
                     <td className="px-4 py-4 text-sm text-slate-800">Rs. {Number(order.unitPrice).toFixed(2)}</td>
                     <td className="px-4 py-4 text-sm font-semibold text-emerald-600">
-                      Rs. {(order.quantity * order.unitPrice).toFixed(2)}
+                      Rs. {(order.totalAmount ?? order.quantity * order.unitPrice).toFixed(2)}
                     </td>
                     <td className="px-4 py-4">
                       <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(order.status)}`}>
@@ -247,7 +298,9 @@ const OrderManagement = () => {
 
               {/* PO ID + Status */}
               <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-slate-100">
-                <h3 className="text-xl font-semibold text-blue-600 font-mono m-0">{selectedOrder.poId}</h3>
+                <h3 className="text-xl font-semibold text-blue-600 font-mono m-0">
+                  {selectedOrder.poId || selectedOrder.productId}
+                </h3>
                 <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(selectedOrder.status)}`}>
                   {selectedOrder.status}
                 </span>
@@ -256,14 +309,18 @@ const OrderManagement = () => {
               {/* Details Grid */}
               <div className="grid grid-cols-2 gap-5 mb-6">
                 {[
-                  { label: 'Product',     value: selectedOrder.productName },
+                  { label: 'Product',      value: selectedOrder.productName || selectedOrder.product },
                   { label: 'Product Code', value: selectedOrder.productCode, mono: true },
-                  { label: 'Category',    value: selectedOrder.category },
-                  { label: 'Supplier',    value: selectedOrder.supplierName },
-                  { label: 'Quantity',    value: `${selectedOrder.quantity} units` },
-                  { label: 'Unit Price',  value: `Rs. ${Number(selectedOrder.unitPrice).toFixed(2)}` },
-                  { label: 'Total Amount', value: `Rs. ${Number(selectedOrder.totalAmount).toFixed(2)}`, highlight: 'text-emerald-600 text-lg font-bold' },
-                  { label: 'Order Date',  value: formatDate(selectedOrder.orderDate || selectedOrder.createdAt) },
+                  { label: 'Category',     value: selectedOrder.category },
+                  { label: 'Supplier',     value: selectedOrder.supplierName },
+                  { label: 'Quantity',     value: `${selectedOrder.quantity} units` },
+                  { label: 'Unit Price',   value: `Rs. ${Number(selectedOrder.unitPrice).toFixed(2)}` },
+                  {
+                    label: 'Total Amount',
+                    value: `Rs. ${Number(selectedOrder.totalAmount ?? selectedOrder.quantity * selectedOrder.unitPrice).toFixed(2)}`,
+                    highlight: 'text-emerald-600 text-lg font-bold',
+                  },
+                  { label: 'Order Date', value: formatDate(selectedOrder.orderDate || selectedOrder.createdAt) },
                   ...(selectedOrder.approvalDate   ? [{ label: 'Approval Date',   value: formatDate(selectedOrder.approvalDate) }]   : []),
                   ...(selectedOrder.completionDate ? [{ label: 'Completion Date', value: formatDate(selectedOrder.completionDate) }] : []),
                 ].map((item) => (

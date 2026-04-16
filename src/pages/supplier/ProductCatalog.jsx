@@ -1,21 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import {
   collection, addDoc, getDocs, updateDoc, deleteDoc,
-  doc, query, orderBy, where, Timestamp, getDoc,
+  doc, query, orderBy, where, Timestamp, getDoc, runTransaction,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { getAuth } from 'firebase/auth';
 
+// Generates next sequential code atomically using a Firestore counter document.
+// The counter doc lives at: counters/productCode  { current: <number> }
+const generateProductCode = async () => {
+  const counterRef = doc(db, 'counters', 'productCode');
+
+  const nextNumber = await runTransaction(db, async (transaction) => {
+    const counterSnap = await transaction.get(counterRef);
+
+    if (!counterSnap.exists()) {
+      transaction.set(counterRef, { current: 1 });
+      return 1;
+    }
+
+    const next = (counterSnap.data().current || 0) + 1;
+    transaction.update(counterRef, { current: next });
+    return next;
+  });
+
+  return `P${String(nextNumber).padStart(3, '0')}`;
+};
+
 const ProductCatalog = () => {
-  const [products, setProducts]           = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [showModal, setShowModal]         = useState(false);
+  const [products, setProducts]             = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [showModal, setShowModal]           = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [searchTerm, setSearchTerm]       = useState('');
-  const [currentUser, setCurrentUser]     = useState(null);
+  const [searchTerm, setSearchTerm]         = useState('');
+  const [currentUser, setCurrentUser]       = useState(null);
 
   const [formData, setFormData] = useState({
-    productName: '', productCode: '', category: '',
+    productName: '', category: '',
     wholesalePrice: '', stock: '', minStock: '',
     description: '', manufacturer: '',
   });
@@ -35,27 +56,40 @@ const ProductCatalog = () => {
     try {
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (userDoc.exists()) {
-        setCurrentUser({ id: userId, name: userDoc.data().name || userDoc.data().email || 'Supplier', email: userDoc.data().email });
+        setCurrentUser({
+          id: userId,
+          name: userDoc.data().name || userDoc.data().email || 'Supplier',
+          email: userDoc.data().email,
+        });
       } else {
         const auth = getAuth();
-        setCurrentUser({ id: userId, name: auth.currentUser?.email || 'Supplier', email: auth.currentUser?.email });
+        setCurrentUser({
+          id: userId,
+          name: auth.currentUser?.email || 'Supplier',
+          email: auth.currentUser?.email,
+        });
       }
     } catch {
       const auth = getAuth();
-      setCurrentUser({ id: userId, name: auth.currentUser?.email || 'Supplier', email: auth.currentUser?.email });
+      setCurrentUser({
+        id: userId,
+        name: auth.currentUser?.email || 'Supplier',
+        email: auth.currentUser?.email,
+      });
     }
   };
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const auth = getAuth();
+      const auth   = getAuth();
       const userId = auth.currentUser?.uid;
       if (!userId) { alert('Please login to view products'); setLoading(false); return; }
+
       const snapshot = await getDocs(query(
         collection(db, 'products'),
         where('supplierId', '==', userId),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'desc'),
       ));
       setProducts(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
@@ -72,41 +106,64 @@ const ProductCatalog = () => {
     e.preventDefault();
     try {
       if (!formData.productName || !formData.category || !formData.wholesalePrice) {
-        alert('Please fill in all required fields'); return;
+        alert('Please fill in all required fields');
+        return;
       }
-      const auth = getAuth();
-      const user = auth.currentUser;
+
+      const auth  = getAuth();
+      const user  = auth.currentUser;
       if (!user) { alert('Please login to add products'); return; }
-      const userId   = currentUser?.id || user.uid;
-      const userName = currentUser?.name || user.email || 'Supplier';
+
+      const userId      = currentUser?.id   || user.uid;
+      const userName    = currentUser?.name  || user.email || 'Supplier';
+      const productCode = await generateProductCode();
+
+      // stock    = Stock Supplied to MediCareX  (increases when order approved)
+      // minStock = Remaining Stock with supplier (decreases when order placed)
+      const suppliedStock  = parseInt(formData.stock)    || 0;
+      const remainingStock = parseInt(formData.minStock) || 0;
+
       const newProduct = {
-        productName: formData.productName,
-        productCode: formData.productCode || 'AUTO-' + Date.now(),
-        category: formData.category,
+        productName:    formData.productName,
+        productCode,
+        category:       formData.category,
         wholesalePrice: parseFloat(formData.wholesalePrice),
-        stock: parseInt(formData.stock) || 0,
-        minStock: parseInt(formData.minStock) || 0,
-        description: formData.description,
-        manufacturer: formData.manufacturer,
-        availability: parseInt(formData.stock) > parseInt(formData.minStock) ? 'in stock' : 'low stock',
-        supplierId: userId, supplierName: userName,
-        createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+        stock:          suppliedStock,    // Stock Supplied to MediCareX
+        minStock:       remainingStock,   // Remaining Stock with supplier
+        description:    formData.description,
+        manufacturer:   formData.manufacturer,
+        availability:   remainingStock > 0 ? 'in stock' : 'out of stock',
+        supplierId:     userId,
+        supplierName:   userName,
+        createdAt:      Timestamp.now(),
+        updatedAt:      Timestamp.now(),
       };
+
       const productRef = await addDoc(collection(db, 'products'), newProduct);
+
       await addDoc(collection(db, 'adminProducts'), {
-        productId: productRef.id, supplierId: userId, supplierName: userName,
-        productName: formData.productName,
-        productCode: formData.productCode || 'AUTO-' + Date.now(),
-        category: formData.category,
+        productId:      productRef.id,
+        supplierId:     userId,
+        supplierName:   userName,
+        productName:    formData.productName,
+        productCode,
+        category:       formData.category,
         wholesalePrice: parseFloat(formData.wholesalePrice),
-        retailPrice: parseFloat(formData.wholesalePrice) * 1.2,
-        stock: parseInt(formData.stock) || 0, minStock: 100,
-        description: formData.description, manufacturer: formData.manufacturer,
-        availability: parseInt(formData.stock) >= 100 ? 'in stock' : 'low stock',
-        lastRestocked: Timestamp.now(), createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+        retailPrice:    parseFloat(formData.wholesalePrice) * 1.2,
+        stock:          suppliedStock,    // Admin Stock
+        minStock:       remainingStock,   // Supplier Remaining
+        description:    formData.description,
+        manufacturer:   formData.manufacturer,
+        availability:   remainingStock > 0 ? 'in stock' : 'out of stock',
+        lastRestocked:  Timestamp.now(),
+        createdAt:      Timestamp.now(),
+        updatedAt:      Timestamp.now(),
       });
-      alert('Product added successfully and synced to admin inventory!');
-      setShowModal(false); resetForm(); fetchProducts();
+
+      alert(`Product added successfully!\nProduct Code: ${productCode}`);
+      setShowModal(false);
+      resetForm();
+      fetchProducts();
     } catch (error) {
       console.error('Error adding product:', error);
       alert('Failed to add product: ' + error.message);
@@ -116,25 +173,38 @@ const ProductCatalog = () => {
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
     try {
+      const suppliedStock  = parseInt(formData.stock);
+      const remainingStock = parseInt(formData.minStock);
+
       const updatedData = {
-        productName: formData.productName, productCode: formData.productCode,
-        category: formData.category, wholesalePrice: parseFloat(formData.wholesalePrice),
-        stock: parseInt(formData.stock), minStock: parseInt(formData.minStock),
-        description: formData.description, manufacturer: formData.manufacturer,
-        availability: parseInt(formData.stock) > parseInt(formData.minStock) ? 'in stock' : 'low stock',
-        updatedAt: Timestamp.now(),
+        productName:    formData.productName,
+        category:       formData.category,
+        wholesalePrice: parseFloat(formData.wholesalePrice),
+        stock:          suppliedStock,
+        minStock:       remainingStock,
+        description:    formData.description,
+        manufacturer:   formData.manufacturer,
+        availability:   remainingStock > 0 ? 'in stock' : 'out of stock',
+        updatedAt:      Timestamp.now(),
       };
+
       await updateDoc(doc(db, 'products', editingProduct.id), updatedData);
-      const adminSnap = await getDocs(query(collection(db, 'adminProducts'), where('productId', '==', editingProduct.id)));
+
+      const adminSnap = await getDocs(
+        query(collection(db, 'adminProducts'), where('productId', '==', editingProduct.id)),
+      );
       if (!adminSnap.empty) {
         await updateDoc(doc(db, 'adminProducts', adminSnap.docs[0].id), {
           ...updatedData,
           retailPrice: parseFloat(formData.wholesalePrice) * 1.2,
-          availability: parseInt(formData.stock) >= 100 ? 'in stock' : 'low stock',
         });
       }
+
       alert('Product updated successfully in both inventories!');
-      setEditingProduct(null); setShowModal(false); resetForm(); fetchProducts();
+      setEditingProduct(null);
+      setShowModal(false);
+      resetForm();
+      fetchProducts();
     } catch (error) {
       console.error('Error updating product:', error);
       alert('Failed to update product: ' + error.message);
@@ -142,10 +212,15 @@ const ProductCatalog = () => {
   };
 
   const handleDeleteProduct = async (productId, productName) => {
-    if (!window.confirm(`Are you sure you want to delete "${productName}"?\n\nThis will also remove it from admin inventory.`)) return;
+    if (!window.confirm(
+      `Are you sure you want to delete "${productName}"?\n\nThis will also remove it from admin inventory.`,
+    )) return;
+
     try {
       await deleteDoc(doc(db, 'products', productId));
-      const adminSnap = await getDocs(query(collection(db, 'adminProducts'), where('productId', '==', productId)));
+      const adminSnap = await getDocs(
+        query(collection(db, 'adminProducts'), where('productId', '==', productId)),
+      );
       if (!adminSnap.empty) await deleteDoc(doc(db, 'adminProducts', adminSnap.docs[0].id));
       alert('Product deleted successfully from both inventories!');
       fetchProducts();
@@ -158,34 +233,42 @@ const ProductCatalog = () => {
   const startEditProduct = (product) => {
     setEditingProduct(product);
     setFormData({
-      productName: product.productName, productCode: product.productCode,
-      category: product.category, wholesalePrice: product.wholesalePrice,
-      stock: product.stock, minStock: product.minStock,
-      description: product.description || '', manufacturer: product.manufacturer || '',
+      productName:    product.productName,
+      category:       product.category,
+      wholesalePrice: product.wholesalePrice,
+      stock:          product.stock,
+      minStock:       product.minStock,
+      description:    product.description  || '',
+      manufacturer:   product.manufacturer || '',
     });
     setShowModal(true);
   };
 
   const resetForm = () => {
-    setFormData({ productName: '', productCode: '', category: '', wholesalePrice: '', stock: '', minStock: '', description: '', manufacturer: '' });
+    setFormData({
+      productName: '', category: '', wholesalePrice: '',
+      stock: '', minStock: '', description: '', manufacturer: '',
+    });
     setEditingProduct(null);
   };
 
   const filteredProducts = products.filter((p) =>
     p.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.productCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
+    p.productCode.toLowerCase().includes(searchTerm.toLowerCase())  ||
+    p.category.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  const inputCls = "w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-[15px] text-slate-800 bg-white transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 focus:bg-slate-50 placeholder:text-slate-400";
+  const inputCls =
+    'w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-[15px] text-slate-800 bg-white ' +
+    'transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 ' +
+    'focus:ring-blue-500/10 focus:bg-slate-50 placeholder:text-slate-400';
 
   const formFields = [
-    { label: 'Product Name', key: 'productName', type: 'text', placeholder: 'e.g., Paracetamol 500mg', required: true, full: false },
-    { label: 'Product Code', key: 'productCode', type: 'text', placeholder: 'e.g., P001', required: false, full: false },
-    { label: 'Wholesale Price (Rs.)', key: 'wholesalePrice', type: 'number', placeholder: '0.00', required: true, full: false, extra: { step: '0.01' } },
-    { label: 'Current Stock', key: 'stock', type: 'number', placeholder: '0', required: false, full: false },
-    { label: 'Minimum Stock', key: 'minStock', type: 'number', placeholder: '0', required: false, full: false },
-    { label: 'Manufacturer', key: 'manufacturer', type: 'text', placeholder: 'e.g., ABC Pharmaceuticals', required: false, full: true },
+    { label: 'Product Name',                key: 'productName',    type: 'text',   placeholder: 'e.g., Paracetamol 500mg',   required: true,  full: false },
+    { label: 'Wholesale Price (Rs.)',        key: 'wholesalePrice', type: 'number', placeholder: '0.00',                      required: true,  full: false, extra: { step: '0.01' } },
+    { label: 'Stock Supplied to MediCareX', key: 'stock',          type: 'number', placeholder: '0',                         required: false, full: false },
+    { label: 'Remaining Stock (with You)',  key: 'minStock',       type: 'number', placeholder: '0',                         required: false, full: false },
+    { label: 'Manufacturer',                key: 'manufacturer',   type: 'text',   placeholder: 'e.g., ABC Pharmaceuticals', required: false, full: true  },
   ];
 
   return (
@@ -206,7 +289,7 @@ const ProductCatalog = () => {
       <div className="bg-white p-5 rounded-xl shadow-sm mb-6 flex justify-between items-center gap-4 flex-wrap">
         <input
           type="text"
-          placeholder="Search products..."
+          placeholder="Search by name, code or category..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-1 min-w-[280px] px-4 py-3 border-2 border-slate-200 rounded-lg text-[15px] transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
@@ -238,7 +321,7 @@ const ProductCatalog = () => {
             <table className="w-full border-collapse min-w-[700px]">
               <thead className="bg-slate-50 border-b-2 border-slate-200">
                 <tr>
-                  {['Product Name', 'Category', 'Wholesale Price', 'Stock', 'Availability', 'Actions'].map((h) => (
+                  {['Product Name', 'Category', 'Wholesale Price', 'Stock Supplied', 'Availability', 'Actions'].map((h) => (
                     <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
                       {h}
                     </th>
@@ -253,14 +336,16 @@ const ProductCatalog = () => {
                       <p className="text-xs text-slate-400 font-mono">{product.productCode}</p>
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
-                    <td className="px-4 py-4 text-sm font-semibold text-slate-800">Rs.{product.wholesalePrice.toFixed(2)}</td>
+                    <td className="px-4 py-4 text-sm font-semibold text-slate-800">
+                      Rs.{product.wholesalePrice.toFixed(2)}
+                    </td>
                     <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
                     <td className="px-4 py-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium
-                        ${product.availability === 'in stock'
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                        product.availability === 'in stock'
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-amber-100 text-amber-700'
-                        }`}>
+                      }`}>
                         {product.availability}
                       </span>
                     </td>
@@ -300,14 +385,31 @@ const ProductCatalog = () => {
             style={{ animation: 'slideUp 0.3s ease-out' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-[28px] font-bold text-slate-900 mb-8 pb-4 border-b-[3px] border-blue-600">
+            <h2 className="text-[28px] font-bold text-slate-900 mb-2 pb-4 border-b-[3px] border-blue-600">
               {editingProduct ? 'Edit Product' : 'Add New Product'}
             </h2>
+
+            {!editingProduct && (
+              <p className="text-[13px] text-slate-500 mb-6 flex items-center gap-2">
+                <span className="inline-block w-4 h-4 rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold text-center leading-4">i</span>
+                A unique product code (e.g. P001, P002) will be automatically generated for this product.
+              </p>
+            )}
+
+            {editingProduct && (
+              <div className="mb-6 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-3">
+                <span className="text-[13px] text-slate-500">Product Code</span>
+                <span className="font-mono text-[13px] font-semibold text-slate-700 tracking-wide">
+                  {editingProduct.productCode}
+                </span>
+                <span className="ml-auto text-[11px] text-slate-400 italic">auto-generated · read-only</span>
+              </div>
+            )}
 
             <form onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct}>
               <div className="grid grid-cols-2 gap-x-7 gap-y-8">
 
-                {/* Category — special select field */}
+                {/* Category */}
                 <div className="flex flex-col">
                   <label className="block mb-2.5 font-semibold text-slate-900 text-[15px]">
                     Category <span className="text-red-500">*</span>
@@ -325,7 +427,7 @@ const ProductCatalog = () => {
                   </select>
                 </div>
 
-                {/* Dynamic text/number fields */}
+                {/* Dynamic fields */}
                 {formFields.map((field) => (
                   <div key={field.key} className={`flex flex-col ${field.full ? 'col-span-2' : ''}`}>
                     <label className="block mb-2.5 font-semibold text-slate-900 text-[15px]">
@@ -343,9 +445,11 @@ const ProductCatalog = () => {
                   </div>
                 ))}
 
-                {/* Description — textarea */}
+                {/* Description */}
                 <div className="flex flex-col col-span-2">
-                  <label className="block mb-2.5 font-semibold text-slate-900 text-[15px]">Description</label>
+                  <label className="block mb-2.5 font-semibold text-slate-900 text-[15px]">
+                    Description
+                  </label>
                   <textarea
                     rows={3}
                     placeholder="Product description..."
@@ -377,9 +481,8 @@ const ProductCatalog = () => {
         </div>
       )}
 
-      {/* Keyframe animations */}
       <style>{`
-        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes fadeIn  { from{opacity:0}                            to{opacity:1} }
         @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
       `}</style>
     </div>

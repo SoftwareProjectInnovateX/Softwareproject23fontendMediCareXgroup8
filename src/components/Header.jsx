@@ -32,7 +32,7 @@ export default function Header() {
       case "/admin/adminpayments":
         return { title: "Payments", subtitle: "Manage payments" };
       default:
-        return { title: "Dashboard", subtitle: "Welcome to MediCareX" };
+        return { title: "Registration", subtitle: "Manage user registrations" };
     }
   };
 

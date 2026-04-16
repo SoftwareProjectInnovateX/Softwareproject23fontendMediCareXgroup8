@@ -9,6 +9,7 @@ import {
   query,
   where,
   onSnapshot,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 
@@ -28,7 +29,8 @@ export default function Products() {
 
   useEffect(() => {
     loadProducts();
-    subscribeToOrders();
+    const unsub = subscribeToOrders();
+    return () => unsub && unsub();
   }, []);
 
   const loadProducts = async () => {
@@ -41,9 +43,9 @@ export default function Products() {
   const subscribeToOrders = () => {
     const ordersQuery = query(
       collection(db, "purchaseOrders"),
-      where("status", "in", ["PENDING", "ACCEPTED", "REJECTED"])
+      where("status", "in", ["PENDING", "APPROVED", "REJECTED"])
     );
-    const unsubscribe = onSnapshot(ordersQuery, (snapshot) => {
+    return onSnapshot(ordersQuery, (snapshot) => {
       const ordersByProduct = {};
       snapshot.docs.forEach((docSnap) => {
         const order = { id: docSnap.id, ...docSnap.data() };
@@ -57,7 +59,6 @@ export default function Products() {
       });
       setPendingOrders(ordersByProduct);
     });
-    return unsubscribe;
   };
 
   const autoLowStockCheck = async (items) => {
@@ -97,27 +98,42 @@ export default function Products() {
   };
 
   const placeOrder = async () => {
-    if (!orderQty || Number(orderQty) <= 0) {
+    const qty = Number(orderQty);
+    if (!qty || qty <= 0) {
       alert("Enter valid quantity");
       return;
     }
+
     try {
       setLoading(true);
-      const poId = `PO-${Date.now()}`;
-      const totalAmount = Number(orderQty) * Number(selectedProduct.wholesalePrice);
 
+      // Read the latest minStock from Firestore to avoid stale state
+      const adminRef = doc(db, "adminProducts", selectedProduct.id);
+      const adminSnap = await getDoc(adminRef);
+      const latestMinStock = Number(adminSnap.data()?.minStock) || 0;
+
+      if (qty > latestMinStock) {
+        alert(`Supplier only has ${latestMinStock} units remaining. Please order ${latestMinStock} or fewer.`);
+        return;
+      }
+
+      const poId = `PO-${Date.now()}`;
+      const totalAmount = qty * Number(selectedProduct.wholesalePrice);
+
+      // Place the purchase order
       const orderRef = await addDoc(collection(db, "purchaseOrders"), {
         poId,
         product: selectedProduct.productName,
         productId: selectedProduct.productId,
         adminProductId: selectedProduct.id,
         category: selectedProduct.category,
-        quantity: Number(orderQty),
+        quantity: qty,
         reorderLevel: 100,
         supplierId: selectedProduct.supplierId,
         supplierName: selectedProduct.supplierName || "Unknown Supplier",
         unitPrice: Number(selectedProduct.wholesalePrice),
         amount: totalAmount,
+        totalAmount,
         pharmacy: "MediCareX",
         status: "PENDING",
         orderDate: Timestamp.now(),
@@ -126,6 +142,26 @@ export default function Products() {
         updatedAt: Timestamp.now(),
       });
 
+      // ── ORDER PLACED ──────────────────────────────────────────────────────
+      // Supplier Remaining (minStock) goes DOWN by qty.
+      // Admin Stock (stock) and Stock Supplied (stock) do NOT change yet.
+      // They will increase when the supplier APPROVES the order.
+      const newMinStock = latestMinStock - qty;
+
+      await updateDoc(adminRef, {
+        minStock: newMinStock,
+        updatedAt: Timestamp.now(),
+      });
+
+      // Mirror minStock on supplier's products collection
+      if (selectedProduct.productId) {
+        await updateDoc(doc(db, "products", selectedProduct.productId), {
+          minStock: newMinStock,
+          updatedAt: Timestamp.now(),
+        });
+      }
+
+      // Notify the supplier
       await addDoc(collection(db, "notifications"), {
         type: "ORDER_PLACED",
         recipientId: selectedProduct.supplierId,
@@ -136,9 +172,9 @@ export default function Products() {
         adminProductId: selectedProduct.id,
         productId: selectedProduct.productId,
         productName: selectedProduct.productName,
-        quantity: Number(orderQty),
+        quantity: qty,
         totalAmount,
-        message: `New Order Received: ${orderQty} units of ${selectedProduct.productName} (Total: Rs. ${totalAmount.toFixed(2)})`,
+        message: `New Order Received: ${qty} units of ${selectedProduct.productName} (Total: Rs. ${totalAmount.toFixed(2)})`,
         read: false,
         createdAt: Timestamp.now(),
       });
@@ -146,6 +182,7 @@ export default function Products() {
       alert("Order successfully placed and supplier has been notified");
       setShowOrderForm(false);
       setSelectedProduct(null);
+      loadProducts();
     } catch (err) {
       console.error(err);
       alert("Failed to place order. Check console.");
@@ -160,7 +197,7 @@ export default function Products() {
 
     const statusStyle = {
       PENDING:  "bg-amber-100 text-amber-800 border border-amber-400",
-      ACCEPTED: "bg-emerald-100 text-emerald-800 border border-emerald-500",
+      APPROVED: "bg-emerald-100 text-emerald-800 border border-emerald-500",
       REJECTED: "bg-red-100 text-red-800 border border-red-400",
     };
 
@@ -322,18 +359,17 @@ export default function Products() {
             style={{ animation: "slideUp 0.3s ease-out" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Title */}
             <h3 className="text-2xl font-bold text-slate-800 mb-6 pb-3 border-b-[3px] border-blue-600">
               Restock Order
             </h3>
 
-            {/* Order Info */}
             <div className="bg-slate-50 p-4 rounded-lg mb-5">
               {[
-                { label: "Product",       value: selectedProduct.productName },
-                { label: "Supplier",      value: selectedProduct.supplierName },
-                { label: "Current Stock", value: `${selectedProduct.stock} units` },
-                { label: "Unit Price",    value: `Rs. ${Number(selectedProduct.wholesalePrice).toFixed(2)}` },
+                { label: "Product",            value: selectedProduct.productName },
+                { label: "Supplier",           value: selectedProduct.supplierName },
+                { label: "Admin Stock",        value: `${selectedProduct.stock} units` },
+                { label: "Supplier Remaining", value: `${selectedProduct.minStock ?? 0} units` },
+                { label: "Unit Price",         value: `Rs. ${Number(selectedProduct.wholesalePrice).toFixed(2)}` },
               ].map((item) => (
                 <div key={item.label} className="flex justify-between items-center py-2 text-sm">
                   <span className="text-slate-500">{item.label}</span>
@@ -342,7 +378,6 @@ export default function Products() {
               ))}
             </div>
 
-            {/* Quantity Input */}
             <div className="mb-5">
               <label className="block mb-2 font-semibold text-slate-800 text-[15px]">
                 Order Quantity *
@@ -353,11 +388,16 @@ export default function Products() {
                 value={orderQty}
                 onChange={(e) => setOrderQty(e.target.value)}
                 min="1"
+                max={selectedProduct.minStock ?? undefined}
                 className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-[15px] transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 box-border"
               />
+              {selectedProduct.minStock > 0 && (
+                <p className="text-[12px] text-slate-400 mt-1">
+                  Max available from supplier: {selectedProduct.minStock} units
+                </p>
+              )}
             </div>
 
-            {/* Total */}
             <div className="bg-blue-50 border-2 border-blue-200 px-4 py-4 rounded-lg mb-6">
               <p className="text-sm text-slate-500 mb-1">Total Amount:</p>
               <p className="text-2xl font-bold text-blue-600 m-0">
@@ -365,7 +405,6 @@ export default function Products() {
               </p>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3 pt-5 border-t-2 border-slate-100">
               <button
                 onClick={placeOrder}
@@ -385,7 +424,6 @@ export default function Products() {
         </div>
       )}
 
-      {/* Keyframe animations */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }

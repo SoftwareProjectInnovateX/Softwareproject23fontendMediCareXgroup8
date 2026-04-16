@@ -107,7 +107,7 @@ export default function UserManagement() {
         {/* Info Grid */}
         <div className="bg-white rounded-2xl p-6 shadow-sm mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { label: "Name",    value: selectedUser.name },
+            { label: "Name",    value: selectedUser.fullName },
             { label: "Email",   value: selectedUser.email },
             { label: "Phone",   value: selectedUser.phone },
             { label: "Address", value: selectedUser.address || "N/A" },
@@ -211,9 +211,9 @@ export default function UserManagement() {
               {filteredUsers.map((user) => (
                 <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
                   <td className="px-4 py-3 text-sm font-mono text-slate-600">
-                    {user.userId || user.id}
+                    {user.customerId}
                   </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-slate-800">{user.name}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-slate-800">{user.fullName}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{user.email}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{user.phone}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">

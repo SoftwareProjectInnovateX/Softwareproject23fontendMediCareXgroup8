@@ -7,6 +7,8 @@ import {
   doc,
   updateDoc,
   Timestamp,
+  where,
+  addDoc,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 
@@ -69,14 +71,100 @@ const AdminPayments = () => {
   };
 
   const markAsPaid = async (paymentId) => {
-    if (!window.confirm('Mark this payment as PAID?')) return;
+    const payment = payments.find(p => p.id === paymentId);
+    if (!payment) return;
+
+    const confirmMsg = payment.paymentType === 'INITIAL'
+      ? 'Mark initial 50% payment as PAID?\n\nThis will notify the supplier to proceed with delivery.'
+      : 'Mark final 50% payment as PAID?\n\nThis will complete all payments for this order.';
+
+    if (!window.confirm(confirmMsg)) return;
+
     try {
+      // Mark the payment as PAID
       await updateDoc(doc(db, 'payments', paymentId), {
         status: 'PAID',
         paidDate: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
-      alert('Payment marked as paid!');
+
+      // Update matching invoice on supplier side
+      const invoiceType = payment.paymentType === 'INITIAL' ? 'INITIAL' : 'FINAL';
+      const invoicesSnap = await getDocs(
+        query(
+          collection(db, 'invoices'),
+          where('purchaseOrderId', '==', payment.purchaseOrderId),
+          where('invoiceType', '==', invoiceType)
+        )
+      );
+
+      if (!invoicesSnap.empty) {
+        await updateDoc(doc(db, 'invoices', invoicesSnap.docs[0].id), {
+          paymentStatus: 'Paid',
+          paidAmount: payment.amount,
+          paidDate: Timestamp.now(),
+          paymentMethod: 'Bank Transfer',
+          updatedAt: Timestamp.now(),
+        });
+      }
+
+      // If this is the INITIAL payment, update the purchaseOrder and notify supplier to deliver
+      if (payment.paymentType === 'INITIAL') {
+        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
+          initialPaymentStatus: 'PAID',
+          initialPaymentDate: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+
+        await addDoc(collection(db, 'notifications'), {
+          type: 'INITIAL_PAYMENT_PAID',
+          recipientId: payment.supplierId,
+          recipientType: 'supplier',
+          purchaseOrderId: payment.purchaseOrderId,
+          poId: payment.orderId,
+          supplierId: payment.supplierId,
+          supplierName: payment.supplierName,
+          productName: payment.productName,
+          message: `Initial payment of 50% has been made for order ${payment.orderId}. Please proceed with delivery.`,
+          read: false,
+          createdAt: Timestamp.now(),
+        });
+      }
+
+      // If this is the FINAL payment, notify supplier all payments are complete
+      // If this is the FINAL payment, complete the order + notify supplier
+if (payment.paymentType === 'FINAL') {
+
+  // ✅ NEW: Mark purchase order as fully completed
+  await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
+    finalPaymentStatus: 'PAID',
+    finalPaymentDate: Timestamp.now(),
+    paymentStatus: 'COMPLETED',   // 🔥 IMPORTANT
+    orderStatus: 'COMPLETED',     // 🔥 IMPORTANT
+    updatedAt: Timestamp.now(),
+  });
+
+  // Notify supplier
+  await addDoc(collection(db, 'notifications'), {
+    type: 'FINAL_PAYMENT_PAID',
+    recipientId: payment.supplierId,
+    recipientType: 'supplier',
+    purchaseOrderId: payment.purchaseOrderId,
+    poId: payment.orderId,
+    supplierId: payment.supplierId,
+    supplierName: payment.supplierName,
+    productName: payment.productName,
+    message: `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`,
+    read: false,
+    createdAt: Timestamp.now(),
+  });
+}
+
+      const successMsg = payment.paymentType === 'INITIAL'
+        ? 'Initial payment marked as paid!\n\nSupplier has been notified to proceed with delivery.'
+        : 'Final payment marked as paid!\n\nAll payments for this order are now complete.';
+
+      alert(successMsg);
       fetchPayments();
       setSelectedPayment(null);
     } catch (error) {
@@ -106,14 +194,22 @@ const AdminPayments = () => {
     }
   };
 
+  const getPaymentTypeStyle = (type) => {
+    switch (type) {
+      case 'INITIAL': return 'bg-violet-100 text-violet-800';
+      case 'FINAL':   return 'bg-blue-100 text-blue-800';
+      default:        return 'bg-gray-100 text-gray-600';
+    }
+  };
+
   const statCards = [
-    { label: 'Total Payments', value: stats.total,                          accent: 'border-slate-400' },
-    { label: 'Pending',        value: stats.pending,                        accent: 'border-amber-400' },
-    { label: 'Paid',           value: stats.paid,                           accent: 'border-emerald-400' },
-    { label: 'Overdue',        value: stats.overdue,                        accent: 'border-red-400' },
-    { label: 'Total Amount',   value: `Rs. ${stats.totalAmount.toFixed(2)}`, accent: 'border-violet-400' },
-    { label: 'Total Paid',     value: `Rs. ${stats.totalPaid.toFixed(2)}`,   accent: 'border-emerald-400' },
-    { label: 'Total Pending',  value: `Rs. ${stats.totalPending.toFixed(2)}`,accent: 'border-amber-400' },
+    { label: 'Total Payments', value: stats.total,                           accent: 'border-slate-400' },
+    { label: 'Pending',        value: stats.pending,                         accent: 'border-amber-400' },
+    { label: 'Paid',           value: stats.paid,                            accent: 'border-emerald-400' },
+    { label: 'Overdue',        value: stats.overdue,                         accent: 'border-red-400' },
+    { label: 'Total Amount',   value: `Rs. ${stats.totalAmount.toFixed(2)}`,  accent: 'border-violet-400' },
+    { label: 'Total Paid',     value: `Rs. ${stats.totalPaid.toFixed(2)}`,    accent: 'border-emerald-400' },
+    { label: 'Total Pending',  value: `Rs. ${stats.totalPending.toFixed(2)}`, accent: 'border-amber-400' },
   ];
 
   return (
@@ -172,10 +268,10 @@ const AdminPayments = () => {
           <div className="py-20 text-center text-slate-500 text-lg">No payments found</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[900px]">
+            <table className="w-full border-collapse min-w-[1000px]">
               <thead className="bg-slate-50">
                 <tr>
-                  {['PO ID', 'Supplier', 'Product', 'Quantity', 'Amount', 'Due Date', 'Days Until Due', 'Status', 'Actions'].map(h => (
+                  {['PO ID', 'Supplier', 'Product', 'Payment Type', 'Quantity', 'Amount', 'Due Date', 'Days Until Due', 'Status', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">
                       {h}
                     </th>
@@ -192,6 +288,11 @@ const AdminPayments = () => {
                       </td>
                       <td className="px-4 py-4 text-sm text-slate-800">{payment.supplierName}</td>
                       <td className="px-4 py-4 text-sm text-slate-800">{payment.productName}</td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${getPaymentTypeStyle(payment.paymentType)}`}>
+                          {payment.paymentLabel || payment.paymentType || '—'}
+                        </span>
+                      </td>
                       <td className="px-4 py-4 text-sm text-slate-800">{payment.quantity} units</td>
                       <td className="px-4 py-4 text-sm font-semibold text-emerald-600">
                         Rs. {Number(payment.amount).toFixed(2)}
@@ -214,12 +315,22 @@ const AdminPayments = () => {
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <button
-                          onClick={() => setSelectedPayment(payment)}
-                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
-                        >
-                          View
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSelectedPayment(payment)}
+                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
+                          >
+                            View
+                          </button>
+                          {payment.status !== 'PAID' && (
+                            <button
+                              onClick={() => markAsPaid(payment.id)}
+                              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
+                            >
+                              Pay
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -258,20 +369,29 @@ const AdminPayments = () => {
                 <h3 className="text-xl font-bold text-blue-600 font-mono m-0">
                   {selectedPayment.orderId}
                 </h3>
-                <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(selectedPayment.status)}`}>
-                  {selectedPayment.status}
-                </span>
+                <div className="flex gap-2 items-center">
+                  {selectedPayment.paymentType && (
+                    <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold ${getPaymentTypeStyle(selectedPayment.paymentType)}`}>
+                      {selectedPayment.paymentLabel || selectedPayment.paymentType}
+                    </span>
+                  )}
+                  <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(selectedPayment.status)}`}>
+                    {selectedPayment.status}
+                  </span>
+                </div>
               </div>
 
               {/* Details Grid */}
               <div className="grid grid-cols-2 gap-5 mb-6">
                 {[
-                  { label: 'Supplier',     value: selectedPayment.supplierName },
-                  { label: 'Product',      value: selectedPayment.productName },
-                  { label: 'Quantity',     value: `${selectedPayment.quantity} units` },
-                  { label: 'Amount',       value: `Rs. ${Number(selectedPayment.amount).toFixed(2)}`, highlight: 'text-emerald-600 text-xl font-bold' },
-                  { label: 'Created Date', value: formatDate(selectedPayment.createdAt) },
-                  { label: 'Due Date',     value: formatDate(selectedPayment.dueDate) },
+                  { label: 'Supplier',          value: selectedPayment.supplierName },
+                  { label: 'Product',           value: selectedPayment.productName },
+                  { label: 'Quantity',          value: `${selectedPayment.quantity} units` },
+                  { label: 'Payment Amount',    value: `Rs. ${Number(selectedPayment.amount).toFixed(2)}`, highlight: 'text-emerald-600 text-xl font-bold' },
+                  { label: 'Total Order Amount', value: selectedPayment.totalOrderAmount ? `Rs. ${Number(selectedPayment.totalOrderAmount).toFixed(2)}` : 'N/A' },
+                  { label: 'Payment Type',      value: selectedPayment.paymentLabel || selectedPayment.paymentType || '—' },
+                  { label: 'Created Date',      value: formatDate(selectedPayment.createdAt) },
+                  { label: 'Due Date',          value: formatDate(selectedPayment.dueDate) },
                   ...(selectedPayment.paidDate ? [{ label: 'Paid Date', value: formatDate(selectedPayment.paidDate) }] : []),
                   {
                     label: 'Days Until Due',
@@ -289,6 +409,22 @@ const AdminPayments = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Context note for payment type */}
+              {selectedPayment.paymentType === 'INITIAL' && selectedPayment.status !== 'PAID' && (
+                <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-5">
+                  <p className="text-[13px] text-violet-800 font-medium m-0">
+                    This is the initial 50% payment. Once paid, the supplier will be notified to proceed with delivery.
+                  </p>
+                </div>
+              )}
+              {selectedPayment.paymentType === 'FINAL' && selectedPayment.status !== 'PAID' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5">
+                  <p className="text-[13px] text-blue-800 font-medium m-0">
+                    This is the final 50% payment due after order receipt. Once paid, all transactions for this order will be complete.
+                  </p>
+                </div>
+              )}
 
               {/* Mark as Paid */}
               {selectedPayment.status !== 'PAID' && (
