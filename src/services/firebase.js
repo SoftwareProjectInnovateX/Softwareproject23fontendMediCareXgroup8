@@ -6,7 +6,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
-// 🔐 Firebase configuration (shared)
+// Firebase configuration (shared)
 const firebaseConfig = {
   apiKey: "AIzaSyC64IrEovMCJi6mNKMAb4WPNDKGeubsuVM",
   authDomain: "supplier-management-70b81.firebaseapp.com",
@@ -17,16 +17,16 @@ const firebaseConfig = {
   measurementId: "G-NLMV8D63XD",
 };
 
-// 🚀 Initialize Firebase (ONCE)
+// Initialize Firebase (ONCE)
 const app = initializeApp(firebaseConfig);
 
-// 🔥 Firestore
+// Firestore
 export const db = getFirestore(app);
 
-// 🔐 Authentication (for login later)
+// Authentication (for login later)
 export const auth = getAuth(app);
 
-// 📊 Analytics (safe for localhost & Vite)
+//  Analytics (safe for localhost & Vite)
 let analytics;
 isSupported().then((supported) => {
   if (supported) {
