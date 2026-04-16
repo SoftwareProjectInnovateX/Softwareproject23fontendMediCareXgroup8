@@ -11,6 +11,8 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import SmartSearch from "../../components/SmartSearch";
+import SearchResultCard from "../../components/SearchResultCard";
 
 const CATEGORIES = ["All", "Medicine", "Baby Items", "Skin Care", "Medical Equipment"];
 
@@ -25,6 +27,14 @@ export default function Products() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderQty, setOrderQty] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // ── Smart Search state ──────────────────────────────────────────
+  // null  = not searched yet → show normal filtered table
+  // []    = searched, no results
+  // [...] = search results to display as cards
+  const [searchResults, setSearchResults] = useState(null);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  // ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     loadProducts();
@@ -177,6 +187,7 @@ export default function Products() {
     );
   };
 
+  // Normal keyword/category filter — used when SmartSearch is not active
   const filtered = products.filter((p) => {
     const matchSearch =
       p.productName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -187,6 +198,9 @@ export default function Products() {
     return matchSearch && matchCategory;
   });
 
+  // Which products are currently on screen
+  const isSmartMode = searchResults !== null;
+
   return (
     <div className="p-8 bg-[#f5f9ff] min-h-screen">
 
@@ -196,121 +210,203 @@ export default function Products() {
         Admin Dashboard - Consolidated Inventory
       </p>
 
-      {/* Search */}
-      <input
-        className="w-full max-w-md px-4 py-3 border-2 border-[#cbd6ee] rounded-lg text-[15px] mb-5 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-        placeholder="Search products..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      {/* ── Smart Search Bar ─────────────────────────────────────── */}
+      <div className="mb-5">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 max-w-2xl">
+            <SmartSearch
+              onResults={(results) => setSearchResults(results)}
+              onLoading={setIsSearchLoading}
+            />
+          </div>
 
-      {/* Category Bar */}
-      <div className="flex gap-2.5 flex-wrap my-5">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setCategory(cat)}
-            className={`px-4 py-2.5 rounded-full text-sm font-medium cursor-pointer transition-all duration-200 border-none
-              ${category === cat
-                ? "bg-blue-600 text-white shadow-md shadow-blue-300"
-                : "bg-[#e6efff] text-slate-500 hover:bg-blue-100 hover:-translate-y-px"
-              }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse min-w-[900px]">
-            <thead className="bg-slate-50">
-              <tr>
-                {["ID", "Product", "Category", "Supplier", "Stock", "Reorder", "Wholesale", "Retail", "Order Status", "Action"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => (
-                <tr
-                  key={p.id}
-                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
-                >
-                  <td className="px-4 py-4 text-sm font-mono text-slate-600">{p.productCode}</td>
-
-                  <td className="px-4 py-4">
-                    <p className="font-semibold text-slate-800 text-sm m-0">{p.productName}</p>
-                    {p.manufacturer && (
-                      <p className="text-xs text-slate-400 mt-0.5 m-0">{p.manufacturer}</p>
-                    )}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-slate-700">{p.category}</td>
-
-                  <td className="px-4 py-4">
-                    <span className="inline-block bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-xs font-medium">
-                      {p.supplierName || "—"}
-                    </span>
-                  </td>
-
-                  <td className={`px-4 py-4 text-sm font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
-                    {p.stock}
-                    {p.stock <= 100 && (
-                      <span className="ml-1.5 inline-block bg-red-100 text-red-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">
-                        LOW
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-slate-700">100</td>
-
-                  <td className="px-4 py-4 text-sm text-slate-700">
-                    Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : "0.00"}
-                  </td>
-
-                  <td className="px-4 py-4 text-sm text-slate-700">
-                    Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
-                  </td>
-
-                  <td className="px-4 py-4">
-                    {getOrderStatus(p.id) || (
-                      <span className="text-slate-300 italic text-sm">—</span>
-                    )}
-                  </td>
-
-                  <td className="px-4 py-4">
-                    {p.stock <= 100 && (
-                      <button
-                        onClick={() => openOrderForm(p)}
-                        disabled={pendingOrders[p.id]?.status === "PENDING"}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md disabled:translate-y-0 disabled:shadow-none"
-                      >
-                        {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* "Show All" button appears only while in smart search mode */}
+          {isSmartMode && (
+            <button
+              onClick={() => setSearchResults(null)}
+              className="px-4 py-3 border-2 border-[#cbd6ee] hover:border-blue-400 text-slate-600 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap"
+            >
+              ← Show All
+            </button>
+          )}
         </div>
+
+        {/* Result count line */}
+        {isSmartMode && !isSearchLoading && (
+          <div className="mt-2">
+            {searchResults.length > 0 ? (
+              <p className="text-sm text-slate-500">
+                Found{" "}
+                <span className="font-semibold text-blue-600">
+                  {searchResults.length}
+                </span>{" "}
+                product{searchResults.length !== 1 ? "s" : ""}
+              </p>
+            ) : (
+              <p className="text-sm text-slate-500">
+                No products found.{" "}
+                <button
+                  onClick={() => setSearchResults(null)}
+                  className="text-blue-500 hover:underline"
+                >
+                  Show all products
+                </button>
+              </p>
+            )}
+          </div>
+        )}
       </div>
+      {/* ─────────────────────────────────────────────────────────── */}
+
+      {/* Category Bar — hidden while in smart search mode */}
+      {!isSmartMode && (
+        <div className="flex gap-2.5 flex-wrap my-5">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={`px-4 py-2.5 rounded-full text-sm font-medium cursor-pointer transition-all duration-200 border-none
+                ${category === cat
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-300"
+                  : "bg-[#e6efff] text-slate-500 hover:bg-blue-100 hover:-translate-y-px"
+                }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Old keyword search — hidden while in smart search mode */}
+      {!isSmartMode && (
+        <input
+          className="w-full max-w-md px-4 py-3 border-2 border-[#cbd6ee] rounded-lg text-[15px] mb-5 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          placeholder="Search products..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      )}
+
+      {/* ── SMART SEARCH RESULTS (card list) ──────────────────────── */}
+      {isSmartMode ? (
+        <div className="space-y-2.5">
+          {/* Column headers — mirrors the existing table headers */}
+          {searchResults.length > 0 && (
+            <div className="flex items-center gap-4 px-4 py-2 text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
+              <div className="w-24 flex-shrink-0">ID</div>
+              <div className="flex-1">Product</div>
+              <div className="w-28 flex-shrink-0 hidden md:block">Category</div>
+              <div className="w-32 flex-shrink-0 hidden lg:block">Supplier</div>
+              <div className="w-20 flex-shrink-0 text-center">Stock</div>
+              <div className="w-24 flex-shrink-0 hidden xl:block">Wholesale</div>
+              <div className="w-24 flex-shrink-0 hidden xl:block">Retail</div>
+              <div className="w-24 flex-shrink-0 text-center">Match</div>
+              <div className="w-28 flex-shrink-0 text-center">Order Status</div>
+              <div className="w-28 flex-shrink-0 text-right">Action</div>
+            </div>
+          )}
+
+          {searchResults.map((product) => (
+            <SearchResultCard
+              key={product.id}
+              product={product}
+              pendingOrder={pendingOrders[product.id] || null}
+              onOrderClick={openOrderForm}
+            />
+          ))}
+        </div>
+      ) : (
+        /* ── NORMAL TABLE VIEW ─────────────────────────────────── */
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[900px]">
+              <thead className="bg-slate-50">
+                <tr>
+                  {["ID", "Product", "Category", "Supplier", "Stock", "Reorder", "Wholesale", "Retail", "Order Status", "Action"].map((h) => (
+                    <th
+                      key={h}
+                      className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
+                  >
+                    <td className="px-4 py-4 text-sm font-mono text-slate-600">{p.productCode}</td>
+
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-slate-800 text-sm m-0">{p.productName}</p>
+                      {p.manufacturer && (
+                        <p className="text-xs text-slate-400 mt-0.5 m-0">{p.manufacturer}</p>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4 text-sm text-slate-700">{p.category}</td>
+
+                    <td className="px-4 py-4">
+                      <span className="inline-block bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-xs font-medium">
+                        {p.supplierName || "—"}
+                      </span>
+                    </td>
+
+                    <td className={`px-4 py-4 text-sm font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
+                      {p.stock}
+                      {p.stock <= 100 && (
+                        <span className="ml-1.5 inline-block bg-red-100 text-red-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                          LOW
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4 text-sm text-slate-700">100</td>
+
+                    <td className="px-4 py-4 text-sm text-slate-700">
+                      Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : "0.00"}
+                    </td>
+
+                    <td className="px-4 py-4 text-sm text-slate-700">
+                      Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {getOrderStatus(p.id) || (
+                        <span className="text-slate-300 italic text-sm">—</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {p.stock <= 100 && (
+                        <button
+                          onClick={() => openOrderForm(p)}
+                          disabled={pendingOrders[p.id]?.status === "PENDING"}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md disabled:translate-y-0 disabled:shadow-none"
+                        >
+                          {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Empty State */}
-      {filtered.length === 0 && (
+      {!isSmartMode && filtered.length === 0 && (
         <div className="text-center py-16 bg-white rounded-xl mt-5">
           <p className="text-lg text-slate-500">No products found</p>
         </div>
       )}
 
-      {/* Order Modal */}
+      {/* ── Order Modal (unchanged) ───────────────────────────────── */}
       {showOrderForm && selectedProduct && (
         <div
           className="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000] p-5"
@@ -322,12 +418,10 @@ export default function Products() {
             style={{ animation: "slideUp 0.3s ease-out" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Title */}
             <h3 className="text-2xl font-bold text-slate-800 mb-6 pb-3 border-b-[3px] border-blue-600">
               Restock Order
             </h3>
 
-            {/* Order Info */}
             <div className="bg-slate-50 p-4 rounded-lg mb-5">
               {[
                 { label: "Product",       value: selectedProduct.productName },
@@ -342,7 +436,6 @@ export default function Products() {
               ))}
             </div>
 
-            {/* Quantity Input */}
             <div className="mb-5">
               <label className="block mb-2 font-semibold text-slate-800 text-[15px]">
                 Order Quantity *
@@ -357,7 +450,6 @@ export default function Products() {
               />
             </div>
 
-            {/* Total */}
             <div className="bg-blue-50 border-2 border-blue-200 px-4 py-4 rounded-lg mb-6">
               <p className="text-sm text-slate-500 mb-1">Total Amount:</p>
               <p className="text-2xl font-bold text-blue-600 m-0">
@@ -365,7 +457,6 @@ export default function Products() {
               </p>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3 pt-5 border-t-2 border-slate-100">
               <button
                 onClick={placeOrder}
