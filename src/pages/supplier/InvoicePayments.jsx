@@ -11,6 +11,9 @@ import {
   MdLocalShipping,
 } from 'react-icons/md';
 
+// ─── BACKEND URL ─────────────────────────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
 const InvoicePayments = () => {
   const [supplierId, setSupplierId]               = useState(null);
   const [invoices, setInvoices]                   = useState([]);
@@ -114,55 +117,53 @@ const InvoicePayments = () => {
     return initialInvoice?.paymentStatus === 'Paid';
   };
 
-  /* ================= PDF GENERATION ================= */
-  const generatePDF = (invoice) => {
-    const w = window.open('', '', 'width=800,height=600');
-    w.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invoice.invoiceNumber}</title>
-      <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:40px;background:white}
-      .container{max-width:800px;margin:0 auto;border:2px solid #333;padding:30px}
-      .header{display:flex;justify-content:space-between;border-bottom:2px solid #333;padding-bottom:20px;margin-bottom:20px}
-      h1{font-size:28px;color:#2563eb}table{width:100%;border-collapse:collapse;margin:20px 0}
-      th{background:#f3f4f6;padding:12px;text-align:left;border-bottom:2px solid #333}td{padding:12px;border-bottom:1px solid #e5e7eb}
-      .badge{display:inline-block;padding:5px 15px;border-radius:20px;font-size:12px;font-weight:bold}
-      .Paid{background:#dcfce7;color:#166534}.Pending{background:#fef3c7;color:#92400e}.Overdue{background:#fee2e2;color:#991b1b}
-      .totals{text-align:right;margin-top:20px}.total-row{display:flex;justify-content:flex-end;margin:8px 0}
-      .tl{width:200px;text-align:right;padding-right:20px;font-weight:bold}.ta{width:150px;text-align:right}
-      .grand{border-top:2px solid #333;padding-top:10px;font-size:20px;font-weight:bold;color:#2563eb}
-      .info{background:#f9fafb;padding:15px;margin:20px 0;border-left:4px solid #2563eb}
-      .footer{margin-top:40px;padding-top:20px;border-top:1px solid #e5e7eb;text-align:center;color:#666;font-size:12px}
-      @media print{.no-print{display:none}}</style></head><body>
-      <div class="container">
-        <div class="header">
-          <div><h1>MedSupply Co.</h1><p>Supplier Portal</p><p>123 Medical Street</p></div>
-          <div style="text-align:right"><h2>INVOICE</h2><p><strong>#${invoice.invoiceNumber}</strong></p>
-          <p><em>${invoice.invoiceLabel || invoice.invoiceType || ''}</em></p>
-          <span class="badge ${invoice.paymentStatus}">${invoice.paymentStatus}</span></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin:20px 0">
-          <div><h3>Bill To</h3><p><strong>${invoice.pharmacy}</strong></p></div>
-          <div><h3>Details</h3><p>Invoice: ${invoice.invoiceDate}</p><p>Due: ${invoice.dueDate}</p></div>
-        </div>
-        <table><thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>
-        ${(invoice.items || []).map(i => `<tr><td>${i.productName}</td><td>${i.quantity}</td><td>Rs.${Number(i.unitPrice).toFixed(2)}</td><td>Rs.${(i.quantity * i.unitPrice).toFixed(2)}</td></tr>`).join('')}
-        </tbody></table>
-        <div class="totals">
-          <div class="total-row"><div class="tl">Subtotal:</div><div class="ta">Rs.${Number(invoice.subtotal || invoice.totalAmount).toFixed(2)}</div></div>
-          <div class="total-row"><div class="tl">Tax (${invoice.taxRate || 0}%):</div><div class="ta">Rs.${Number(invoice.taxAmount || 0).toFixed(2)}</div></div>
-          <div class="total-row grand"><div class="tl">Total:</div><div class="ta">Rs.${Number(invoice.totalAmount).toFixed(2)}</div></div>
-        </div>
-        <div class="info"><h3>Payment ${invoice.paymentStatus === 'Paid' ? 'Info' : 'Instructions'}</h3>
-        ${invoice.paymentStatus === 'Paid'
-          ? `<p>Paid: Rs.${Number(invoice.paidAmount || invoice.totalAmount).toFixed(2)} via ${invoice.paymentMethod} on ${invoice.paidDate}</p>`
-          : `<p>Bank: Bank of America | Ref: ${invoice.invoiceNumber}</p>`}
-        </div>
-        <div class="footer"><p>Thank you! Generated ${new Date().toLocaleDateString()}</p></div>
-      </div>
-      <div class="no-print" style="text-align:center;margin-top:20px">
-        <button onclick="window.print()" style="padding:12px 24px;background:#2563eb;color:white;border:none;border-radius:6px;cursor:pointer;margin-right:10px">Print / Save PDF</button>
-        <button onclick="window.close()" style="padding:12px 24px;background:#6b7280;color:white;border:none;border-radius:6px;cursor:pointer">Close</button>
-      </div></body></html>`);
-    w.document.close();
+  // ─── CHANGED: now calls backend instead of opening raw browser window ──────
+  // Backend uses puppeteer to generate a proper PDF and returns it as a download
+  const generatePDF = async (invoice) => {
+    try {
+      const response = await fetch(`${API_BASE}/supplier/invoices/generate-pdf`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceNumber:    invoice.invoiceNumber,
+          pharmacy:         invoice.pharmacy,
+          invoiceType:      invoice.invoiceType,
+          invoiceLabel:     invoice.invoiceLabel,
+          paymentStatus:    invoice.paymentStatus,
+          invoiceDate:      invoice.invoiceDate,
+          dueDate:          invoice.dueDate,
+          items:            invoice.items            || [],
+          totalAmount:      invoice.totalAmount,
+          subtotal:         invoice.subtotal,
+          taxRate:          invoice.taxRate,
+          taxAmount:        invoice.taxAmount,
+          totalOrderAmount: invoice.totalOrderAmount,
+          paidAmount:       invoice.paidAmount,
+          paidDate:         invoice.paidDate,
+          paymentMethod:    invoice.paymentMethod,
+          paymentNote:      invoice.paymentNote,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate PDF');
+
+      // Convert response to blob and trigger browser download
+      const blob     = await response.blob();
+      const url      = window.URL.createObjectURL(blob);
+      const link     = document.createElement('a');
+      link.href      = url;
+      link.download  = `Invoice-${invoice.invoiceNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF: ' + error.message);
+    }
   };
+  // ─── END OF CHANGE ──────────────────────────────────────────────────────────
 
   /*  STYLE HELPERS  */
   const getStatusStyle = (status) => {
