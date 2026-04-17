@@ -17,7 +17,7 @@ export default function PurchaseOrders() {
   const [rejectReason, setRejectReason] = useState("");
   const [orderToReject, setOrderToReject] = useState(null);
 
-  /* ================= AUTH ================= */
+  /* AUTH*/
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -40,7 +40,7 @@ export default function PurchaseOrders() {
     return () => unsub();
   }, []);
 
-  /* ================= FETCH ================= */
+  /*  FETCH  */
   const fetchOrders = useCallback(async () => {
     if (!supplierId) { setLoading(false); return; }
     try {
@@ -58,7 +58,7 @@ export default function PurchaseOrders() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  /* ================= APPROVE ================= */
+  /*  APPROVE */
   const approveOrder = async (orderId, order) => {
     try {
       // ── Supplier product (products collection) ──────────────────────────
@@ -81,7 +81,7 @@ export default function PurchaseOrders() {
         `Approve this order?\n\nProduct: ${order.product || order.productName}\nQuantity: ${order.quantity} units\nAmount: Rs. ${Number(order.amount || order.totalAmount).toFixed(2)}\n\nThis will:\n• Add ${order.quantity} units to Stock Supplied\n• Deduct ${order.quantity} units from your Remaining Stock`
       )) return;
 
-      // ── 1. Update purchaseOrder status ───────────────────────────────────
+      // ── 1. Update purchaseOrder status
       await updateDoc(doc(db, "purchaseOrders", orderId), {
         status: "APPROVED",
         approvedAt: Timestamp.now(),
@@ -89,7 +89,7 @@ export default function PurchaseOrders() {
         updatedAt: Timestamp.now(),
       });
 
-      // ── 2. Supplier side (products collection) ───────────────────────────
+      // ── 2. Supplier side (products collection) 
       //   stock    = Stock Supplied to MediCareX  → INCREMENT
       //   minStock = Remaining Stock with supplier → DECREMENT
       await updateDoc(productRef, {
@@ -98,7 +98,7 @@ export default function PurchaseOrders() {
         updatedAt: Timestamp.now(),
       });
 
-      // ── 3. Admin side (adminProducts collection) ─────────────────────────
+      // ── 3. Admin side (adminProducts collection) 
       //   stock = Admin Stock → INCREMENT
       if (order.adminProductId) {
         const adminProductRef  = doc(db, "adminProducts", order.adminProductId);
@@ -115,7 +115,7 @@ export default function PurchaseOrders() {
         }
       }
 
-      // ── 4. Create payment & invoice records ──────────────────────────────
+      // ── 4. Create payment & invoice records 
       const totalAmount = Number(order.amount || order.totalAmount);
       const initialPaymentDueDate = Timestamp.fromDate(
         new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -170,7 +170,7 @@ export default function PurchaseOrders() {
         updatedAt: Timestamp.now(),
       });
 
-      // ── 5. Notify admin ───────────────────────────────────────────────────
+      // ── 5. Notify admin 
       await addDoc(collection(db, "notifications"), {
         type: "ORDER_APPROVED", recipientId: "admin", recipientType: "admin",
         orderId, poId: order.poId, supplierId, supplierName,
@@ -196,7 +196,7 @@ export default function PurchaseOrders() {
     }
   };
 
-  /* ================= REJECT ================= */
+  /* REJECT  */
   const openRejectModal = (order) => { setOrderToReject(order); setRejectReason(""); setShowRejectModal(true); };
 
   const rejectOrder = async () => {
@@ -227,7 +227,7 @@ export default function PurchaseOrders() {
     }
   };
 
-  /* ================= HELPERS ================= */
+  /*  HELPERS  */
   const getStatusStyle = (status) => {
     switch (status) {
       case "PENDING":   return "bg-amber-100 text-amber-800";
@@ -255,7 +255,7 @@ export default function PurchaseOrders() {
     );
   };
 
-  /* ================= SHARED MODAL WRAPPER ================= */
+  /*  SHARED MODAL WRAPPER  */
   const ModalWrap = ({ onClose, maxW = "max-w-[700px]", children }) => (
     <div
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
@@ -272,7 +272,7 @@ export default function PurchaseOrders() {
     </div>
   );
 
-  /* ================= UI ================= */
+  
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
 
