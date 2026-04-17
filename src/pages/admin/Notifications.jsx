@@ -1,24 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  collection,
-  query,
-  where,
-  orderBy,
-  getDocs,
-  doc,
-  updateDoc,
-  getDoc,
-  Timestamp,
-  deleteDoc,
-} from 'firebase/firestore';
-import { db } from '../../services/firebase';
-import {
   MdShoppingCart,
   MdCheckCircle,
   MdCancel,
   MdWarning,
   MdCampaign,
 } from 'react-icons/md';
+
+// ── API base URL ────────────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -35,20 +25,18 @@ const Notifications = () => {
     'LOW_STOCK_ALERT',
   ];
 
+  // ── FETCH all notifications ──────────────────────────────────
   const fetchNotifications = async () => {
     try {
       setLoading(true);
-      const notificationsQuery = query(
-        collection(db, 'notifications'),
-        where('recipientType', '==', 'admin'),
-        orderBy('createdAt', 'desc')
-      );
-      const snapshot = await getDocs(notificationsQuery);
-      setNotifications(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoading(false);
+      const res = await fetch(`${API_BASE}/notifications?recipientType=admin`);
+      if (!res.ok) throw new Error('Failed to fetch notifications');
+      const data = await res.json();
+      setNotifications(data);
     } catch (error) {
       console.error('Error fetching notifications:', error);
       alert('Failed to load notifications: ' + error.message);
+    } finally {
       setLoading(false);
     }
   };
@@ -60,22 +48,26 @@ const Notifications = () => {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // ── MARK single as read ──────────────────────────────────────
   const markAsRead = async (notificationId) => {
     try {
-      await updateDoc(doc(db, 'notifications', notificationId), { read: true });
+      const res = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+      });
+      if (!res.ok) throw new Error('Failed to mark as read');
       fetchNotifications();
     } catch (error) {
       console.error('Error marking as read:', error);
     }
   };
 
+  // ── MARK ALL as read ─────────────────────────────────────────
   const markAllAsRead = async () => {
     try {
-      await Promise.all(
-        notifications
-          .filter((n) => !n.read)
-          .map((n) => updateDoc(doc(db, 'notifications', n.id), { read: true }))
-      );
+      const res = await fetch(`${API_BASE}/notifications/read-all`, {
+        method: 'PATCH',
+      });
+      if (!res.ok) throw new Error('Failed to mark all as read');
       fetchNotifications();
     } catch (error) {
       console.error('Error marking all as read:', error);
@@ -83,10 +75,14 @@ const Notifications = () => {
     }
   };
 
+  // ── DELETE notification ──────────────────────────────────────
   const deleteNotification = async (notificationId) => {
     if (!window.confirm('Delete this notification?')) return;
     try {
-      await deleteDoc(doc(db, 'notifications', notificationId));
+      const res = await fetch(`${API_BASE}/notifications/${notificationId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to delete notification');
       fetchNotifications();
       setSelectedNotification(null);
     } catch (error) {
@@ -95,42 +91,22 @@ const Notifications = () => {
     }
   };
 
+  // ── MARK ORDER as received (backend handles all logic) ───────
   const handleOrderApproval = async (notification) => {
+    if (!window.confirm(
+      `Mark order as RECEIVED?\n\nThis will:\n- Update order status to COMPLETED\n- Add units to your inventory\n- Update product availability`
+    )) return;
+
     try {
       setProcessing(true);
-      const orderRef = doc(db, 'purchaseOrders', notification.orderId);
-      const orderSnap = await getDoc(orderRef);
-
-      if (!orderSnap.exists()) { alert('Order not found'); return; }
-
-      const order = orderSnap.data();
-      if (order.status !== 'APPROVED') {
-        alert('Order must be APPROVED before marking as received');
-        return;
-      }
-
-      if (!window.confirm(
-        `Mark order ${order.poId} as RECEIVED?\n\nThis will:\n- Update order status to COMPLETED\n- Add ${order.quantity} units to your inventory\n- Update product availability`
-      )) { setProcessing(false); return; }
-
-      await updateDoc(orderRef, {
-        status: 'COMPLETED',
-        completionDate: Timestamp.now(),
-        updatedAt: Timestamp.now(),
+      const res = await fetch(`${API_BASE}/notifications/${notification.id}/mark-received`, {
+        method: 'PATCH',
       });
 
-      const adminProductRef = doc(db, 'adminProducts', order.adminProductId);
-      const adminProductSnap = await getDoc(adminProductRef);
-      if (adminProductSnap.exists()) {
-        await updateDoc(adminProductRef, {
-          stock: (adminProductSnap.data().stock || 0) + order.quantity,
-          availability: 'in stock',
-          lastRestocked: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        });
-      }
+      const data = await res.json();
 
-      await updateDoc(doc(db, 'notifications', notification.id), { read: true });
+      if (!res.ok) throw new Error(data.message || 'Failed to process order');
+
       alert('Order marked as received!\n\nInventory has been updated.');
       fetchNotifications();
       setSelectedNotification(null);
@@ -142,9 +118,14 @@ const Notifications = () => {
     }
   };
 
+  // ── Helpers (UI only — no changes needed) ───────────────────
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = timestamp._seconds
+      ? new Date(timestamp._seconds * 1000)
+      : timestamp.toDate
+      ? timestamp.toDate()
+      : new Date(timestamp);
     return date.toLocaleDateString('en-US', {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
@@ -175,12 +156,13 @@ const Notifications = () => {
   };
 
   const statCards = [
-    { label: 'Total',          value: notifications.length,                                          accent: 'border-slate-300' },
-    { label: 'Unread',         value: unreadCount,                                                   accent: 'border-amber-400' },
+    { label: 'Total',          value: notifications.length,                                            accent: 'border-slate-300' },
+    { label: 'Unread',         value: unreadCount,                                                     accent: 'border-amber-400' },
     { label: 'Order Approved', value: notifications.filter((n) => n.type === 'ORDER_APPROVED').length, accent: 'border-emerald-400' },
     { label: 'Low Stock',      value: notifications.filter((n) => n.type === 'LOW_STOCK_ALERT').length, accent: 'border-red-400' },
   ];
 
+  // ── JSX (zero UI changes) ────────────────────────────────────
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
 
@@ -250,12 +232,9 @@ const Notifications = () => {
                 flex gap-4 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md
                 ${!notification.read ? 'bg-slate-50' : ''}`}
             >
-              {/* Icon */}
               <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-full bg-slate-100">
                 {getNotificationIcon(notification.type, 22)}
               </div>
-
-              {/* Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1.5 flex-wrap gap-1">
                   <span className="text-[13px] font-semibold text-blue-600 uppercase tracking-wide">
@@ -274,8 +253,6 @@ const Notifications = () => {
                   </p>
                 )}
               </div>
-
-              {/* Unread dot */}
               {!notification.read && (
                 <div className="absolute top-5 right-5 w-2.5 h-2.5 bg-blue-600 rounded-full" />
               )}
@@ -296,7 +273,6 @@ const Notifications = () => {
             onClick={(e) => e.stopPropagation()}
             style={{ animation: 'slideUp 0.3s ease-out' }}
           >
-            {/* Modal Header */}
             <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
               <h2 className="text-2xl font-bold text-slate-800 m-0">Notification Details</h2>
               <button
@@ -307,10 +283,7 @@ const Notifications = () => {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-7">
-
-              {/* Type + Date */}
               <div className="flex gap-4 items-start mb-6 pb-5 border-b-2 border-slate-100">
                 <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
                   {getNotificationIcon(selectedNotification.type, 30)}
@@ -323,19 +296,17 @@ const Notifications = () => {
                 </div>
               </div>
 
-              {/* Message Box */}
               <div className="bg-slate-50 border-l-4 border-blue-500 px-4 py-4 rounded-lg mb-6">
                 <p className="m-0 text-[15px] text-slate-800 leading-relaxed">{selectedNotification.message}</p>
               </div>
 
-              {/* Details Grid */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 {[
-                  selectedNotification.poId          && { label: 'PO ID',        value: selectedNotification.poId },
-                  selectedNotification.supplierName  && { label: 'Supplier',     value: selectedNotification.supplierName },
-                  selectedNotification.productName   && { label: 'Product',      value: selectedNotification.productName },
-                  selectedNotification.quantity      && { label: 'Quantity',     value: `${selectedNotification.quantity} units` },
-                  selectedNotification.totalAmount   && { label: 'Total Amount', value: `Rs. ${Number(selectedNotification.totalAmount).toFixed(2)}` },
+                  selectedNotification.poId         && { label: 'PO ID',        value: selectedNotification.poId },
+                  selectedNotification.supplierName && { label: 'Supplier',     value: selectedNotification.supplierName },
+                  selectedNotification.productName  && { label: 'Product',      value: selectedNotification.productName },
+                  selectedNotification.quantity     && { label: 'Quantity',     value: `${selectedNotification.quantity} units` },
+                  selectedNotification.totalAmount  && { label: 'Total Amount', value: `Rs. ${Number(selectedNotification.totalAmount).toFixed(2)}` },
                 ]
                   .filter(Boolean)
                   .map((item) => (
@@ -346,13 +317,12 @@ const Notifications = () => {
                   ))}
               </div>
 
-              {/* Approve Action */}
               {selectedNotification.type === 'ORDER_APPROVED' && (
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 text-center mb-6">
                   <button
                     onClick={() => handleOrderApproval(selectedNotification)}
                     disabled={processing || selectedNotification.read}
-                    className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 hover:not(:disabled):-translate-y-0.5 hover:not(:disabled):shadow-lg mb-2"
+                    className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 mb-2"
                   >
                     {processing
                       ? 'Processing...'
@@ -368,7 +338,6 @@ const Notifications = () => {
                 </div>
               )}
 
-              {/* Modal Footer Actions */}
               <div className="flex gap-3 pt-5 border-t-2 border-slate-100 flex-wrap">
                 {!selectedNotification.read && (
                   <button
@@ -390,7 +359,6 @@ const Notifications = () => {
         </div>
       )}
 
-      {/* Keyframe animations */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }
