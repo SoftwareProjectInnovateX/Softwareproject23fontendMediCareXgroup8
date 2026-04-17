@@ -97,7 +97,7 @@ export default function Suppliers() {
       <div className="p-8 text-slate-500 text-lg">Loading suppliers...</div>
     );
 
-  /* ================= SUPPLIER DETAIL VIEW ================= */
+  /* SUPPLIER DETAIL VIEW */
   if (selectedSupplier) {
     const summaryCards = [
       { label: "Total Orders",  value: orders.length,                                        color: "text-slate-800" },
@@ -287,7 +287,7 @@ export default function Suppliers() {
     );
   }
 
-  /* ================= SUPPLIER CARDS VIEW ================= */
+  /* SUPPLIER CARDS VIEW  */
   return (
     <div className="p-8 bg-slate-50 min-h-screen max-w-[1400px] mx-auto">
 
@@ -331,7 +331,7 @@ export default function Suppliers() {
   );
 }
 
-/* ================= SUPPLIER CARD ================= */
+/*  SUPPLIER CARD  */
 function SupplierCard({ supplier, onView }) {
   const [stats, setStats] = useState({
     products: 0, totalOrders: 0, pendingOrders: 0, approvedOrders: 0, completedOrders: 0,
