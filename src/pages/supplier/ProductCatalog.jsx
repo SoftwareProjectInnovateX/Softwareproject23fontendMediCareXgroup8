@@ -1,31 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   collection, addDoc, getDocs, updateDoc, deleteDoc,
-  doc, query, orderBy, where, Timestamp, getDoc, runTransaction,
+  doc, query, orderBy, where, Timestamp, getDoc,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { getAuth } from 'firebase/auth';
 
-// Generates next sequential code atomically using a Firestore counter document.
-// The counter doc lives at: counters/productCode  { current: <number> }
-const generateProductCode = async () => {
-  const counterRef = doc(db, 'counters', 'productCode');
-
-  const nextNumber = await runTransaction(db, async (transaction) => {
-    const counterSnap = await transaction.get(counterRef);
-
-    if (!counterSnap.exists()) {
-      transaction.set(counterRef, { current: 1 });
-      return 1;
-    }
-
-    const next = (counterSnap.data().current || 0) + 1;
-    transaction.update(counterRef, { current: next });
-    return next;
-  });
-
-  return `P${String(nextNumber).padStart(3, '0')}`;
-};
+// ─── BACKEND URL ────────────────────────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const ProductCatalog = () => {
   const [products, setProducts]             = useState([]);
@@ -102,6 +84,8 @@ const ProductCatalog = () => {
 
   useEffect(() => { if (currentUser) fetchProducts(); }, [currentUser]);
 
+  // ─── CHANGED: now calls backend instead of direct Firestore ────────────────
+  // Backend handles: atomic productCode generation + writing to both collections
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
@@ -110,55 +94,34 @@ const ProductCatalog = () => {
         return;
       }
 
-      const auth  = getAuth();
-      const user  = auth.currentUser;
+      const auth = getAuth();
+      const user = auth.currentUser;
       if (!user) { alert('Please login to add products'); return; }
 
-      const userId      = currentUser?.id   || user.uid;
-      const userName    = currentUser?.name  || user.email || 'Supplier';
-      const productCode = await generateProductCode();
+      const userId   = currentUser?.id   || user.uid;
+      const userName = currentUser?.name || user.email || 'Supplier';
 
-      // stock    = Stock Supplied to MediCareX  (increases when order approved)
-      // minStock = Remaining Stock with supplier (decreases when order placed)
-      const suppliedStock  = parseInt(formData.stock)    || 0;
-      const remainingStock = parseInt(formData.minStock) || 0;
+      // Call backend — POST /supplier/products
+      const response = await fetch(
+        `${API_BASE}/supplier/products?supplierId=${userId}&supplierName=${encodeURIComponent(userName)}`,
+        {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productName:    formData.productName,
+            category:       formData.category,
+            wholesalePrice: parseFloat(formData.wholesalePrice),
+            stock:          parseInt(formData.stock)    || 0,
+            minStock:       parseInt(formData.minStock) || 0,
+            description:    formData.description,
+            manufacturer:   formData.manufacturer,
+          }),
+        },
+      );
 
-      const newProduct = {
-        productName:    formData.productName,
-        productCode,
-        category:       formData.category,
-        wholesalePrice: parseFloat(formData.wholesalePrice),
-        stock:          suppliedStock,    // Stock Supplied to MediCareX
-        minStock:       remainingStock,   // Remaining Stock with supplier
-        description:    formData.description,
-        manufacturer:   formData.manufacturer,
-        availability:   remainingStock > 0 ? 'in stock' : 'out of stock',
-        supplierId:     userId,
-        supplierName:   userName,
-        createdAt:      Timestamp.now(),
-        updatedAt:      Timestamp.now(),
-      };
+      if (!response.ok) throw new Error('Failed to add product');
 
-      const productRef = await addDoc(collection(db, 'products'), newProduct);
-
-      await addDoc(collection(db, 'adminProducts'), {
-        productId:      productRef.id,
-        supplierId:     userId,
-        supplierName:   userName,
-        productName:    formData.productName,
-        productCode,
-        category:       formData.category,
-        wholesalePrice: parseFloat(formData.wholesalePrice),
-        retailPrice:    parseFloat(formData.wholesalePrice) * 1.2,
-        stock:          suppliedStock,    // Admin Stock
-        minStock:       remainingStock,   // Supplier Remaining
-        description:    formData.description,
-        manufacturer:   formData.manufacturer,
-        availability:   remainingStock > 0 ? 'in stock' : 'out of stock',
-        lastRestocked:  Timestamp.now(),
-        createdAt:      Timestamp.now(),
-        updatedAt:      Timestamp.now(),
-      });
+      const { productCode } = await response.json();
 
       alert(`Product added successfully!\nProduct Code: ${productCode}`);
       setShowModal(false);
@@ -169,6 +132,7 @@ const ProductCatalog = () => {
       alert('Failed to add product: ' + error.message);
     }
   };
+  // ─── END OF CHANGE ─────────────────────────────────────────────────────────
 
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
