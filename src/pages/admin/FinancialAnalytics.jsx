@@ -37,7 +37,7 @@ export default function FinancialAnalytics() {
   if (loading)
     return <div className="p-6 text-gray-500">Loading analytics...</div>;
 
-  /* ================= FILTER BY YEAR ================= */
+  /*  FILTER BY YEAR  */
   const filterByYear = (data, field) =>
     data.filter((d) => {
       const date = d[field]?.toDate?.();
@@ -47,7 +47,7 @@ export default function FinancialAnalytics() {
   const filteredOrders = filterByYear(orders, "createdAt");
   const filteredPayments = filterByYear(payments, "paidDate");
 
-  /* ================= SUMMARY ================= */
+  /*  SUMMARY  */
   const totalRevenue = filteredOrders.reduce(
     (sum, o) => sum + (o.totalAmount || 0),
     0
@@ -67,7 +67,7 @@ export default function FinancialAnalytics() {
     ? ((profit / totalRevenue) * 100).toFixed(1)
     : 0;
 
-  /* ================= PROFIT GROWTH ================= */
+  /* PROFIT GROWTH  */
   const lastYearOrders = orders.filter(
     (o) => o.createdAt?.toDate()?.getFullYear() === year - 1
   );
@@ -81,7 +81,7 @@ export default function FinancialAnalytics() {
     ? (((totalRevenue - lastYearRevenue) / lastYearRevenue) * 100).toFixed(1)
     : 0;
 
-  /* ================= MONTHLY TREND ================= */
+  /*  MONTHLY TREND */
   const months = [
     "Jan","Feb","Mar","Apr","May","Jun",
     "Jul","Aug","Sep","Oct","Nov","Dec"
@@ -103,7 +103,7 @@ export default function FinancialAnalytics() {
     return { month, Revenue: revenue, Cost: cost, Profit: revenue - cost };
   });
 
-  /* ================= CATEGORY DATA ================= */
+  /*  CATEGORY DATA */
   const categories = [
     ...new Set([
       ...filteredOrders.map((o) => o.category || "Other"),
@@ -131,7 +131,7 @@ export default function FinancialAnalytics() {
     };
   });
 
-  /* ================= TOP PRODUCTS ================= */
+  /*  TOP PRODUCTS  */
   const productMap = {};
   filteredOrders.forEach((o) => {
     const name = o.productName || "Unknown";
