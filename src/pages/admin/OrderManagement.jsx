@@ -12,6 +12,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import Card from "../../components/Card";
 
 const OrderManagement = () => {
   const [orders, setOrders] = useState([]);
@@ -22,7 +23,7 @@ const OrderManagement = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  const statusOptions = ['All', 'PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'];
+  const statusOptions = ['All', 'PENDING', 'APPROVED', 'REJECTED', 'DELIVERED', 'COMPLETED'];
 
   const fetchOrders = async () => {
     try {
@@ -63,8 +64,9 @@ const OrderManagement = () => {
     setShowDetailsModal(true);
   };
 
+  // ── Triggered by admin after supplier marks DELIVERED ──────────────────────
   const markAsReceived = async (orderId, order) => {
-    if (!window.confirm('Mark this order as RECEIVED?\n\nThis will update the inventory stock.')) return;
+    if (!window.confirm('Mark this order as COMPLETED?\n\nThis will update the inventory stock and unlock the final payment.')) return;
     try {
       await updateDoc(doc(db, 'purchaseOrders', orderId), {
         status: 'COMPLETED',
@@ -84,7 +86,7 @@ const OrderManagement = () => {
         });
       }
 
-      // Resolve field names defensively — handles both naming conventions
+      // Resolve field names defensively
       const resolvedProductName = order.productName || order.product || 'N/A';
       const resolvedPoId        = order.poId || order.productId || orderId;
       const resolvedTotal       = order.totalAmount ?? (order.quantity * order.unitPrice) ?? 0;
@@ -111,24 +113,24 @@ const OrderManagement = () => {
         dueDate.setDate(dueDate.getDate() + 14); // 14 days to pay
 
         await addDoc(collection(db, 'payments'), {
-          purchaseOrderId: orderId,
-          orderId:         resolvedPoId,
-          supplierId:      order.supplierId   || null,
-          supplierName:    order.supplierName || 'N/A',
-          productName:     resolvedProductName,
-          quantity:        order.quantity     || 0,
-          amount:          resolvedTotal / 2,           // final 50%
+          purchaseOrderId:  orderId,
+          orderId:          resolvedPoId,
+          supplierId:       order.supplierId   || null,
+          supplierName:     order.supplierName || 'N/A',
+          productName:      resolvedProductName,
+          quantity:         order.quantity     || 0,
+          amount:           resolvedTotal / 2,           // final 50%
           totalOrderAmount: resolvedTotal,
-          paymentType:     'FINAL',
-          paymentLabel:    'Final Payment (50%)',
-          status:          'PENDING',
-          dueDate:         Timestamp.fromDate(dueDate),
-          createdAt:       Timestamp.now(),
-          updatedAt:       Timestamp.now(),
+          paymentType:      'FINAL',
+          paymentLabel:     'Final Payment (50%)',
+          status:           'PENDING',
+          dueDate:          Timestamp.fromDate(dueDate),
+          createdAt:        Timestamp.now(),
+          updatedAt:        Timestamp.now(),
         });
       }
 
-      alert('Order marked as received and stock updated!\n\nFinal payment is now available in Payments.');
+      alert('Order marked as COMPLETED and stock updated!\n\nFinal payment is now available in Payments.');
       fetchOrders();
       setShowDetailsModal(false);
     } catch (error) {
@@ -148,20 +150,29 @@ const OrderManagement = () => {
 
   const getStatusStyle = (status) => {
     switch (status) {
-      case 'PENDING':   return 'bg-amber-100 text-amber-800';
-      case 'APPROVED':  return 'bg-blue-100 text-blue-800';
-      case 'REJECTED':  return 'bg-red-100 text-red-800';
-      case 'COMPLETED': return 'bg-emerald-100 text-emerald-800';
-      default:          return 'bg-gray-100 text-gray-600';
+      case 'PENDING':     return 'bg-amber-100 text-amber-800';
+      case 'APPROVED':    return 'bg-blue-100 text-blue-800';
+      case 'REJECTED':    return 'bg-red-100 text-red-800';
+      case 'PACKED':      return 'bg-sky-100 text-sky-800';
+      case 'IN DELIVERY': return 'bg-violet-100 text-violet-800';
+      case 'DELIVERED':   return 'bg-orange-100 text-orange-800';
+      case 'COMPLETED':   return 'bg-emerald-100 text-emerald-800';
+      default:            return 'bg-gray-100 text-gray-600';
     }
   };
-
-  const stats = [
-    { label: 'Total Orders', value: orders.length,                                                              accent: 'border-slate-400' },
-    { label: 'Pending',      value: orders.filter((o) => o.status === 'PENDING').length,                        accent: 'border-amber-400' },
-    { label: 'Approved',     value: orders.filter((o) => o.status === 'APPROVED').length,                       accent: 'border-blue-400' },
-    { label: 'Completed',    value: orders.filter((o) => o.status === 'COMPLETED').length,                      accent: 'border-emerald-400' },
-    { label: 'Total Amount', value: `Rs. ${orders.reduce((s, o) => s + (o.totalAmount || 0), 0).toFixed(2)}`,  accent: 'border-violet-400' },
+   const stats = [
+  { title: 'Total Orders', value: orders.length, color: 'bg-slate-500' },
+  { title: 'Pending', value: orders.filter(o => o.status === 'PENDING').length, color: 'bg-amber-500' },
+  { title: 'Approved', value: orders.filter(o => o.status === 'APPROVED').length, color: 'bg-blue-500' },
+  { title: 'Delivered', value: orders.filter(o => o.status === 'DELIVERED').length, color: 'bg-orange-500' },
+  { title: 'Completed', value: orders.filter(o => o.status === 'COMPLETED').length, color: 'bg-emerald-500' },
+  {
+      title: 'Total Amount',
+      value: `Rs. ${orders.reduce((s, o) =>
+        s + ((o.quantity || 0) * (o.unitPrice || 0)), 0
+      ).toFixed(2)}`,
+      color: 'bg-violet-500'
+    },
   ];
 
   return (
@@ -174,17 +185,28 @@ const OrderManagement = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-5 mb-8">
-        {stats.map((card) => (
-          <div
-            key={card.label}
-            className={`bg-white p-6 rounded-xl shadow-sm border-l-4 ${card.accent} transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
-          >
-            <p className="text-sm text-slate-500 font-medium mb-2">{card.label}</p>
-            <p className="text-[28px] font-bold text-slate-800 leading-tight">{card.value}</p>
-          </div>
-        ))}
-      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-5 mb-8">
+      {stats.map((card) => (
+        <Card
+          key={card.title}
+          title={card.title}
+          value={card.value}
+          color={card.color}
+        />
+      ))}
+    </div>
+
+      {/* Alert: orders awaiting admin completion */}
+      {orders.some((o) => o.status === 'DELIVERED') && (
+        <div className="mb-6 flex items-center gap-3 rounded-xl bg-orange-50 border border-orange-300 p-4">
+          <svg className="h-5 w-5 flex-shrink-0 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.249-8.25-3.286zm0 13.036h.008v.008H12v-.008z" />
+          </svg>
+          <p className="text-sm text-orange-800 font-medium m-0">
+            {orders.filter((o) => o.status === 'DELIVERED').length} order(s) delivered by supplier — please verify receipt and mark as Completed to unlock final payment.
+          </p>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white p-6 rounded-xl shadow-sm mb-6">
@@ -211,6 +233,7 @@ const OrderManagement = () => {
           ))}
         </div>
       </div>
+      
 
       {/* Table */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
@@ -349,17 +372,29 @@ const OrderManagement = () => {
                 </div>
               )}
 
-              {/* Mark as Received */}
-              {selectedOrder.status === 'APPROVED' && (
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 text-center">
+              {/* ── Mark as Received — only shown when supplier has marked DELIVERED ── */}
+              {selectedOrder.status === 'DELIVERED' && (
+                <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-5 text-center">
+                  <p className="text-sm text-orange-700 font-semibold mb-3 m-0">
+                    🚚 Supplier has marked this order as Delivered
+                  </p>
                   <button
                     onClick={() => markAsReceived(selectedOrder.id, selectedOrder)}
                     className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-600 text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg mb-2"
                   >
-                    ✓ Mark as Received
+                    ✓ Confirm Receipt &amp; Mark as Completed
                   </button>
-                  <p className="m-0 text-[13px] text-blue-700">
-                    Click this when you receive the products
+                  <p className="m-0 text-[13px] text-orange-700">
+                    Confirming receipt will update inventory and unlock the final 50% payment.
+                  </p>
+                </div>
+              )}
+
+              {/* Already completed notice */}
+              {selectedOrder.status === 'COMPLETED' && (
+                <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-5 text-center">
+                  <p className="text-sm text-emerald-700 font-semibold m-0">
+                    ✅ Order completed. Inventory updated and final payment unlocked.
                   </p>
                 </div>
               )}
