@@ -394,7 +394,7 @@ const OrderManagement = () => {
               {selectedOrder.status === 'COMPLETED' && (
                 <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-5 text-center">
                   <p className="text-sm text-emerald-700 font-semibold m-0">
-                    ✅ Order completed. Inventory updated and final payment unlocked.
+                     Order completed. Inventory updated and final payment unlocked.
                   </p>
                 </div>
               )}
