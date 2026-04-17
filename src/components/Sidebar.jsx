@@ -14,6 +14,7 @@ import {
   MdChevronLeft,
   MdChevronRight,
   MdAssignmentInd,
+  MdSearch,
 } from "react-icons/md";
 
 export default function Sidebar() {
@@ -31,6 +32,7 @@ export default function Sidebar() {
     { id: 8, icon: <MdNotifications size={22} />, text: "Notifications", path: "/admin/notifications" },
     { id: 9, icon: <MdPayment size={22} />, text: "Admin Payments", path: "/admin/adminPayments" },
     { id: 10, icon: <MdAssignmentInd size={22} />, text: "Account Requests", path: "/admin/account-requests" },
+    { id: 11, icon: <MdSearch size={22} />, text: "Search Analytics", path: "/admin/search-analytics" },
   ];
 
   const handleLogout = () => {
