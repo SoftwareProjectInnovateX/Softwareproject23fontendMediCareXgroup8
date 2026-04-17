@@ -82,10 +82,14 @@ export default function FinancialAnalytics() {
     : 0;
 
   /* ================= MONTHLY TREND ================= */
+<<<<<<< HEAD
+  const months = ["Jan","Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+=======
   const months = [
     "Jan","Feb","Mar","Apr","May","Jun",
     "Jul","Aug","Sep","Oct","Nov","Dec"
   ];
+>>>>>>> ee687eb9676d4fd96bd3bfd05cf19ee6d63e47d1
 
   const trendData = months.map((month, i) => {
     const revenue = filteredOrders
