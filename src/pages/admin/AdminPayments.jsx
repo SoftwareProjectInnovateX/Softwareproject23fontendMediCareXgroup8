@@ -135,12 +135,12 @@ const AdminPayments = () => {
       // If this is the FINAL payment, complete the order + notify supplier
 if (payment.paymentType === 'FINAL') {
 
-  // ✅ NEW: Mark purchase order as fully completed
+  
   await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
     finalPaymentStatus: 'PAID',
     finalPaymentDate: Timestamp.now(),
-    paymentStatus: 'COMPLETED',   // 🔥 IMPORTANT
-    orderStatus: 'COMPLETED',     // 🔥 IMPORTANT
+    paymentStatus: 'COMPLETED',   
+    orderStatus: 'COMPLETED',     
     updatedAt: Timestamp.now(),
   });
 
