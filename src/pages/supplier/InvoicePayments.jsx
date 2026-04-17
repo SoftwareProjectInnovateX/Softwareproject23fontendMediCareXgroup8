@@ -101,7 +101,7 @@ const InvoicePayments = () => {
     }
   };
 
-  /* ================= DELIVERY UNLOCK CHECK ================= */
+  /*  DELIVERY UNLOCK CHECK  */
   // Supplier can only proceed with delivery if the INITIAL invoice is Paid
   const canProceedWithDelivery = (invoice) => {
     return invoice.invoiceType === 'INITIAL' && invoice.paymentStatus === 'Paid';
@@ -164,7 +164,7 @@ const InvoicePayments = () => {
     w.document.close();
   };
 
-  /* ================= STYLE HELPERS ================= */
+  /*  STYLE HELPERS  */
   const getStatusStyle = (status) => {
     switch (status) {
       case 'Paid':    return 'bg-emerald-100 text-emerald-800';
@@ -191,7 +191,7 @@ const InvoicePayments = () => {
     { label: 'Overdue',       value: totals.overdue, count: invoices.filter(i => i.paymentStatus === 'Overdue').length, accent: 'border-red-500',     icon: <MdWarning size={26} className="text-red-500" />,         bg: 'bg-red-50' },
   ];
 
-  /* ================= SHARED MODAL WRAPPER ================= */
+  /*  SHARED MODAL WRAPPER  */
   const ModalWrap = ({ onClose, children }) => (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-5"
@@ -211,7 +211,7 @@ const InvoicePayments = () => {
   const inputCls = "w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10";
   const disabledCls = "bg-slate-100 cursor-not-allowed";
 
-  /* ================= RENDER ================= */
+  /*  RENDER  */
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
 
