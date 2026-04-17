@@ -11,113 +11,67 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
 } from "recharts";
-import Card from "../../components/Card";
 
 export default function FinancialAnalytics() {
   const [orders, setOrders] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [year, setYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     const fetchData = async () => {
       const orderSnap = await getDocs(collection(db, "orders"));
-      const paymentSnap = await getDocs(collection(db, "payments"));
-
+      const purchaseSnap = await getDocs(collection(db, "purchaseOrders"));
       setOrders(orderSnap.docs.map((d) => d.data()));
-      setPayments(paymentSnap.docs.map((d) => d.data()));
+      setPurchaseOrders(purchaseSnap.docs.map((d) => d.data()));
       setLoading(false);
     };
     fetchData();
   }, []);
 
   if (loading)
-    return <div className="p-6 text-gray-500">Loading analytics...</div>;
-
-  /* ================= FILTER BY YEAR ================= */
-  const filterByYear = (data, field) =>
-    data.filter((d) => {
-      const date = d[field]?.toDate?.();
-      return date && date.getFullYear() === year;
-    });
-
-  const filteredOrders = filterByYear(orders, "createdAt");
-  const filteredPayments = filterByYear(payments, "paidDate");
+    return (
+      <div className="p-6 bg-slate-50 min-h-screen text-slate-500 text-lg">
+        Loading analytics...
+      </div>
+    );
 
   /* ================= SUMMARY ================= */
-  const totalRevenue = filteredOrders.reduce(
-    (sum, o) => sum + (o.totalAmount || 0),
-    0
-  );
-
-  const totalCost = filteredPayments
-    .filter((p) => p.status === "PAID")
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-
-  const overdueCost = payments
-    .filter((p) => p.status === "OVERDUE")
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
-
+  const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  const totalCost = purchaseOrders.reduce((sum, p) => sum + (p.amount || 0), 0);
   const profit = totalRevenue - totalCost;
-
-  const margin = totalRevenue
-    ? ((profit / totalRevenue) * 100).toFixed(1)
-    : 0;
-
-  /* ================= PROFIT GROWTH ================= */
-  const lastYearOrders = orders.filter(
-    (o) => o.createdAt?.toDate()?.getFullYear() === year - 1
-  );
-
-  const lastYearRevenue = lastYearOrders.reduce(
-    (s, o) => s + (o.totalAmount || 0),
-    0
-  );
-
-  const growth = lastYearRevenue
-    ? (((totalRevenue - lastYearRevenue) / lastYearRevenue) * 100).toFixed(1)
-    : 0;
+  const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0;
 
   /* ================= MONTHLY TREND ================= */
-  const months = [
-    "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec"
-  ];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   const trendData = months.map((month, i) => {
-    const revenue = filteredOrders
+    const revenue = orders
       .filter((o) => o.createdAt?.toDate()?.getMonth() === i)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
-    const cost = filteredPayments
-      .filter(
-        (p) =>
-          p.status === "PAID" &&
-          p.paidDate?.toDate()?.getMonth() === i
-      )
+    const cost = purchaseOrders
+      .filter((p) => p.createdAt?.toDate()?.getMonth() === i)
       .reduce((s, p) => s + (p.amount || 0), 0);
 
-    return { month, Revenue: revenue, Cost: cost, Profit: revenue - cost };
+    return { month, Revenue: revenue, Cost: cost };
   });
 
   /* ================= CATEGORY DATA ================= */
   const categories = [
     ...new Set([
-      ...filteredOrders.map((o) => o.category || "Other"),
-      ...filteredPayments.map((p) => p.category || "Other"),
+      ...orders.map((o) => o.category),
+      ...purchaseOrders.map((p) => p.category),
     ]),
   ];
 
   const categoryData = categories.map((cat) => {
-    const revenue = filteredOrders
+    const revenue = orders
       .filter((o) => o.category === cat)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
-    const cost = filteredPayments
-      .filter((p) => p.category === cat && p.status === "PAID")
+    const cost = purchaseOrders
+      .filter((p) => p.category === cat)
       .reduce((s, p) => s + (p.amount || 0), 0);
 
     const profit = revenue - cost;
@@ -131,110 +85,136 @@ export default function FinancialAnalytics() {
     };
   });
 
-  /* ================= TOP PRODUCTS ================= */
-  const productMap = {};
-  filteredOrders.forEach((o) => {
-    const name = o.productName || "Unknown";
-    productMap[name] = (productMap[name] || 0) + (o.quantity || 0);
-  });
+  /*  PIE COLORS  */
+  const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444"];
 
-  const topProducts = Object.entries(productMap)
-    .map(([name, qty]) => ({ name, qty }))
-    .sort((a, b) => b.qty - a.qty)
-    .slice(0, 5);
-
-  const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#a855f7"];
+  /*  SUMMARY CARDS CONFIG */
+  const summaryCards = [
+    {
+      label: "Total Cost",
+      value: `Rs. ${totalCost.toLocaleString()}`,
+      accent: "border-red-400",
+      valueColor: "text-red-500",
+    },
+    {
+      label: "Total Revenue",
+      value: `Rs. ${totalRevenue.toLocaleString()}`,
+      accent: "border-emerald-400",
+      valueColor: "text-emerald-500",
+    },
+    {
+      label: "Total Profit",
+      value: `Rs. ${profit.toLocaleString()}`,
+      accent: "border-green-500",
+      valueColor: "text-green-600",
+    },
+    {
+      label: "Profit Margin",
+      value: `${margin}%`,
+      accent: "border-amber-400",
+      valueColor: "text-amber-500",
+    },
+  ];
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
 
-      {/* HEADER */}
-      <h1 className="text-3xl font-bold mb-4">Financial Analytics</h1>
+      {/* Page Header */}
+      <h1 className="text-3xl font-bold text-slate-800 mb-1">Financial Analytics</h1>
+      <p className="text-slate-500 text-[15px] mb-6">Track costs, revenue, and profit margins</p>
 
-      {/* YEAR FILTER */}
-      <select
-        value={year}
-        onChange={(e) => setYear(Number(e.target.value))}
-        className="mb-6 p-2 border rounded"
-      >
-        {[2023, 2024, 2025, 2026].map((y) => (
-          <option key={y}>{y}</option>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {summaryCards.map((card) => (
+          <div
+            key={card.label}
+            className={`bg-white p-5 rounded-xl border-l-4 ${card.accent} shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all duration-200`}
+          >
+            <p className="text-sm text-slate-500 font-medium mb-2">{card.label}</p>
+            <h2 className={`text-2xl font-bold ${card.valueColor}`}>{card.value}</h2>
+          </div>
         ))}
-      </select>
-
-      {/* SUMMARY CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <Card title="Revenue" value={`Rs. ${totalRevenue.toLocaleString()}`} color="bg-emerald-500" />
-        <Card title="Cost" value={`Rs. ${totalCost.toLocaleString()}`} color="bg-red-500" />
-        <Card title="Profit" value={`Rs. ${profit.toLocaleString()}`} color="bg-green-600" />
-        <Card title="Margin" value={`${margin}%`} color="bg-amber-500" />
-        <Card title="Growth" value={`${growth}%`} color="bg-blue-600" />
       </div>
 
-      {/* CHARTS */}
-      <div className="grid lg:grid-cols-2 gap-5">
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-5 mb-6">
 
-        {/* LINE CHART */}
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="mb-3 font-semibold">Monthly Performance</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={trendData}>
+        {/* Bar Chart */}
+        <div className="bg-white p-5 rounded-xl shadow-sm">
+          <h3 className="text-base font-semibold text-slate-700 mb-4">Revenue vs Cost Trend</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={trendData}>
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip />
-              <Line dataKey="Revenue" stroke="#22c55e" />
-              <Line dataKey="Cost" stroke="#f59e0b" />
-              <Line dataKey="Profit" stroke="#3b82f6" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* TOP PRODUCTS */}
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="mb-3 font-semibold">Top Products</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={topProducts}>
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="qty" fill="#3b82f6" />
+              <Bar dataKey="Revenue" fill="#22c55e" />
+              <Bar dataKey="Cost" fill="#f59e0b" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* PIE */}
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="mb-3 font-semibold">Profit Distribution</h3>
-          <ResponsiveContainer width="100%" height={250}>
+        {/* Pie Chart */}
+        <div className="bg-white p-5 rounded-xl shadow-sm">
+          <h3 className="text-base font-semibold text-slate-700 mb-4">Profit Distribution</h3>
+          <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={categoryData} dataKey="profit" nameKey="category">
-                {categoryData.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              <Pie
+                data={categoryData}
+                dataKey="profit"
+                nameKey="category"
+                innerRadius={60}
+                outerRadius={110}
+                label
+              >
+                {categoryData.map((_, index) => (
+                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
         </div>
+      </div>
 
-        {/* OVERDUE */}
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="mb-3 font-semibold">Overdue Impact</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart
-              data={[
-                { name: "Paid", value: totalCost },
-                { name: "Overdue", value: overdueCost },
-              ]}
-            >
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="value" fill="#ef4444" />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Category Breakdown Table */}
+      <div className="bg-white p-5 rounded-xl shadow-sm">
+        <h3 className="text-base font-semibold text-slate-700 mb-4">Category Breakdown</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead className="bg-slate-50">
+              <tr>
+                {["Category", "Total Cost", "Total Revenue", "Profit", "Margin"].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left font-semibold text-slate-500 uppercase text-xs tracking-wide border-b-2 border-slate-200"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {categoryData.map((c) => (
+                <tr
+                  key={c.category}
+                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
+                >
+                  <td className="px-4 py-3 text-slate-800 font-medium">{c.category}</td>
+                  <td className="px-4 py-3 text-red-500 font-semibold">
+                    Rs. {c.cost.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-emerald-600 font-semibold">
+                    Rs. {c.revenue.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-green-600 font-semibold">
+                    Rs. {c.profit.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-slate-700 font-medium">{c.margin}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
       </div>
     </div>
   );
