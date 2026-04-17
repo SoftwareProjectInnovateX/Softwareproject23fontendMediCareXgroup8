@@ -217,8 +217,8 @@ export default function UserManagement() {
                   <td className="px-4 py-3 text-sm text-slate-600">{user.email}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{user.phone}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">
-                    {user.registeredAt
-                      ? new Date(user.registeredAt).toLocaleDateString()
+                    {user.createdAt
+                      ? new Date(user.createdAt).toLocaleDateString()
                       : "-"}
                   </td>
                   <td className="px-4 py-3 text-sm font-bold text-emerald-600">
