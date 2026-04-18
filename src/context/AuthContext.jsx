@@ -35,7 +35,7 @@ export function AuthProvider({ children }) {
       let maxNum = 0;
       snapshot.forEach((doc) => {
         const data = doc.data();
-        const idField = `${collectionName.slice(0, -1)}Id`; // e.g., supplierId, customerId
+        const idField = `${collectionName.slice(0, -1)}Id`;
         if (data[idField]) {
           const num = parseInt(data[idField].replace(prefix, ""));
           if (num > maxNum) maxNum = num;
@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
       return `${prefix}${String(nextNum).padStart(3, "0")}`;
     } catch (error) {
       console.error(`Error generating ${collectionName} ID:`, error);
-      return `${prefix}${String(Date.now()).slice(-3)}`; // Fallback
+      return `${prefix}${String(Date.now()).slice(-3)}`;
     }
   };
 
@@ -345,7 +345,6 @@ export function AuthProvider({ children }) {
         const storedRole = sessionStorage.getItem("userRole");
 
         if (storedRole) {
-          // Use the stored role for this tab
           setUserRole(storedRole);
           setLoading(false);
           return;
