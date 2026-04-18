@@ -13,7 +13,8 @@ export default function SearchAnalytics() {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      const { auth } = await import('../../services/firebase');
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
       const response = await fetch(`${API_BASE_URL}/search/analytics`, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
