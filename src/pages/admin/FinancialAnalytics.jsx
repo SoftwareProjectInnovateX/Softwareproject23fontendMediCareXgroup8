@@ -43,21 +43,21 @@ export default function FinancialAnalytics() {
   const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0;
 
   /* ================= MONTHLY TREND ================= */
-  const months = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  const trendData = months.map((month) => {
+  
+  const months = [
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+  ];
+
+
+  const trendData = months.map((month, i) => {
     const revenue = orders
-      .filter(
-        (o) =>
-          o.createdAt?.toDate().toLocaleString("default", { month: "short" }) === month
-      )
+      .filter((o) => o.createdAt?.toDate()?.getMonth() === i)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
     const cost = purchaseOrders
-      .filter(
-        (p) =>
-          p.createdAt?.toDate().toLocaleString("default", { month: "short" }) === month
-      )
+      .filter((p) => p.createdAt?.toDate()?.getMonth() === i)
       .reduce((s, p) => s + (p.amount || 0), 0);
 
     return { month, Revenue: revenue, Cost: cost };
@@ -91,10 +91,10 @@ export default function FinancialAnalytics() {
     };
   });
 
-  /* ================= PIE COLORS ================= */
+  /*  PIE COLORS  */
   const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444"];
 
-  /* ================= SUMMARY CARDS CONFIG ================= */
+  /*  SUMMARY CARDS CONFIG */
   const summaryCards = [
     {
       label: "Total Cost",

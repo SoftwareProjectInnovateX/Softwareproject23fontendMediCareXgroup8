@@ -17,7 +17,7 @@ export default function PurchaseOrders() {
   const [rejectReason, setRejectReason] = useState("");
   const [orderToReject, setOrderToReject] = useState(null);
 
-  /* ================= AUTH ================= */
+  /* AUTH*/
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -40,7 +40,7 @@ export default function PurchaseOrders() {
     return () => unsub();
   }, []);
 
-  /* ================= FETCH ================= */
+  /*  FETCH  */
   const fetchOrders = useCallback(async () => {
     if (!supplierId) { setLoading(false); return; }
     try {
@@ -58,20 +58,119 @@ export default function PurchaseOrders() {
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  /* ================= APPROVE ================= */
+  /*  APPROVE */
   const approveOrder = async (orderId, order) => {
     try {
+      // ── Supplier product (products collection) ──────────────────────────
       const productRef  = doc(db, "products", order.productId);
       const productSnap = await getDoc(productRef);
       if (!productSnap.exists()) { alert("Product not found in your inventory"); return; }
-      const currentStock = productSnap.data().stock;
-      if (currentStock < order.quantity) {
-        alert(`Insufficient stock!\n\nRequired: ${order.quantity} units\nAvailable: ${currentStock} units`); return;
-      }
-      if (!window.confirm(`Approve this order?\n\nProduct: ${order.product || order.productName}\nQuantity: ${order.quantity} units\nAmount: Rs. ${Number(order.amount || order.totalAmount).toFixed(2)}\n\nThis will deduct ${order.quantity} units from your stock.`)) return;
 
-      await updateDoc(doc(db, "purchaseOrders", orderId), { status: "APPROVED", approvedAt: Timestamp.now(), approvalDate: Timestamp.now(), updatedAt: Timestamp.now() });
-      await updateDoc(productRef, { stock: currentStock - order.quantity, updatedAt: Timestamp.now() });
+      const currentSupplierStock    = productSnap.data().stock;    // Stock Supplied to MediCareX
+      const currentSupplierMinStock = productSnap.data().minStock; // Remaining Stock with supplier
+
+      // Guard: supplier remaining must cover the order quantity
+      if (currentSupplierMinStock < order.quantity) {
+        alert(
+          `Insufficient remaining stock!\n\nRequired: ${order.quantity} units\nAvailable (remaining): ${currentSupplierMinStock} units`
+        );
+        return;
+      }
+
+      if (!window.confirm(
+        `Approve this order?\n\nProduct: ${order.product || order.productName}\nQuantity: ${order.quantity} units\nAmount: Rs. ${Number(order.amount || order.totalAmount).toFixed(2)}\n\nThis will:\n• Add ${order.quantity} units to Stock Supplied\n• Deduct ${order.quantity} units from your Remaining Stock`
+      )) return;
+
+      // ── 1. Update purchaseOrder status
+      await updateDoc(doc(db, "purchaseOrders", orderId), {
+        status: "APPROVED",
+        approvedAt: Timestamp.now(),
+        approvalDate: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+
+      // ── 2. Supplier side (products collection) 
+      //   stock    = Stock Supplied to MediCareX  → INCREMENT
+      //   minStock = Remaining Stock with supplier → DECREMENT
+      await updateDoc(productRef, {
+        
+        minStock: currentSupplierMinStock - order.quantity,
+        updatedAt: Timestamp.now(),
+      });
+
+      // ── 3. Admin side (adminProducts collection) 
+      //   stock = Admin Stock → INCREMENT
+      if (order.adminProductId) {
+        const adminProductRef  = doc(db, "adminProducts", order.adminProductId);
+        const adminProductSnap = await getDoc(adminProductRef);
+        if (adminProductSnap.exists()) {
+          const currentAdminStock = adminProductSnap.data().stock || 0;
+          await updateDoc(adminProductRef, {
+            stock:         currentAdminStock + order.quantity,
+            minStock:      currentSupplierMinStock - order.quantity, // keep in sync
+            availability:  "in stock",
+            lastRestocked: Timestamp.now(),
+            updatedAt:     Timestamp.now(),
+          });
+        }
+      }
+
+      // ── 4. Create payment & invoice records 
+      const totalAmount = Number(order.amount || order.totalAmount);
+      const initialPaymentDueDate = Timestamp.fromDate(
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      );
+
+      await addDoc(collection(db, "payments"), {
+        orderId: order.poId,
+        purchaseOrderId: orderId,
+        supplierName,
+        supplierId,
+        productName: order.product || order.productName,
+        quantity: order.quantity,
+        amount: totalAmount * 0.5,
+        totalOrderAmount: totalAmount,
+        paymentType: "INITIAL",
+        paymentLabel: "Initial Payment (50%)",
+        status: "PENDING",
+        adminProductId: order.adminProductId,
+        dueDate: initialPaymentDueDate,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+
+      await addDoc(collection(db, "invoices"), {
+        purchaseOrderId: orderId,
+        orderId: order.poId,
+        invoiceNumber: `INV-${order.poId}-INITIAL`,
+        pharmacy: "MediCareX",
+        supplierId,
+        supplierName,
+        productName: order.product || order.productName,
+        adminProductId: order.adminProductId,
+        quantity: order.quantity,
+        invoiceType: "INITIAL",
+        invoiceLabel: "Initial Payment (50%)",
+        items: [
+          {
+            productName: order.product || order.productName,
+            quantity: order.quantity,
+            unitPrice: Number(order.unitPrice || 0),
+          },
+        ],
+        subtotal: totalAmount * 0.5,
+        taxRate: 0,
+        taxAmount: 0,
+        totalAmount: totalAmount * 0.5,
+        totalOrderAmount: totalAmount,
+        paymentStatus: "Pending",
+        invoiceDate: new Date().toISOString().split("T")[0],
+        dueDate: initialPaymentDueDate.toDate().toISOString().split("T")[0],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+
+      // ── 5. Notify admin 
       await addDoc(collection(db, "notifications"), {
         type: "ORDER_APPROVED", recipientId: "admin", recipientType: "admin",
         orderId, poId: order.poId, supplierId, supplierName,
@@ -81,7 +180,15 @@ export default function PurchaseOrders() {
         message: `Order Approved: ${supplierName} approved order ${order.poId} for ${order.quantity} units of ${order.product || order.productName}`,
         read: false, createdAt: Timestamp.now(),
       });
-      alert("Order approved successfully!\n\nStock has been deducted from your inventory.\nAdmin has been notified.");
+
+      alert(
+        "Order approved successfully!\n\n" +
+        "• Stock Supplied has been incremented.\n" +
+        "• Remaining Stock has been decremented.\n" +
+        "• Admin inventory has been updated.\n" +
+        "• Admin has been notified.\n" +
+        "• An invoice has been created for the initial 50% payment."
+      );
       fetchOrders(); setSelectedOrder(null);
     } catch (error) {
       console.error("Error approving order:", error);
@@ -89,13 +196,19 @@ export default function PurchaseOrders() {
     }
   };
 
-  /* ================= REJECT ================= */
+  /* REJECT  */
   const openRejectModal = (order) => { setOrderToReject(order); setRejectReason(""); setShowRejectModal(true); };
 
   const rejectOrder = async () => {
     if (!rejectReason.trim()) { alert("Please provide a reason for rejection"); return; }
     try {
-      await updateDoc(doc(db, "purchaseOrders", orderToReject.id), { status: "REJECTED", rejectedAt: Timestamp.now(), rejectionReason: rejectReason, rejectionDate: Timestamp.now(), updatedAt: Timestamp.now() });
+      await updateDoc(doc(db, "purchaseOrders", orderToReject.id), {
+        status: "REJECTED",
+        rejectedAt: Timestamp.now(),
+        rejectionReason: rejectReason,
+        rejectionDate: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
       await addDoc(collection(db, "notifications"), {
         type: "ORDER_REJECTED", recipientId: "admin", recipientType: "admin",
         orderId: orderToReject.id, poId: orderToReject.poId, supplierId, supplierName,
@@ -114,7 +227,7 @@ export default function PurchaseOrders() {
     }
   };
 
-  /* ================= HELPERS ================= */
+  /*  HELPERS  */
   const getStatusStyle = (status) => {
     switch (status) {
       case "PENDING":   return "bg-amber-100 text-amber-800";
@@ -131,7 +244,18 @@ export default function PurchaseOrders() {
     return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
-  /* ================= SHARED MODAL WRAPPER ================= */
+  const getInitialPaymentBadge = (order) => {
+    if (order.status !== "APPROVED" && order.status !== "COMPLETED") return null;
+    const paid = order.initialPaymentStatus === "PAID";
+    return (
+      <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold
+        ${paid ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+        Initial: {paid ? "Paid" : "Awaiting Payment"}
+      </span>
+    );
+  };
+
+  /*  SHARED MODAL WRAPPER  */
   const ModalWrap = ({ onClose, maxW = "max-w-[700px]", children }) => (
     <div
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
@@ -148,7 +272,7 @@ export default function PurchaseOrders() {
     </div>
   );
 
-  /* ================= UI ================= */
+  
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
 
@@ -201,10 +325,10 @@ export default function PurchaseOrders() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[800px]">
+            <table className="w-full border-collapse min-w-[900px]">
               <thead className="bg-slate-50">
                 <tr>
-                  {["PO ID", "Product", "Qty", "Unit Price", "Total Amount", "Order Date", "Status", "Action"].map((h) => (
+                  {["PO ID", "Product", "Qty", "Unit Price", "Total Amount", "Order Date", "Status", "Payment", "Action"].map((h) => (
                     <th key={h} className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">
                       {h}
                     </th>
@@ -229,6 +353,9 @@ export default function PurchaseOrders() {
                       <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(o.status)}`}>
                         {o.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      {getInitialPaymentBadge(o)}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-2 flex-wrap">
@@ -267,15 +394,12 @@ export default function PurchaseOrders() {
       {/* Order Details Modal */}
       {selectedOrder && (
         <ModalWrap onClose={() => setSelectedOrder(null)}>
-          {/* Header */}
           <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
             <h2 className="text-2xl font-bold text-slate-800 m-0">Order Details</h2>
             <button onClick={() => setSelectedOrder(null)} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 hover:text-slate-600 transition-colors">×</button>
           </div>
 
-          {/* Body */}
           <div className="p-7">
-            {/* PO ID + Status */}
             <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-slate-100">
               <span className="text-xl font-bold text-blue-600 font-mono">{selectedOrder.poId}</span>
               <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(selectedOrder.status)}`}>
@@ -283,7 +407,6 @@ export default function PurchaseOrders() {
               </span>
             </div>
 
-            {/* Details Grid */}
             <div className="grid grid-cols-2 gap-5 mb-6">
               {[
                 { label: "Product Name",  value: selectedOrder.product || selectedOrder.productName },
@@ -295,6 +418,7 @@ export default function PurchaseOrders() {
                 { label: "Order Date",    value: formatDate(selectedOrder.orderDate || selectedOrder.createdAt) },
                 ...(selectedOrder.approvalDate  ? [{ label: "Approval Date",  value: formatDate(selectedOrder.approvalDate) }]  : []),
                 ...(selectedOrder.rejectionDate ? [{ label: "Rejection Date", value: formatDate(selectedOrder.rejectionDate) }] : []),
+                ...(selectedOrder.completionDate ? [{ label: "Completion Date", value: formatDate(selectedOrder.completionDate) }] : []),
               ].map((item) => (
                 <div key={item.label} className="flex flex-col">
                   <label className="text-[13px] text-slate-500 font-medium mb-1.5">{item.label}</label>
@@ -305,7 +429,53 @@ export default function PurchaseOrders() {
               ))}
             </div>
 
-            {/* Notes */}
+            {(selectedOrder.status === "APPROVED" || selectedOrder.status === "COMPLETED") && (
+              <div className="bg-slate-50 rounded-xl p-4 mb-5 border border-slate-200">
+                <p className="text-[13px] font-semibold text-slate-600 mb-3 uppercase tracking-wide">Payment Status</p>
+                <div className="flex gap-3">
+                  <div className="flex-1 bg-white rounded-lg p-3 border border-slate-200 text-center">
+                    <p className="text-[11px] text-slate-500 font-medium mb-1">Initial (50%)</p>
+                    <p className="text-sm font-bold text-slate-800">
+                      Rs. {(Number(selectedOrder.amount || selectedOrder.totalAmount) * 0.5).toFixed(2)}
+                    </p>
+                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase
+                      ${selectedOrder.initialPaymentStatus === "PAID"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-amber-100 text-amber-700"}`}>
+                      {selectedOrder.initialPaymentStatus === "PAID" ? "Received" : "Awaiting"}
+                    </span>
+                  </div>
+                  <div className="flex-1 bg-white rounded-lg p-3 border border-slate-200 text-center">
+                    <p className="text-[11px] text-slate-500 font-medium mb-1">Final (50%)</p>
+                    <p className="text-sm font-bold text-slate-800">
+                      Rs. {(Number(selectedOrder.amount || selectedOrder.totalAmount) * 0.5).toFixed(2)}
+                    </p>
+                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase
+                      ${selectedOrder.status === "COMPLETED"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-slate-100 text-slate-500"}`}>
+                      {selectedOrder.status === "COMPLETED" ? "Due" : "After Delivery"}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedOrder.status === "APPROVED" && selectedOrder.initialPaymentStatus !== "PAID" && (
+                  <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                    <p className="text-[12px] text-amber-800 font-medium m-0">
+                      ⏳ Waiting for admin to pay the initial 50%. You can begin delivery once payment is received.
+                    </p>
+                  </div>
+                )}
+                {selectedOrder.status === "APPROVED" && selectedOrder.initialPaymentStatus === "PAID" && (
+                  <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+                    <p className="text-[12px] text-emerald-800 font-medium m-0">
+                      ✓ Initial payment received. Please proceed with delivery via the Delivery Status page.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {selectedOrder.notes && (
               <div className="bg-slate-50 px-4 py-4 rounded-lg mb-5">
                 <label className="block text-[13px] text-slate-500 font-semibold mb-2">Notes from Admin</label>
@@ -313,7 +483,6 @@ export default function PurchaseOrders() {
               </div>
             )}
 
-            {/* Rejection Reason */}
             {selectedOrder.rejectionReason && (
               <div className="bg-red-50 border-l-4 border-red-500 px-4 py-4 rounded-lg mb-5">
                 <label className="block text-[13px] text-red-700 font-semibold mb-2">Rejection Reason</label>
@@ -321,7 +490,6 @@ export default function PurchaseOrders() {
               </div>
             )}
 
-            {/* Approve / Reject actions */}
             {selectedOrder.status === "PENDING" && (
               <div className="flex gap-3 mt-6 pt-5 border-t-2 border-slate-100">
                 <button
@@ -340,7 +508,6 @@ export default function PurchaseOrders() {
             )}
           </div>
 
-          {/* Close Button */}
           <div className="px-7 pb-6">
             <button
               onClick={() => setSelectedOrder(null)}
@@ -355,13 +522,11 @@ export default function PurchaseOrders() {
       {/* Reject Reason Modal */}
       {showRejectModal && orderToReject && (
         <ModalWrap onClose={() => setShowRejectModal(false)} maxW="max-w-[500px]">
-          {/* Header */}
           <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
             <h2 className="text-2xl font-bold text-slate-800 m-0">Reject Order</h2>
             <button onClick={() => setShowRejectModal(false)} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 hover:text-slate-600 transition-colors">×</button>
           </div>
 
-          {/* Body */}
           <div className="p-7">
             <p className="text-[15px] text-slate-800 mb-2">
               You are about to reject order <strong>{orderToReject.poId}</strong>
@@ -387,7 +552,7 @@ export default function PurchaseOrders() {
               <button
                 onClick={rejectOrder}
                 disabled={!rejectReason.trim()}
-                className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:not(:disabled):-translate-y-0.5 hover:not(:disabled):shadow-lg"
+                className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200"
               >
                 Confirm Rejection
               </button>
@@ -402,7 +567,6 @@ export default function PurchaseOrders() {
         </ModalWrap>
       )}
 
-      {/* Keyframe animations */}
       <style>{`
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         @keyframes slideUp { from{transform:translateY(30px);opacity:0} to{transform:translateY(0);opacity:1} }

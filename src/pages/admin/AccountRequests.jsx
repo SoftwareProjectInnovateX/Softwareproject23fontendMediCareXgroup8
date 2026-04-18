@@ -11,7 +11,7 @@ import { auth } from "../../services/firebase";
 export default function AccountRequests() {
   const [requests, setRequests]   = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [filter, setFilter]       = useState('all'); // 'all' | 'supplier' | 'pharmacist'
+  const [filter, setFilter]       = useState('all'); 
   const [actionLoading, setActionLoading] = useState(null);
 
   useEffect(() => { fetchRequests(); }, []);
@@ -102,7 +102,7 @@ export default function AccountRequests() {
 
       // 4. Refresh list
       await fetchRequests();
-      alert(`✅ Account approved! ${request.email} can now login.`);
+      alert(`Account approved! ${request.email} can now login.`);
     } catch (err) {
       console.error(err);
       alert('Failed to approve: ' + err.message);

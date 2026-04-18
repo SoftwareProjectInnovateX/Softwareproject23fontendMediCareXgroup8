@@ -32,8 +32,12 @@ export default function Header() {
   const { title, subtitle } = getPageTitle();
 
   const handleLogout = () => {
-    // Clear auth state here if needed (e.g. Firebase signOut())
     navigate("/login");
+  };
+
+  // function to handle bell click
+  const goToRestock = () => {
+    navigate("/supplier/restock-alert");
   };
 
   return (
@@ -50,18 +54,21 @@ export default function Header() {
           </p>
         </div>
 
-        {/* RIGHT — Bell + Profile + Logout */}
+        {/* RIGHT — Bell + Profile */}
         <div className="flex items-center gap-5 flex-shrink-0">
 
-          {/* Notification Bell */}
-          <button className="relative w-11 h-11 bg-white/15 border-none rounded-xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:bg-white/25 hover:-translate-y-0.5">
+          {/* Notification Bell  */}
+          <button
+            onClick={goToRestock}
+            className="relative w-11 h-11 bg-white/15 border-none rounded-xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:bg-white/25 hover:-translate-y-0.5"
+          >
             <FiBell size={20} className="text-white" />
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center border-2 border-[#1e40af]">
               3
             </span>
           </button>
 
-          {/* Profile */}
+          {/*  Profile */}
           <div
             className="flex items-center gap-3 px-4 py-2 bg-white/15 rounded-full cursor-pointer transition-all duration-300 hover:bg-white/25 flex-shrink-0"
             onClick={() => navigate("/supplier/settings")}
@@ -80,7 +87,6 @@ export default function Header() {
           </div>
 
           
-
         </div>
       </div>
     </header>
