@@ -8,7 +8,6 @@ import {
 } from "firebase/auth";
 import {
   doc,
-  setDoc,
   getDoc,
   collection,
   getDocs,
@@ -79,13 +78,7 @@ export function AuthProvider({ children }) {
           updatedAt: Timestamp.now(),
         };
 
-        await setDoc(doc(db, "users", user.uid), savedUserData);
-        sessionStorage.setItem("userId", user.uid);
-        sessionStorage.setItem("userRole", "customer");
-        sessionStorage.setItem("userName", fullName);
-        sessionStorage.setItem("userEmail", email);
-        setUserRole("customer");
-
+       
         return {
           success: true,
           user: { uid: user.uid, email, role: "customer", ...savedUserData },
@@ -209,14 +202,6 @@ export function AuthProvider({ children }) {
       }
       // Update last login time
       const collectionName = roleCollections[actualRole];
-      await setDoc(
-        doc(db, collectionName, user.uid),
-        {
-          ...userData,
-          lastLogin: Timestamp.now(),
-        },
-        { merge: true },
-      );
 
       sessionStorage.setItem("userId", user.uid);
       sessionStorage.setItem("userRole", actualRole);
