@@ -1,30 +1,32 @@
 // src/pages/auth/Login.jsx
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
-  const [successMessage, setSuccessMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const validateForm = () => {
     const newErrors = {};
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!validateEmail(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+      newErrors.email = "Please enter a valid email address";
     }
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password must be at least 6 characters";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -33,12 +35,12 @@ const Login = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSuccessMessage('');
+    setSuccessMessage("");
     setErrors({});
     if (!validateForm()) return;
 
@@ -46,15 +48,15 @@ const Login = () => {
     try {
       const response = await login(formData.email, formData.password);
       const userRole = response.user.role;
-      setSuccessMessage('Welcome back!');
+      setSuccessMessage("Welcome back!");
       setTimeout(() => {
-        if (userRole === 'admin') navigate('/admin');
-        else if (userRole === 'supplier') navigate('/supplier');
-        else if (userRole === 'pharmacist') navigate('/pharmacist');
-        else navigate('/customer');
+        if (userRole === "admin") navigate("/admin");
+        else if (userRole === "supplier") navigate("/supplier");
+        else if (userRole === "pharmacist") navigate("/pharmacist");
+        else navigate("/customer");
       }, 1500);
     } catch (error) {
-      setErrors({ submit: error.message || 'Login failed. Please try again.' });
+      setErrors({ submit: error.message || "Login failed. Please try again." });
     } finally {
       setLoading(false);
     }
@@ -74,7 +76,9 @@ const Login = () => {
           <h1 className="text-4xl font-extrabold bg-gradient-to-r from-blue-900 to-blue-500 bg-clip-text text-transparent">
             MediCareX
           </h1>
-          <p className="text-slate-500 text-sm mt-2">Pharmacy Supply Chain Management</p>
+          <p className="text-slate-500 text-sm mt-2">
+            Pharmacy Supply Chain Management
+          </p>
         </div>
 
         {/* Tab switcher */}
@@ -110,7 +114,9 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           {/* Email */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-bold text-slate-800">Email Address</label>
+            <label className="text-sm font-bold text-slate-800">
+              Email Address
+            </label>
             <input
               type="email"
               name="email"
@@ -119,31 +125,49 @@ const Login = () => {
               placeholder="your.email@example.com"
               disabled={loading}
               className={`px-4 py-3 rounded-xl border-2 text-sm text-slate-800 outline-none transition-all disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed
-                ${errors.email
-                  ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100'
-                  : 'border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100'
+                ${
+                  errors.email
+                    ? "border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100"
+                    : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                 }`}
             />
-            {errors.email && <span className="text-xs text-red-500">{errors.email}</span>}
+            {errors.email && (
+              <span className="text-xs text-red-500">{errors.email}</span>
+            )}
           </div>
 
           {/* Password */}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-bold text-slate-800">Password</label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleInputChange}
-              placeholder="••••••••"
-              disabled={loading}
-              className={`px-4 py-3 rounded-xl border-2 text-sm text-slate-800 outline-none transition-all disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed
-                ${errors.password
-                  ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100'
-                  : 'border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100'
-                }`}
-            />
-            {errors.password && <span className="text-xs text-red-500">{errors.password}</span>}
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                placeholder="••••••••"
+                disabled={loading}
+                className={`w-full px-4 py-3 pr-11 rounded-xl border-2 text-sm text-slate-800 outline-none transition-all disabled:bg-slate-100 disabled:opacity-60 disabled:cursor-not-allowed
+                  ${
+                    errors.password
+                      ? "border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-100"
+                      : "border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  }`}
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword((v) => !v)}
+                disabled={loading}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+              </button>
+            </div>
+            {errors.password && (
+              <span className="text-xs text-red-500">{errors.password}</span>
+            )}
           </div>
 
           {/* Submit */}
@@ -158,16 +182,19 @@ const Login = () => {
                 Signing In...
               </span>
             ) : (
-              'Sign In'
+              "Sign In"
             )}
           </button>
         </form>
 
         {/* Footer */}
         <div className="mt-6 text-center">
-            <Link to="/forgot-password" className="text-sm font-bold text-blue-500 hover:text-blue-900 hover:underline transition-colors">
+          <Link
+            to="/forgot-password"
+            className="text-sm font-bold text-blue-500 hover:text-blue-900 hover:underline transition-colors"
+          >
             Forgot password?
-            </Link>
+          </Link>
         </div>
       </div>
 
