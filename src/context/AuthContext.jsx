@@ -99,7 +99,7 @@ export function AuthProvider({ children }) {
         } = userData;
 
         // Save request to pendingRequests collection
-        await addDoc(collection(db, "pendingRequests"), {
+         await addDoc(collection(db, "pendingRequests"), {
           type: "supplier",
           companyName,
           email,
@@ -116,6 +116,7 @@ export function AuthProvider({ children }) {
         });
 
         return { success: true, pending: true };
+
       } else if (role === "pharmacist") {
         //Pharmacist: save as pending request
         const {
@@ -209,8 +210,6 @@ export function AuthProvider({ children }) {
       sessionStorage.setItem("userEmail", userData.email);
 
       setUserRole(actualRole);
-
-      console.log(`User logged in as ${actualRole} in this tab`);
 
       return {
         success: true,
