@@ -13,8 +13,10 @@ export default function SearchAnalytics() {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const { auth } = await import('../../services/firebase');
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      const { auth } = await import("../../services/firebase");
+      const token = auth.currentUser
+        ? await auth.currentUser.getIdToken()
+        : null;
       const response = await fetch(`${API_BASE_URL}/search/analytics`, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
@@ -33,12 +35,22 @@ export default function SearchAnalytics() {
 
   if (loading) {
     return (
-      <div className="p-8 bg-[#f5f9ff] min-h-screen flex items-center justify-center">
+      <div className="p-8 bg-slate-50 min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-3 text-slate-500">
           <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10"
-              stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8H4z"
+            />
           </svg>
           Loading analytics...
         </div>
@@ -48,8 +60,8 @@ export default function SearchAnalytics() {
 
   if (error) {
     return (
-      <div className="p-8 bg-[#f5f9ff] min-h-screen">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
+      <div className="p-8 bg-slate-50 min-h-screen">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl shadow-sm px-6 py-5 text-red-600 text-sm font-medium">
           {error}
         </div>
       </div>
@@ -59,75 +71,85 @@ export default function SearchAnalytics() {
   const maxCount = analytics?.topSearches?.[0]?.count || 1;
 
   return (
-    <div className="p-8 bg-[#f5f9ff] min-h-screen">
-
+    <div className="p-8 bg-slate-50 min-h-screen">
       {/* Page Header — matches Products.jsx header style */}
-      <h1 className="text-3xl font-bold text-slate-800 mb-2">Search Analytics</h1>
-      <p className="text-slate-500 text-[15px] font-medium mb-7">
-        Admin Dashboard - Search Insights
-      </p>
+      <div className="flex justify-between items-start mb-7 flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            Search Analytics
+          </h1>
+          <p className="text-slate-500 text-[15px]">
+            Admin Dashboard — Search Insights
+          </p>
+        </div>
 
-      {/* Refresh Button */}
-      <div className="flex justify-end mb-5">
+        {/* Refresh Button */}
         <button
           onClick={fetchAnalytics}
-          className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md flex items-center gap-2"
+          className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md flex items-center gap-2"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
           </svg>
           Refresh
         </button>
       </div>
 
       {/* ── Stat Cards Row ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-7">
-
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-          <p className="text-[13px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-5 mb-7">
+        <div className="bg-white px-6 py-5 rounded-xl shadow-sm border-l-4 border-blue-400 flex justify-between items-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+          <span className="text-sm text-slate-500 font-medium">
             Total Searches
-          </p>
-          <p className="text-3xl font-bold text-blue-600">
+          </span>
+          <span className="text-3xl font-bold text-slate-800">
             {analytics?.totalSearches?.toLocaleString() || 0}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">All time</p>
+          </span>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-          <p className="text-[13px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
-            Unique Search Terms
-          </p>
-          <p className="text-3xl font-bold text-slate-800">
+        <div className="bg-white px-6 py-5 rounded-xl shadow-sm border-l-4 border-slate-300 flex justify-between items-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+          <span className="text-sm text-slate-500 font-medium">
+            Unique Terms
+          </span>
+          <span className="text-3xl font-bold text-slate-800">
             {analytics?.topSearches?.length || 0}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">Top terms tracked</p>
+          </span>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-          <p className="text-[13px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+        <div className="bg-white px-6 py-5 rounded-xl shadow-sm border-l-4 border-amber-400 flex justify-between items-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+          <span className="text-sm text-slate-500 font-medium">
             Inventory Gaps
-          </p>
-          <p className="text-3xl font-bold text-orange-500">
+          </span>
+          <span className="text-3xl font-bold text-slate-800">
             {analytics?.zeroResults?.length || 0}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">Terms with no results</p>
+          </span>
         </div>
       </div>
 
       {/* ── Main Grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
         {/* Top Searches Bar Chart */}
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+        <div className="bg-white rounded-xl shadow-sm p-6 ">
           <h2 className="text-base font-semibold text-slate-800 mb-4">
             Top Searched Terms
           </h2>
 
           {analytics?.topSearches?.length === 0 ? (
-            <p className="text-slate-400 text-sm text-center py-8">
-              No search data yet. Start searching to see analytics.
-            </p>
+            <div className="py-8 text-center">
+              <p className="text-lg text-slate-500 mb-2">No search data yet</p>
+              <small className="text-sm text-slate-400">
+                Start searching to see analytics
+              </small>
+            </div>
           ) : (
             <div className="space-y-4">
               {analytics?.topSearches?.map((item, index) => (
@@ -141,7 +163,7 @@ export default function SearchAnalytics() {
                         {item.query}
                       </span>
                     </div>
-                    <span className="text-xs font-semibold text-slate-500 bg-[#e6efff] px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                       {item.count}x
                     </span>
                   </div>
@@ -159,24 +181,23 @@ export default function SearchAnalytics() {
 
         {/* Right Column */}
         <div className="space-y-6">
-
           {/* Inventory Gaps */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+          <div className="bg-white rounded-xl shadow-sm p-6 ">
             <h2 className="text-base font-semibold text-slate-800 mb-1">
               Inventory Gaps
             </h2>
             <p className="text-xs text-slate-400 mb-4">
-              Searches that returned zero results — consider adding these products
+              Searches that returned zero results — consider adding these
+              products
             </p>
 
             {analytics?.zeroResults?.length === 0 ? (
-              <p className="text-emerald-600 text-sm flex items-center gap-1.5 font-medium">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M5 13l4 4L19 7" />
-                </svg>
-                No gaps found — great inventory coverage!
-              </p>
+              <div className="py-4 text-center">
+                <p className="text-lg text-slate-500 mb-2">✓ No gaps found</p>
+                <small className="text-sm text-slate-400">
+                  Great inventory coverage!
+                </small>
+              </div>
             ) : (
               <div className="space-y-1">
                 {analytics?.zeroResults?.map((item) => (
@@ -197,19 +218,27 @@ export default function SearchAnalytics() {
           </div>
 
           {/* Last 7 Days Activity */}
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
+          <div className="bg-white rounded-xl shadow-sm p-6 ">
             <h2 className="text-base font-semibold text-slate-800 mb-4">
               Last 7 Days Activity
             </h2>
 
             {analytics?.last7Days?.length === 0 ? (
-              <p className="text-slate-400 text-sm text-center py-4">
-                No recent activity
-              </p>
+              <div className="py-4 text-center">
+                <p className="text-lg text-slate-500 mb-2">
+                  No recent activity
+                </p>
+                <small className="text-sm text-slate-400">
+                  Check back after some searches
+                </small>
+              </div>
             ) : (
               <div className="space-y-3">
                 {analytics?.last7Days?.map((day) => (
-                  <div key={day.date} className="flex items-center justify-between text-sm">
+                  <div
+                    key={day.date}
+                    className="flex items-center justify-between text-sm"
+                  >
                     <span className="text-slate-500 w-16 flex-shrink-0">
                       {new Date(day.date).toLocaleDateString("en-US", {
                         month: "short",
@@ -220,7 +249,9 @@ export default function SearchAnalytics() {
                       <div className="flex-1 bg-slate-100 rounded-full h-1.5">
                         <div
                           className="bg-blue-400 h-1.5 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min((day.count / 20) * 100, 100)}%` }}
+                          style={{
+                            width: `${Math.min((day.count / 20) * 100, 100)}%`,
+                          }}
                         />
                       </div>
                       <span className="text-xs text-slate-400 w-6 text-right font-medium">
