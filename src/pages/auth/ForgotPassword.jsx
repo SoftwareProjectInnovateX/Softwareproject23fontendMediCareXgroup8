@@ -5,7 +5,6 @@ import { useAuth } from '../../context/AuthContext';
 
 const ForgotPassword = () => {
   const { resetPassword } = useAuth();
-
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,13 +31,16 @@ const ForgotPassword = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Form submitted, email:', email);
     if (!validateEmail()) return;
 
     setLoading(true);
     setError('');
 
     try {
+      console.log('Calling resetPassword...');
       await resetPassword(email);
+      console.log('resetPassword success!');
       setEmailSent(true);
     } catch (error) {
       switch (error.code) {
