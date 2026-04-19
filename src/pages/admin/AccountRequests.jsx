@@ -2,17 +2,11 @@ import { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
-  doc,
-  updateDoc,
-  deleteDoc,
   Timestamp,
   query,
   orderBy,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { setDoc } from "firebase/firestore";
-import { auth } from "../../services/firebase";
 
 export default function AccountRequests() {
   const [requests, setRequests] = useState([]);
@@ -38,20 +32,6 @@ export default function AccountRequests() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateNextId = async (collectionName, prefix) => {
-    const snapshot = await getDocs(collection(db, collectionName));
-    let maxNum = 0;
-    snapshot.forEach((d) => {
-      const data = d.data();
-      const idField = `${collectionName.slice(0, -1)}Id`;
-      if (data[idField]) {
-        const num = parseInt(data[idField].replace(prefix, ""));
-        if (num > maxNum) maxNum = num;
-      }
-    });
-    return `${prefix}${String(maxNum + 1).padStart(3, "0")}`;
   };
 
   const handleApprove = async (request) => {
@@ -117,8 +97,8 @@ export default function AccountRequests() {
 
     return (
       <div
-        className={`bg-white rounded-xl border-2 p-5 transition-all
-        ${isSupplier ? "border-blue-200" : "border-emerald-200"}
+        className={`bg-white rounded-xl shadow-sm border-l-4 px-6 py-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md
+        ${isSupplier ? "border-blue-400" : "border-emerald-400"}
         ${!isPending ? "opacity-70" : ""}`}
       >
         {/* Card Header */}
@@ -242,48 +222,52 @@ export default function AccountRequests() {
   );
 
   return (
-    <div className="p-8 bg-[#f5f9ff] min-h-screen">
+    <div className="p-8 bg-slate-50 min-h-screen">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-1">
-          Account Requests
-        </h1>
-        <p className="text-slate-500 text-[15px]">
-          Review and approve supplier and pharmacist registrations
-        </p>
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800 mb-1">
+            Account Requests
+          </h1>
+          <p className="text-slate-500 text-[15px]">
+            Review and approve supplier and pharmacist registrations
+          </p>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-5 mb-7">
         {[
           {
             label: "Pending",
             value: requests.filter((r) => r.status === "pending").length,
-            color: "bg-amber-50  border-amber-200  text-amber-700",
+            accent: "border-amber-400",
           },
           {
             label: "Approved",
             value: requests.filter((r) => r.status === "approved").length,
-            color: "bg-green-50  border-green-200  text-green-700",
+            accent: "border-emerald-400",
           },
           {
             label: "Rejected",
             value: requests.filter((r) => r.status === "rejected").length,
-            color: "bg-red-50    border-red-200    text-red-700",
+            accent: "border-red-400",
           },
         ].map((s) => (
           <div
             key={s.label}
-            className={`rounded-xl border-2 p-4 text-center ${s.color}`}
+            className={`bg-white px-6 py-5 rounded-xl shadow-sm border-l-4 ${s.accent} flex justify-between items-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
           >
-            <p className="text-3xl font-extrabold">{s.value}</p>
-            <p className="text-sm font-semibold mt-1">{s.label}</p>
+            <span className="text-sm text-slate-500 font-medium">
+              {s.label}
+            </span>
+            <span className="text-3xl font-bold text-slate-800">{s.value}</span>
           </div>
         ))}
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-3 mb-6">
+      <div className="bg-white p-5 rounded-xl shadow-sm mb-6 flex gap-3 flex-wrap">
         {[
           { key: "all", label: "All Requests" },
           { key: "supplier", label: "Suppliers" },
@@ -292,11 +276,11 @@ export default function AccountRequests() {
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all border-2
+            className={`px-4 py-2 rounded-full border-2 text-sm font-medium cursor-pointer transition-all duration-200
               ${
                 filter === f.key
-                  ? "bg-gradient-to-r from-blue-900 to-blue-500 text-white border-blue-500 shadow-md"
-                  : "bg-white text-slate-500 border-slate-200 hover:bg-blue-50"
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
               }`}
           >
             {f.label}
@@ -305,7 +289,7 @@ export default function AccountRequests() {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-slate-400 text-lg">
+        <div className="bg-white rounded-xl shadow-sm py-20 text-center text-slate-500 text-lg">
           Loading requests...
         </div>
       ) : (
@@ -314,7 +298,7 @@ export default function AccountRequests() {
           {pending.length > 0 && (
             <div className="mb-8">
               <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
                 Pending Requests ({pending.length})
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -329,7 +313,7 @@ export default function AccountRequests() {
           {processed.length > 0 && (
             <div>
               <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" />
                 Processed Requests ({processed.length})
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -341,11 +325,10 @@ export default function AccountRequests() {
           )}
 
           {filtered.length === 0 && (
-            <div className="text-center py-20 bg-white rounded-xl">
+            <div className="bg-white rounded-xl shadow-sm py-20 text-center">
               <p className="text-4xl mb-4">📋</p>
-              <p className="text-slate-500 text-lg font-medium">
-                No requests found
-              </p>
+              <p className="text-lg text-slate-500 mb-2">No requests found</p>
+              <small className="text-sm text-slate-400">All caught up!</small>
             </div>
           )}
         </>
