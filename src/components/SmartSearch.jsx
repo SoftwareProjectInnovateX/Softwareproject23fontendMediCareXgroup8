@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
-import API_BASE_URL from '../config/api'; 
+import API_BASE_URL from "../config/api";
+import { auth } from "../services/firebase";
 
 /**
  * SmartSearch component
@@ -13,6 +14,18 @@ export default function SmartSearch({ onResults, onLoading }) {
   const [error, setError] = useState(null);
   const debounceTimer = useRef(null);
 
+  // Gets a fresh Firebase ID token for the current user
+  const getFirebaseToken = async () => {
+    try {
+      if (auth.currentUser) {
+        return await auth.currentUser.getIdToken();
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const performSearch = useCallback(
     async (searchQuery) => {
       if (!searchQuery.trim()) {
@@ -25,7 +38,7 @@ export default function SmartSearch({ onResults, onLoading }) {
       if (onLoading) onLoading(true);
 
       try {
-        const token = localStorage.getItem("token");
+        const token = await getFirebaseToken();
         const response = await fetch(
           `${API_BASE_URL}/search?q=${encodeURIComponent(searchQuery)}`,
           {
@@ -33,7 +46,7 @@ export default function SmartSearch({ onResults, onLoading }) {
               "Content-Type": "application/json",
               ...(token && { Authorization: `Bearer ${token}` }),
             },
-          }
+          },
         );
 
         if (!response.ok) throw new Error(`Search failed: ${response.status}`);
@@ -49,7 +62,7 @@ export default function SmartSearch({ onResults, onLoading }) {
         if (onLoading) onLoading(false);
       }
     },
-    [onResults, onLoading]
+    [onResults, onLoading],
   );
 
   const handleChange = (e) => {
