@@ -96,7 +96,7 @@ const Login = () => {
 
         {/* Success message */}
         {successMessage && (
-          <div className="flex items-center gap-3 bg-blue-50 border-2 border-blue-200 text-blue-900 rounded-xl px-5 py-4 mb-6 text-sm font-medium animate-[slideDown_0.4s_ease]">
+          <div className="flex items-center gap-3 bg-emerald-50 border-2 border-emerald-200 text-emerald-800 rounded-xl px-5 py-4 mb-6 text-sm font-medium animate-[slideDown_0.4s_ease]">
             <span className="text-lg font-bold">✓</span>
             {successMessage}
           </div>
