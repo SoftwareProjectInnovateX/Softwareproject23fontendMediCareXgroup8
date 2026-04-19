@@ -25,14 +25,15 @@ export default function Sidebar() {
     { id: 1, icon: <MdDashboard size={22} />, text: "Dashboard", path: "/admin" },
     { id: 2, icon: <MdPeople size={22} />, text: "Users", path: "/admin/usermanagement" },
     { id: 3, icon: <MdLocalShipping size={22} />, text: "Suppliers", path: "/admin/suppliers" },
-    { id: 4, icon: <MdInventory size={22} />, text: "Inventory", path: "/admin/products" },
-    { id: 5, icon: <MdShoppingCart size={22} />, text: "Order Management", path: "/admin/ordermanagement" },
-    { id: 6, icon: <MdAttachMoney size={22} />, text: "Financials", path: "/admin/financialAnalytics" },
-    { id: 7, icon: <MdBarChart size={22} />, text: "Analytics", path: "/admin/analytics" },
-    { id: 8, icon: <MdNotifications size={22} />, text: "Notifications", path: "/admin/notifications" },
-    { id: 9, icon: <MdPayment size={22} />, text: "Admin Payments", path: "/admin/adminPayments" },
-    { id: 10, icon: <MdAssignmentInd size={22} />, text: "Account Requests", path: "/admin/account-requests" },
-    { id: 11, icon: <MdSearch size={22} />, text: "Search Analytics", path: "/admin/search-analytics" },
+    { id: 4, icon: <MdLocalShipping size={22} />, text: "Product Approval", path: "/admin/adminproductapproval" },
+    { id: 5, icon: <MdInventory size={22} />, text: "Inventory", path: "/admin/products" },
+    { id: 6, icon: <MdShoppingCart size={22} />, text: "Order Management", path: "/admin/ordermanagement" },
+    { id: 7, icon: <MdAttachMoney size={22} />, text: "Financials", path: "/admin/financialAnalytics" },
+    { id: 8, icon: <MdBarChart size={22} />, text: "Analytics", path: "/admin/analytics" },
+    { id: 9, icon: <MdNotifications size={22} />, text: "Notifications", path: "/admin/notifications" },
+    { id: 10, icon: <MdPayment size={22} />, text: "Admin Payments", path: "/admin/adminPayments" },
+    { id: 11, icon: <MdAssignmentInd size={22} />, text: "Account Requests", path: "/admin/account-requests" },
+    { id: 12, icon: <MdSearch size={22} />, text: "Search Analytics", path: "/admin/search-analytics" },
   ];
 
   const handleLogout = () => {
