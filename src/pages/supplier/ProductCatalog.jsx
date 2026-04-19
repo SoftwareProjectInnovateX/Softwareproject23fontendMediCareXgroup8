@@ -1,16 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import {
-  collection, addDoc, getDocs, updateDoc, deleteDoc,
+  collection, getDocs, updateDoc, deleteDoc,
   doc, query, orderBy, where, Timestamp, getDoc,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { getAuth } from 'firebase/auth';
 
-// ─── BACKEND URL ────────────────────────────────────────────────────────────
+// ─── BACKEND URL ─────────────────────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+const STATUS_BADGE = {
+  pending:  { cls: 'bg-amber-100 text-amber-700',   label: 'Pending Approval' },
+  approved: { cls: 'bg-emerald-100 text-emerald-700', label: 'Approved' },
+  rejected: { cls: 'bg-red-100 text-red-700',        label: 'Rejected' },
+};
 
 const ProductCatalog = () => {
   const [products, setProducts]             = useState([]);
+  const [pendingProducts, setPendingProducts] = useState([]);
+  const [activeTab, setActiveTab]           = useState('approved'); // 'approved' | 'pending'
   const [loading, setLoading]               = useState(true);
   const [showModal, setShowModal]           = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -68,12 +76,22 @@ const ProductCatalog = () => {
       const userId = auth.currentUser?.uid;
       if (!userId) { alert('Please login to view products'); setLoading(false); return; }
 
+      // Fetch approved products (existing collection)
       const snapshot = await getDocs(query(
         collection(db, 'products'),
         where('supplierId', '==', userId),
         orderBy('createdAt', 'desc'),
       ));
       setProducts(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+      // Fetch pending/rejected products
+      const pendingSnap = await getDocs(query(
+        collection(db, 'pendingProducts'),
+        where('supplierId', '==', userId),
+        orderBy('createdAt', 'desc'),
+      ));
+      setPendingProducts(pendingSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+
       setLoading(false);
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -84,8 +102,7 @@ const ProductCatalog = () => {
 
   useEffect(() => { if (currentUser) fetchProducts(); }, [currentUser]);
 
-  // ─── CHANGED: now calls backend instead of direct Firestore ────────────────
-  // Backend handles: atomic productCode generation + writing to both collections
+  // ── Add product: now submits to backend which saves to pendingProducts ──────
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
@@ -101,7 +118,6 @@ const ProductCatalog = () => {
       const userId   = currentUser?.id   || user.uid;
       const userName = currentUser?.name || user.email || 'Supplier';
 
-      // Call backend — POST /supplier/products
       const response = await fetch(
         `${API_BASE}/supplier/products?supplierId=${userId}&supplierName=${encodeURIComponent(userName)}`,
         {
@@ -119,20 +135,19 @@ const ProductCatalog = () => {
         },
       );
 
-      if (!response.ok) throw new Error('Failed to add product');
+      if (!response.ok) throw new Error('Failed to submit product');
 
-      const { productCode } = await response.json();
-
-      alert(`Product added successfully!\nProduct Code: ${productCode}`);
+      alert('Product submitted for admin approval.\nYou will be notified once it is reviewed.');
       setShowModal(false);
       resetForm();
+      // Switch to pending tab so supplier can see their submission
+      setActiveTab('pending');
       fetchProducts();
     } catch (error) {
       console.error('Error adding product:', error);
-      alert('Failed to add product: ' + error.message);
+      alert('Failed to submit product: ' + error.message);
     }
   };
-  // ─── END OF CHANGE ─────────────────────────────────────────────────────────
 
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
@@ -217,10 +232,17 @@ const ProductCatalog = () => {
   };
 
   const filteredProducts = products.filter((p) =>
-    p.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.productCode.toLowerCase().includes(searchTerm.toLowerCase())  ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase()),
+    p.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.productCode?.toLowerCase().includes(searchTerm.toLowerCase())  ||
+    p.category?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  const filteredPending = pendingProducts.filter((p) =>
+    p.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.category?.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  const pendingCount = pendingProducts.filter((p) => p.status === 'pending').length;
 
   const inputCls =
     'w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-[15px] text-slate-800 bg-white ' +
@@ -266,76 +288,181 @@ const ProductCatalog = () => {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-        {loading ? (
-          <div className="py-16 text-center text-slate-500 text-lg">Loading products...</div>
-        ) : filteredProducts.length === 0 ? (
-          <div className="py-16 text-center flex flex-col items-center gap-5">
-            <p className="text-lg text-slate-500">No products found</p>
-            <button
-              onClick={() => setShowModal(true)}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
-            >
-              Add Your First Product
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[700px]">
-              <thead className="bg-slate-50 border-b-2 border-slate-200">
-                <tr>
-                  {['Product Name', 'Category', 'Wholesale Price', 'Stock Supplied', 'Availability', 'Actions'].map((h) => (
-                    <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.map((product) => (
-                  <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
-                    <td className="px-4 py-4">
-                      <p className="font-medium text-slate-900 text-sm mb-0.5">{product.productName}</p>
-                      <p className="text-xs text-slate-400 font-mono">{product.productCode}</p>
-                    </td>
-                    <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
-                    <td className="px-4 py-4 text-sm font-semibold text-slate-800">
-                      Rs.{product.wholesalePrice.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
-                    <td className="px-4 py-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                        product.availability === 'in stock'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {product.availability}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => startEditProduct(product)}
-                          className="px-3.5 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProduct(product.id, product.productName)}
-                          className="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* Tabs */}
+      <div className="flex gap-2 mb-5">
+        <button
+          onClick={() => setActiveTab('approved')}
+          className={`px-5 py-2.5 rounded-lg text-[14px] font-semibold transition-all duration-200 border-2 ${
+            activeTab === 'approved'
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
+          }`}
+        >
+          Active Products ({products.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('pending')}
+          className={`px-5 py-2.5 rounded-lg text-[14px] font-semibold transition-all duration-200 border-2 relative ${
+            activeTab === 'pending'
+              ? 'bg-amber-500 text-white border-amber-500'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
+          }`}
+        >
+          Pending Approval
+          {pendingCount > 0 && (
+            <span className="ml-2 inline-flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[11px] font-bold rounded-full">
+              {pendingCount}
+            </span>
+          )}
+        </button>
       </div>
+
+      {/* ── ACTIVE PRODUCTS TABLE ─────────────────────────────────────────────── */}
+      {activeTab === 'approved' && (
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+          {loading ? (
+            <div className="py-16 text-center text-slate-500 text-lg">Loading products...</div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="py-16 text-center flex flex-col items-center gap-5">
+              <p className="text-lg text-slate-500">No approved products yet</p>
+              <button
+                onClick={() => setShowModal(true)}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
+              >
+                Submit Your First Product
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse min-w-[700px]">
+                <thead className="bg-slate-50 border-b-2 border-slate-200">
+                  <tr>
+                    {['Product Name', 'Category', 'Wholesale Price', 'Stock Supplied', 'Availability', 'Actions'].map((h) => (
+                      <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.map((product) => (
+                    <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-slate-900 text-sm mb-0.5">{product.productName}</p>
+                        <p className="text-xs text-slate-400 font-mono">{product.productCode}</p>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
+                      <td className="px-4 py-4 text-sm font-semibold text-slate-800">
+                        Rs.{product.wholesalePrice.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
+                      <td className="px-4 py-4">
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                          product.availability === 'in stock'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {product.availability}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEditProduct(product)}
+                            className="px-3.5 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id, product.productName)}
+                            className="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── PENDING PRODUCTS TABLE ────────────────────────────────────────────── */}
+      {activeTab === 'pending' && (
+        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+          {loading ? (
+            <div className="py-16 text-center text-slate-500 text-lg">Loading...</div>
+          ) : filteredPending.length === 0 ? (
+            <div className="py-16 text-center">
+              <p className="text-lg text-slate-500">No pending submissions</p>
+            </div>
+          ) : (
+            <>
+              {/* Info banner */}
+              <div className="m-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+                <span className="text-amber-500 text-lg leading-none mt-0.5">⏳</span>
+                <p className="text-[13px] text-amber-800">
+                  Products listed here are awaiting admin review. Once approved, they will appear in the <strong>Active Products</strong> tab and be visible in the admin inventory.
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[700px]">
+                  <thead className="bg-slate-50 border-b-2 border-slate-200">
+                    <tr>
+                      {['Product Name', 'Category', 'Wholesale Price', 'Stock', 'Submitted', 'Status'].map((h) => (
+                        <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPending.map((product) => {
+                      const badge = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
+                      return (
+                        <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
+                          <td className="px-4 py-4">
+                            <p className="font-medium text-slate-900 text-sm mb-0.5">{product.productName}</p>
+                            {product.manufacturer && (
+                              <p className="text-xs text-slate-400">{product.manufacturer}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
+                          <td className="px-4 py-4 text-sm font-semibold text-slate-800">
+                            Rs.{Number(product.wholesalePrice).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
+                          <td className="px-4 py-4 text-xs text-slate-400">
+                            {product.createdAt?.toDate
+                              ? product.createdAt.toDate().toLocaleDateString()
+                              : '—'}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div>
+                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>
+                                {badge.label}
+                              </span>
+                              {product.status === 'rejected' && product.rejectionReason && (
+                                <p className="text-[11px] text-red-500 mt-1">{product.rejectionReason}</p>
+                              )}
+                              {product.status === 'approved' && product.productCode && (
+                                <p className="text-[11px] text-emerald-600 mt-1 font-mono">{product.productCode}</p>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (
@@ -354,10 +481,12 @@ const ProductCatalog = () => {
             </h2>
 
             {!editingProduct && (
-              <p className="text-[13px] text-slate-500 mb-6 flex items-center gap-2">
-                <span className="inline-block w-4 h-4 rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold text-center leading-4">i</span>
-                A unique product code (e.g. P001, P002) will be automatically generated for this product.
-              </p>
+              <div className="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                <span className="text-amber-500 text-base leading-none mt-0.5">⚠️</span>
+                <p className="text-[13px] text-amber-800">
+                  This product will be submitted for <strong>admin approval</strong> before it appears in the inventory. A unique product code will be assigned upon approval.
+                </p>
+              </div>
             )}
 
             {editingProduct && (
@@ -430,7 +559,7 @@ const ProductCatalog = () => {
                   type="submit"
                   className="flex-1 py-4 px-7 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
                 >
-                  {editingProduct ? 'Update Product' : 'Add Product'}
+                  {editingProduct ? 'Update Product' : 'Submit for Approval'}
                 </button>
                 <button
                   type="button"
