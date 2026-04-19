@@ -99,7 +99,7 @@ export function AuthProvider({ children }) {
         } = userData;
 
         // Save request to pendingRequests collection
-        await addDoc(collection(db, "pendingRequests"), {
+         await addDoc(collection(db, "pendingRequests"), {
           type: "supplier",
           companyName,
           email,
@@ -115,7 +115,20 @@ export function AuthProvider({ children }) {
           requestedAt: Timestamp.now(),
         });
 
+        // Notify admin that a new account request has been submitted
+        await addDoc(collection(db, "notifications"), {
+          type: "ACCOUNT_REQUEST",
+          message: `New supplier account request from ${companyName}`,
+          applicantName: companyName,
+          applicantEmail: email,
+          applicantRole: "supplier",
+          recipientType: "admin",
+          read: false,
+          createdAt: Timestamp.now(),
+        });
+
         return { success: true, pending: true };
+
       } else if (role === "pharmacist") {
         //Pharmacist: save as pending request
         const {
@@ -141,6 +154,18 @@ export function AuthProvider({ children }) {
           requestedAt: Timestamp.now(),
         });
 
+         // Notify admin that a new account request has been submitted
+        await addDoc(collection(db, "notifications"), {
+          type: "ACCOUNT_REQUEST",
+          message: `New pharmacist account request from ${fullName}`,
+          applicantName: fullName,
+          applicantEmail: email,
+          applicantRole: "pharmacist",
+          recipientType: "admin",
+          read: false,
+          createdAt: Timestamp.now(),
+        });
+        
         return { success: true, pending: true };
       }
     } catch (error) {
@@ -209,8 +234,6 @@ export function AuthProvider({ children }) {
       sessionStorage.setItem("userEmail", userData.email);
 
       setUserRole(actualRole);
-
-      console.log(`User logged in as ${actualRole} in this tab`);
 
       return {
         success: true,

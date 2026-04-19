@@ -7,6 +7,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import CustomerDashboard from "./pages/customer/CustomerDashboard"; //to use for testings
+import RegisterSuccess from "./pages/auth/RegisterSuccess";
 
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} /> 
         <Route path="/customer" element={<CustomerDashboard />} /> 
+        <Route path="/register-success" element={<RegisterSuccess />} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />
