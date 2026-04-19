@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 const CATEGORIES = [
   "Medicine",
@@ -49,6 +50,76 @@ const Field = ({
     {error && <span className="text-xs text-red-500">{error}</span>}
   </div>
 );
+
+const PasswordRequirements = ({ password }) => {
+  const rules = [
+    { label: "At least 8 characters", met: password.length >= 8 },
+    { label: "At least one uppercase letter", met: /[A-Z]/.test(password) },
+    { label: "At least one number", met: /[0-9]/.test(password) },
+    { label: "At least one special character (!@#$%^&*)", met: /[!@#$%^&*]/.test(password) },
+  ];
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      {rules.map((rule) => (
+        <div key={rule.label} className="flex items-center gap-2">
+          <span className={`text-xs font-bold ${rule.met ? "text-emerald-500" : "text-slate-400"}`}>
+            {rule.met ? "✓" : "✗"}
+          </span>
+          <span className={`text-xs ${rule.met ? "text-emerald-600" : "text-slate-400"}`}>
+            {rule.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const PasswordField = ({
+  label,
+  name,
+  placeholder,
+  value,
+  onChange,
+  error,
+  required = true,
+  disabled,
+  showReqs = false,
+}) => {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-bold text-slate-800">
+        {label} {required && <span className="text-red-500">*</span>}
+        {!required && (
+          <span className="text-slate-400 font-normal"> (Optional)</span>
+        )}
+      </label>
+      <div className="relative">
+        <input
+          type={visible ? "text" : "password"}
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={inputCls(error) + " pr-11"}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setVisible((v) => !v)}
+          disabled={disabled}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none"
+          aria-label={visible ? "Hide password" : "Show password"}
+        >
+          {visible ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+        </button>
+      </div>
+      {error && <span className="text-xs text-red-500">{error}</span>}
+      {showReqs && value.length > 0 && <PasswordRequirements password={value} />}
+    </div>
+  );
+};
 
 const Register = () => {
   const navigate = useNavigate();
@@ -307,19 +378,18 @@ const Register = () => {
                 error={errors.phone}
                 required={false}
               />
-              <Field
+              <PasswordField
                 label="Password"
                 name="password"
-                type="password"
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={handleChange}
                 error={errors.password}
+                showReqs={true}
               />
-              <Field
+              <PasswordField
                 label="Confirm Password"
                 name="confirmPassword"
-                type="password"
                 placeholder="••••••••"
                 value={formData.confirmPassword}
                 onChange={handleChange}
