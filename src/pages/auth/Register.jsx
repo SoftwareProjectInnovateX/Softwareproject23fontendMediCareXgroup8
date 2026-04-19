@@ -20,36 +20,35 @@ const inputCls = (err) =>
    }`;
 
 const Field = ({
-    label,
-    name,
-    type = "text",
-    placeholder,
-    value,
-    onChange,
-    error,
-    required = true,
-    disabled,
-  }) => (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm font-bold text-slate-800">
-        {label} {required && <span className="text-red-500">*</span>}
-        {!required && (
-          <span className="text-slate-400 font-normal"> (Optional)</span>
-        )}
-      </label>
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        disabled={disabled}
-        className={inputCls(error)}
-      />
-      {error && <span className="text-xs text-red-500">{error}</span>}
-    </div>
-  );
-
+  label,
+  name,
+  type = "text",
+  placeholder,
+  value,
+  onChange,
+  error,
+  required = true,
+  disabled,
+}) => (
+  <div className="flex flex-col gap-2">
+    <label className="text-sm font-bold text-slate-800">
+      {label} {required && <span className="text-red-500">*</span>}
+      {!required && (
+        <span className="text-slate-400 font-normal"> (Optional)</span>
+      )}
+    </label>
+    <input
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={inputCls(error)}
+    />
+    {error && <span className="text-xs text-red-500">{error}</span>}
+  </div>
+);
 
 const Register = () => {
   const navigate = useNavigate();
@@ -112,68 +111,45 @@ const Register = () => {
   };
 
   const validate = () => {
-    const e = {};
+  const e = {};
 
-    if (role === "customer") {
-      if (!formData.fullName.trim()) e.fullName = "Full name is required";
-      if (!formData.email.trim()) e.email = "Email is required";
-      else if (!validateEmail(formData.email))
-        e.email = "Invalid email address";
-      validatePassword(formData.password, e);
-      if (!formData.confirmPassword)
-        e.confirmPassword = "Please confirm password";
-      else if (formData.password !== formData.confirmPassword)
-        e.confirmPassword = "Passwords do not match";
-    }
+  if (role === "customer") {
+    if (!formData.fullName.trim()) e.fullName = "Full name is required";
+    if (!formData.email.trim()) e.email = "Email is required";
+    else if (!validateEmail(formData.email)) e.email = "Invalid email address";
+    validatePassword(formData.password, e);
+    if (!formData.confirmPassword) e.confirmPassword = "Please confirm password";
+    else if (formData.password !== formData.confirmPassword)
+      e.confirmPassword = "Passwords do not match";
+  }
 
-    if (role === "supplier") {
-      if (!formData.companyName.trim())
-        e.companyName = "Company name is required";
-      if (!formData.email.trim()) e.email = "Email is required";
-      else if (!validateEmail(formData.email))
-        e.email = "Invalid email address";
-      validatePassword(formData.password, e);
-      if (!formData.confirmPassword)
-        e.confirmPassword = "Please confirm password";
-      else if (formData.password !== formData.confirmPassword)
-        e.confirmPassword = "Passwords do not match";
-      if (!formData.contactPerson.trim())
-        e.contactPerson = "Contact person is required";
-      if (!formData.phone.trim()) e.phone = "Phone number is required";
-      if (!formData.businessRegNo.trim())
-        e.businessRegNo = "Business registration number is required";
-      if (!formData.businessAddress.trim())
-        e.businessAddress = "Business address is required";
-      if (!formData.bankName.trim()) e.bankName = "Bank name is required";
-      if (!formData.accountNumber.trim())
-        e.accountNumber = "Account number is required";
-      if (!formData.accountHolderName.trim())
-        e.accountHolderName = "Account holder name is required";
-    }
+  if (role === "supplier") {
+    if (!formData.companyName.trim()) e.companyName = "Company name is required";
+    if (!formData.email.trim()) e.email = "Email is required";
+    else if (!validateEmail(formData.email)) e.email = "Invalid email address";
+    if (!formData.contactPerson.trim()) e.contactPerson = "Contact person is required";
+    if (!formData.phone.trim()) e.phone = "Phone number is required";
+    if (!formData.businessRegNo.trim()) e.businessRegNo = "Business registration number is required";
+    if (!formData.businessAddress.trim()) e.businessAddress = "Business address is required";
+    if (!formData.bankName.trim()) e.bankName = "Bank name is required";
+    if (!formData.accountNumber.trim()) e.accountNumber = "Account number is required";
+    if (!formData.accountHolderName.trim()) e.accountHolderName = "Account holder name is required";
+  }
 
-    if (role === "pharmacist") {
-      if (!formData.fullName.trim()) e.fullName = "Full name is required";
-      if (!formData.email.trim()) e.email = "Email is required";
-      else if (!validateEmail(formData.email))
-        e.email = "Invalid email address";
-      validatePassword(formData.password, e);
-      if (!formData.confirmPassword)
-        e.confirmPassword = "Please confirm password";
-      else if (formData.password !== formData.confirmPassword)
-        e.confirmPassword = "Passwords do not match";
-      if (!formData.phone.trim()) e.phone = "Phone number is required";
-      if (!formData.nicNumber.trim()) e.nicNumber = "NIC number is required";
-      if (!formData.licenseNumber.trim())
-        e.licenseNumber = "License number is required";
-      if (!formData.licenseExpiry)
-        e.licenseExpiry = "License expiry date is required";
-      if (!formData.specialization.trim())
-        e.specialization = "Specialization is required";
-    }
+  if (role === "pharmacist") {
+    if (!formData.fullName.trim()) e.fullName = "Full name is required";
+    if (!formData.email.trim()) e.email = "Email is required";
+    else if (!validateEmail(formData.email)) e.email = "Invalid email address";
+    if (!formData.phone.trim()) e.phone = "Phone number is required";
+    if (!formData.nicNumber.trim()) e.nicNumber = "NIC number is required";
+    if (!formData.licenseNumber.trim()) e.licenseNumber = "License number is required";
+    if (!formData.licenseExpiry) e.licenseExpiry = "License expiry date is required";
+    if (!formData.specialization.trim()) e.specialization = "Specialization is required";
+  }
 
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
+  setErrors(e);
+  return Object.keys(e).length === 0;
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -203,7 +179,6 @@ const Register = () => {
     }
   };
 
-  
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-700 to-blue-400 px-4 py-8 relative overflow-hidden">
       <div className="absolute top-[-90px] right-[-90px] w-72 h-72 rounded-full bg-white/10 animate-pulse pointer-events-none" />
@@ -457,24 +432,6 @@ const Register = () => {
                 onChange={handleChange}
                 error={errors.accountHolderName}
               />
-              <Field
-                label="Password"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={handleChange}
-                error={errors.password}
-              />
-              <Field
-                label="Confirm Password"
-                name="confirmPassword"
-                type="password"
-                placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                error={errors.confirmPassword}
-              />
             </>
           )}
 
@@ -538,24 +495,6 @@ const Register = () => {
                 value={formData.specialization}
                 onChange={handleChange}
                 error={errors.specialization}
-              />
-              <Field
-                label="Password"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={handleChange}
-                error={errors.password}
-              />
-              <Field
-                label="Confirm Password"
-                name="confirmPassword"
-                type="password"
-                placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                error={errors.confirmPassword}
               />
             </>
           )}
