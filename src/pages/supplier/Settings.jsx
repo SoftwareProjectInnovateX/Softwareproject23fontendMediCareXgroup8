@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 import {
   doc,
   getDoc,
@@ -66,6 +67,10 @@ const Settings = () => {
     newPassword: "",
     confirmPassword: "",
   });
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+
   const [notificationPrefs, setNotificationPrefs] = useState({
     emailNotifications: true,
     orderUpdates: true,
@@ -666,51 +671,142 @@ const Settings = () => {
                   <label className="text-sm font-medium text-slate-700 mb-2">
                     Current Password *
                   </label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Enter current password"
-                    value={securityData.currentPassword}
-                    onChange={(e) =>
-                      setSecurityData({
-                        ...securityData,
-                        currentPassword: e.target.value,
-                      })
-                    }
-                    className={inputCls}
-                  />
-                </div>
-                {[
-                  {
-                    label: "New Password *",
-                    key: "newPassword",
-                    ph: "Enter new password",
-                  },
-                  {
-                    label: "Confirm New Password *",
-                    key: "confirmPassword",
-                    ph: "Confirm new password",
-                  },
-                ].map((f) => (
-                  <div key={f.key} className="flex flex-col">
-                    <label className="text-sm font-medium text-slate-700 mb-2">
-                      {f.label}
-                    </label>
+                  <div className="relative">
                     <input
-                      type="password"
+                      type={showCurrentPw ? "text" : "password"}
                       required
-                      placeholder={f.ph}
-                      value={securityData[f.key]}
+                      placeholder="Enter current password"
+                      value={securityData.currentPassword}
                       onChange={(e) =>
                         setSecurityData({
                           ...securityData,
-                          [f.key]: e.target.value,
+                          currentPassword: e.target.value,
                         })
                       }
-                      className={inputCls}
+                      className={inputCls + " pr-11"}
                     />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowCurrentPw((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none"
+                      aria-label={
+                        showCurrentPw ? "Hide password" : "Show password"
+                      }
+                    >
+                      {showCurrentPw ? (
+                        <FiEyeOff size={18} />
+                      ) : (
+                        <FiEye size={18} />
+                      )}
+                    </button>
                   </div>
-                ))}
+                </div>
+                {/* NEW PASSWORD: eye toggle + live requirements checklist */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">
+                    New Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPw ? "text" : "password"}
+                      required
+                      placeholder="Enter new password"
+                      value={securityData.newPassword}
+                      onChange={(e) =>
+                        setSecurityData({
+                          ...securityData,
+                          newPassword: e.target.value,
+                        })
+                      }
+                      className={inputCls + " pr-11"}
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowNewPw((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none"
+                      aria-label={showNewPw ? "Hide password" : "Show password"}
+                    >
+                      {showNewPw ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                    </button>
+                  </div>
+                  {securityData.newPassword.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-1">
+                      {[
+                        {
+                          label: "At least 8 characters",
+                          met: securityData.newPassword.length >= 8,
+                        },
+                        {
+                          label: "At least one uppercase letter",
+                          met: /[A-Z]/.test(securityData.newPassword),
+                        },
+                        {
+                          label: "At least one number",
+                          met: /[0-9]/.test(securityData.newPassword),
+                        },
+                        {
+                          label: "At least one special character (!@#$%^&*)",
+                          met: /[!@#$%^&*]/.test(securityData.newPassword),
+                        },
+                      ].map((rule) => (
+                        <div
+                          key={rule.label}
+                          className="flex items-center gap-2"
+                        >
+                          <span
+                            className={`text-xs font-bold ${rule.met ? "text-emerald-500" : "text-slate-400"}`}
+                          >
+                            {rule.met ? "✓" : "✗"}
+                          </span>
+                          <span
+                            className={`text-xs ${rule.met ? "text-emerald-600" : "text-slate-400"}`}
+                          >
+                            {rule.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* CONFIRM NEW PASSWORD: eye toggle only, no checklist */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">
+                    Confirm New Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPw ? "text" : "password"}
+                      required
+                      placeholder="Confirm new password"
+                      value={securityData.confirmPassword}
+                      onChange={(e) =>
+                        setSecurityData({
+                          ...securityData,
+                          confirmPassword: e.target.value,
+                        })
+                      }
+                      className={inputCls + " pr-11"}
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowConfirmPw((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none"
+                      aria-label={
+                        showConfirmPw ? "Hide password" : "Show password"
+                      }
+                    >
+                      {showConfirmPw ? (
+                        <FiEyeOff size={18} />
+                      ) : (
+                        <FiEye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <InfoBox text="Password must be at least 6 characters long and include a mix of letters and numbers." />
