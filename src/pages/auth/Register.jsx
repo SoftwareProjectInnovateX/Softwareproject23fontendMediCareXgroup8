@@ -56,16 +56,23 @@ const PasswordRequirements = ({ password }) => {
     { label: "At least 8 characters", met: password.length >= 8 },
     { label: "At least one uppercase letter", met: /[A-Z]/.test(password) },
     { label: "At least one number", met: /[0-9]/.test(password) },
-    { label: "At least one special character (!@#$%^&*)", met: /[!@#$%^&*]/.test(password) },
+    {
+      label: "At least one special character (!@#$%^&*)",
+      met: /[!@#$%^&*]/.test(password),
+    },
   ];
   return (
     <div className="mt-1 flex flex-col gap-1">
       {rules.map((rule) => (
         <div key={rule.label} className="flex items-center gap-2">
-          <span className={`text-xs font-bold ${rule.met ? "text-emerald-500" : "text-slate-400"}`}>
+          <span
+            className={`text-xs font-bold ${rule.met ? "text-emerald-500" : "text-slate-400"}`}
+          >
             {rule.met ? "✓" : "✗"}
           </span>
-          <span className={`text-xs ${rule.met ? "text-emerald-600" : "text-slate-400"}`}>
+          <span
+            className={`text-xs ${rule.met ? "text-emerald-600" : "text-slate-400"}`}
+          >
             {rule.label}
           </span>
         </div>
@@ -116,7 +123,9 @@ const PasswordField = ({
         </button>
       </div>
       {error && <span className="text-xs text-red-500">{error}</span>}
-      {showReqs && value.length > 0 && <PasswordRequirements password={value} />}
+      {showReqs && value.length > 0 && (
+        <PasswordRequirements password={value} />
+      )}
     </div>
   );
 };
@@ -182,45 +191,58 @@ const Register = () => {
   };
 
   const validate = () => {
-  const e = {};
+    const e = {};
 
-  if (role === "customer") {
-    if (!formData.fullName.trim()) e.fullName = "Full name is required";
-    if (!formData.email.trim()) e.email = "Email is required";
-    else if (!validateEmail(formData.email)) e.email = "Invalid email address";
-    validatePassword(formData.password, e);
-    if (!formData.confirmPassword) e.confirmPassword = "Please confirm password";
-    else if (formData.password !== formData.confirmPassword)
-      e.confirmPassword = "Passwords do not match";
-  }
+    if (role === "customer") {
+      if (!formData.fullName.trim()) e.fullName = "Full name is required";
+      if (!formData.email.trim()) e.email = "Email is required";
+      else if (!validateEmail(formData.email))
+        e.email = "Invalid email address";
+      validatePassword(formData.password, e);
+      if (!formData.confirmPassword)
+        e.confirmPassword = "Please confirm password";
+      else if (formData.password !== formData.confirmPassword)
+        e.confirmPassword = "Passwords do not match";
+    }
 
-  if (role === "supplier") {
-    if (!formData.companyName.trim()) e.companyName = "Company name is required";
-    if (!formData.email.trim()) e.email = "Email is required";
-    else if (!validateEmail(formData.email)) e.email = "Invalid email address";
-    if (!formData.contactPerson.trim()) e.contactPerson = "Contact person is required";
-    if (!formData.phone.trim()) e.phone = "Phone number is required";
-    if (!formData.businessRegNo.trim()) e.businessRegNo = "Business registration number is required";
-    if (!formData.businessAddress.trim()) e.businessAddress = "Business address is required";
-    if (!formData.bankName.trim()) e.bankName = "Bank name is required";
-    if (!formData.accountNumber.trim()) e.accountNumber = "Account number is required";
-    if (!formData.accountHolderName.trim()) e.accountHolderName = "Account holder name is required";
-  }
+    if (role === "supplier") {
+      if (!formData.companyName.trim())
+        e.companyName = "Company name is required";
+      if (!formData.email.trim()) e.email = "Email is required";
+      else if (!validateEmail(formData.email))
+        e.email = "Invalid email address";
+      if (!formData.contactPerson.trim())
+        e.contactPerson = "Contact person is required";
+      if (!formData.phone.trim()) e.phone = "Phone number is required";
+      if (!formData.businessRegNo.trim())
+        e.businessRegNo = "Business registration number is required";
+      if (!formData.businessAddress.trim())
+        e.businessAddress = "Business address is required";
+      if (!formData.bankName.trim()) e.bankName = "Bank name is required";
+      if (!formData.accountNumber.trim())
+        e.accountNumber = "Account number is required";
+      if (!formData.accountHolderName.trim())
+        e.accountHolderName = "Account holder name is required";
+    }
 
-  if (role === "pharmacist") {
-    if (!formData.fullName.trim()) e.fullName = "Full name is required";
-    if (!formData.email.trim()) e.email = "Email is required";
-    else if (!validateEmail(formData.email)) e.email = "Invalid email address";
-    if (!formData.phone.trim()) e.phone = "Phone number is required";
-    if (!formData.nicNumber.trim()) e.nicNumber = "NIC number is required";
-    if (!formData.licenseNumber.trim()) e.licenseNumber = "License number is required";
-    if (!formData.licenseExpiry) e.licenseExpiry = "License expiry date is required";
-    if (!formData.specialization.trim()) e.specialization = "Specialization is required";
-  }
+    if (role === "pharmacist") {
+      if (!formData.fullName.trim()) e.fullName = "Full name is required";
+      if (!formData.email.trim()) e.email = "Email is required";
+      else if (!validateEmail(formData.email))
+        e.email = "Invalid email address";
+      if (!formData.phone.trim()) e.phone = "Phone number is required";
+      if (!formData.nicNumber.trim()) e.nicNumber = "NIC number is required";
+      if (!formData.licenseNumber.trim())
+        e.licenseNumber = "License number is required";
+      if (!formData.licenseExpiry)
+        e.licenseExpiry = "License expiry date is required";
+      if (!formData.specialization.trim())
+        e.specialization = "Specialization is required";
+    }
 
-  setErrors(e);
-  return Object.keys(e).length === 0;
-};
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -237,9 +259,7 @@ const Register = () => {
         setSuccessMessage("Registration successful! Welcome to MediCareX!");
         setTimeout(() => navigate("/customer"), 1500);
       } else {
-        setSuccessMessage(
-          "Your request has been submitted! You will receive an email once admin approves your account.",
-        );
+        navigate("/register-success");
       }
     } catch (error) {
       setErrors({
