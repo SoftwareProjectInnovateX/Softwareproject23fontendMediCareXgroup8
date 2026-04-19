@@ -12,7 +12,10 @@ export default function AccountRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
-  const [actionLoading, setActionLoading] = useState(null);
+  const [actionLoading, setActionLoading] = useState({
+    id: null,
+    action: null,
+  });
 
   useEffect(() => {
     fetchRequests();
@@ -41,7 +44,7 @@ export default function AccountRequests() {
       )
     )
       return;
-    setActionLoading(request.id);
+    setActionLoading({ id: request.id, action: "approve" });
     try {
       const res = await fetch(
         `http://localhost:5000/api/account-requests/${request.id}/approve`,
@@ -67,7 +70,7 @@ export default function AccountRequests() {
       )
     )
       return;
-    setActionLoading(request.id);
+    setActionLoading({ id: request.id, action: "reject" });
     try {
       const res = await fetch(
         `http://localhost:5000/api/account-requests/${request.id}/reject`,
@@ -93,8 +96,9 @@ export default function AccountRequests() {
     const isSupplier = request.type === "supplier";
     const isPending = request.status === "pending";
     const isApproved = request.status === "approved";
-    const isProcessing = actionLoading === request.id;
-
+    const isProcessing = actionLoading.id === request.id;
+    const isApprovingThis = isProcessing && actionLoading.action === "approve";
+    const isRejectingThis = isProcessing && actionLoading.action === "reject";
     return (
       <div
         className={`bg-white rounded-xl shadow-sm border-l-4 px-6 py-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md
@@ -188,7 +192,7 @@ export default function AccountRequests() {
               disabled={isProcessing}
               className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-900 to-blue-500 text-white text-sm font-bold hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              {isProcessing ? (
+              {isApprovingThis ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Approving...
@@ -202,7 +206,14 @@ export default function AccountRequests() {
               disabled={isProcessing}
               className="flex-1 py-2.5 rounded-xl bg-red-50 border-2 border-red-200 text-red-600 text-sm font-bold hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ✕ Reject
+              {isRejectingThis ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-3 h-3 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                  Rejecting...
+                </span>
+              ) : (
+                "✕ Reject"
+              )}
             </button>
           </div>
         )}
