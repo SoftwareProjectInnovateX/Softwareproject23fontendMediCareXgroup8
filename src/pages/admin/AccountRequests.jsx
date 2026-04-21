@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
 import {
   collection, getDocs, doc, updateDoc,
-  deleteDoc, Timestamp, query, orderBy
+  deleteDoc, Timestamp, query, orderBy, setDoc
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { setDoc } from "firebase/firestore";
 import { auth } from "../../services/firebase";
 
 export default function AccountRequests() {
-  const [requests, setRequests]   = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [filter, setFilter]       = useState('all'); // 'all' | 'supplier' | 'pharmacist'
+  const [requests, setRequests]         = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [filter, setFilter]             = useState('all');
   const [actionLoading, setActionLoading] = useState(null);
 
   useEffect(() => { fetchRequests(); }, []);
@@ -43,37 +42,52 @@ export default function AccountRequests() {
     return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
   };
 
+  // Generate a secure temporary password
+  const generateTempPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
+    let password = '';
+    for (let i = 0; i < 10; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
   const handleApprove = async (request) => {
+    if (!request?.id) return;   // ← guard against null request
     if (!window.confirm(`Approve ${request.type} account for ${request.companyName || request.fullName}?`)) return;
+
     setActionLoading(request.id);
     try {
-      // 1. Create Firebase Auth account using saved password
+      // 1. Generate a temporary password (since password is never stored in pendingRequests)
+      const tempPassword = generateTempPassword();
+
+      // 2. Create Firebase Auth account
       const userCredential = await createUserWithEmailAndPassword(
-        auth, request.email, request.password
+        auth, request.email, tempPassword
       );
       const uid = userCredential.user.uid;
 
-      // 2. Save to appropriate Firestore collection
+      // 3. Save to appropriate Firestore collection
       if (request.type === 'supplier') {
         const supplierId = await generateNextId('suppliers', 'S');
         await setDoc(doc(db, 'suppliers', uid), {
           supplierId,
-          userId:           uid,
-          name:             request.companyName,
-          email:            request.email,
-          phone:            request.phone,
-          contactPerson:    request.contactPerson,
-          businessRegNo:    request.businessRegNo,
-          businessAddress:  request.businessAddress,
-          categories:       request.categories || [],
-          bankName:         request.bankName,
-          accountNumber:    request.accountNumber,
+          userId:            uid,
+          name:              request.companyName,
+          email:             request.email,
+          phone:             request.phone,
+          contactPerson:     request.contactPerson,
+          businessRegNo:     request.businessRegNo,
+          businessAddress:   request.businessAddress,
+          categories:        request.categories || [],
+          bankName:          request.bankName,
+          accountNumber:     request.accountNumber,
           accountHolderName: request.accountHolderName,
-          rating:           0,
-          status:           'active',
-          role:             'supplier',
-          createdAt:        Timestamp.now(),
-          updatedAt:        Timestamp.now(),
+          rating:            0,
+          status:            'active',
+          role:              'supplier',
+          createdAt:         Timestamp.now(),
+          updatedAt:         Timestamp.now(),
         });
       } else {
         const pharmacistId = await generateNextId('pharmacists', 'P');
@@ -94,24 +108,37 @@ export default function AccountRequests() {
         });
       }
 
-      // 3. Update request status to approved
+      // 4. Mark request as approved
       await updateDoc(doc(db, 'pendingRequests', request.id), {
         status:     'approved',
         approvedAt: Timestamp.now(),
       });
 
-      // 4. Refresh list
+      // 5. Refresh list
       await fetchRequests();
-      alert(`✅ Account approved! ${request.email} can now login.`);
+
+      // 6. Show admin the temp password to share with the user
+      alert(
+        `✓ Account approved!\n\n` +
+        `Email: ${request.email}\n` +
+        `Temporary Password: ${tempPassword}\n\n` +
+        `Please share these credentials with the user and ask them to change their password after first login.`
+      );
+
     } catch (err) {
       console.error(err);
-      alert('Failed to approve: ' + err.message);
+      if (err.code === 'auth/email-already-in-use') {
+        alert('This email already has a Firebase Auth account.');
+      } else {
+        alert('Failed to approve: ' + err.message);
+      }
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleReject = async (request) => {
+    if (!request?.id) return;   // ← guard against null request
     if (!window.confirm(`Reject request from ${request.companyName || request.fullName}?`)) return;
     setActionLoading(request.id);
     try {
@@ -128,15 +155,18 @@ export default function AccountRequests() {
     }
   };
 
-  const filtered = filter === 'all' ? requests : requests.filter(r => r.type === filter);
+  const filtered  = filter === 'all' ? requests : requests.filter(r => r.type === filter);
   const pending   = filtered.filter(r => r.status === 'pending');
   const processed = filtered.filter(r => r.status !== 'pending');
 
   const RequestCard = ({ request }) => {
-    const isSupplier    = request.type === 'supplier';
-    const isPending     = request.status === 'pending';
-    const isApproved    = request.status === 'approved';
-    const isProcessing  = actionLoading === request.id;
+    // Guard: if request is null/undefined, render nothing
+    if (!request?.id) return null;
+
+    const isSupplier   = request.type === 'supplier';
+    const isPending    = request.status === 'pending';
+    const isApproved   = request.status === 'approved';
+    const isProcessing = actionLoading === request.id;
 
     return (
       <div className={`bg-white rounded-xl border-2 p-5 transition-all
@@ -146,18 +176,16 @@ export default function AccountRequests() {
         {/* Card Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            {/* Role badge */}
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase
               ${isSupplier
                 ? 'bg-blue-100 text-blue-700'
                 : 'bg-emerald-100 text-emerald-700'}`}>
               {isSupplier ? 'Supplier' : 'Pharmacist'}
             </span>
-            {/* Status badge */}
             <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase
-              ${isPending   ? 'bg-amber-100 text-amber-700'
-              : isApproved  ? 'bg-green-100 text-green-700'
-              :               'bg-red-100 text-red-700'}`}>
+              ${isPending  ? 'bg-amber-100 text-amber-700'
+              : isApproved ? 'bg-green-100 text-green-700'
+              :              'bg-red-100 text-red-700'}`}>
               {request.status}
             </span>
           </div>
@@ -170,16 +198,16 @@ export default function AccountRequests() {
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 mb-4">
           {isSupplier ? (
             <>
-              <Info label="Company"     value={request.companyName} />
-              <Info label="Email"       value={request.email} />
-              <Info label="Phone"       value={request.phone} />
-              <Info label="Contact"     value={request.contactPerson} />
-              <Info label="Reg. No"     value={request.businessRegNo} />
-              <Info label="Bank"        value={request.bankName} />
-              <Info label="Address"     value={request.businessAddress} span />
+              <Info label="Company"  value={request.companyName} />
+              <Info label="Email"    value={request.email} />
+              <Info label="Phone"    value={request.phone} />
+              <Info label="Contact"  value={request.contactPerson} />
+              <Info label="Reg. No"  value={request.businessRegNo} />
+              <Info label="Bank"     value={request.bankName} />
+              <Info label="Address"  value={request.businessAddress} span />
               {request.categories?.length > 0 && (
                 <div className="col-span-2">
-                  <span className="text-xs text-slate-400 font-semibold uppercase">Categories</span>
+                  <span className="text-[11px] text-slate-400 font-semibold uppercase">Categories</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {request.categories.map(c => (
                       <span key={c} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">{c}</span>
@@ -190,12 +218,12 @@ export default function AccountRequests() {
             </>
           ) : (
             <>
-              <Info label="Name"          value={request.fullName} />
-              <Info label="Email"         value={request.email} />
-              <Info label="Phone"         value={request.phone} />
-              <Info label="NIC"           value={request.nicNumber} />
-              <Info label="License No"    value={request.licenseNumber} />
-              <Info label="Expiry"        value={request.licenseExpiry} />
+              <Info label="Name"           value={request.fullName} />
+              <Info label="Email"          value={request.email} />
+              <Info label="Phone"          value={request.phone} />
+              <Info label="NIC"            value={request.nicNumber} />
+              <Info label="License No"     value={request.licenseNumber} />
+              <Info label="Expiry"         value={request.licenseExpiry} />
               <Info label="Specialization" value={request.specialization} span />
             </>
           )}
@@ -247,9 +275,9 @@ export default function AccountRequests() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'Pending',  value: requests.filter(r => r.status === 'pending').length,  color: 'bg-amber-50  border-amber-200  text-amber-700'  },
-          { label: 'Approved', value: requests.filter(r => r.status === 'approved').length, color: 'bg-green-50  border-green-200  text-green-700'  },
-          { label: 'Rejected', value: requests.filter(r => r.status === 'rejected').length, color: 'bg-red-50    border-red-200    text-red-700'    },
+          { label: 'Pending',  value: requests.filter(r => r.status === 'pending').length,  color: 'bg-amber-50 border-amber-200 text-amber-700'  },
+          { label: 'Approved', value: requests.filter(r => r.status === 'approved').length, color: 'bg-green-50 border-green-200 text-green-700'  },
+          { label: 'Rejected', value: requests.filter(r => r.status === 'rejected').length, color: 'bg-red-50   border-red-200   text-red-700'    },
         ].map(s => (
           <div key={s.label} className={`rounded-xl border-2 p-4 text-center ${s.color}`}>
             <p className="text-3xl font-extrabold">{s.value}</p>
@@ -279,28 +307,26 @@ export default function AccountRequests() {
         <div className="text-center py-20 text-slate-400 text-lg">Loading requests...</div>
       ) : (
         <>
-          {/* Pending Requests */}
           {pending.length > 0 && (
             <div className="mb-8">
               <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
                 Pending Requests ({pending.length})
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {pending.map(r => <RequestCard key={r.id} request={r} />)}
+                {pending.map(r => r?.id ? <RequestCard key={r.id} request={r} /> : null)}
               </div>
             </div>
           )}
 
-          {/* Processed Requests */}
           {processed.length > 0 && (
             <div>
               <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" />
                 Processed Requests ({processed.length})
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {processed.map(r => <RequestCard key={r.id} request={r} />)}
+                {processed.map(r => r?.id ? <RequestCard key={r.id} request={r} /> : null)}
               </div>
             </div>
           )}
