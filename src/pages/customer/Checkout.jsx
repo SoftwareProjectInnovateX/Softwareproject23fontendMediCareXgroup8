@@ -4,20 +4,21 @@ import CryptoJS from 'crypto-js';
 import BillingDetails from '../../components/checkout/BillingDetails';
 import OrderSummary from '../../components/checkout/OrderSummary';
 
-// Centralized configuration for payment settings to allow easy maintenance
+// Centralized configuration for payment settings
 const PAYMENT_GATEWAY_CONFIG = {
-    MERCHANT_ID: "1235095",
-    MERCHANT_SECRET: "MzA5OTIzMDE4OTM4MTA0NjU1NzI1Nzg1",
+    // CRITICAL: Ensure these match your PayHere Sandbox portal exactly
+    MERCHANT_ID: "1235095", 
+    MERCHANT_SECRET: "NDUxMTU1MDYxNDEyNDEyMTgyMjM3MTEzMTYyMjMwMzQ0OTc1MjM=", 
     CURRENCY: "LKR",
     TOTAL_AMOUNT: "8000.00",
-    NOTIFY_URL: "http://localhost:5000/orders/notify"
+    // Fixed: Added '/api' to match NestJS Controller path
+    NOTIFY_URL: "http://localhost:5000/api/orders/notify"
 };
 
 const Checkout = () => {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     
-    // State management for the entire checkout form
     const [orderData, setOrderData] = useState({
         email: '',
         firstName: '',
@@ -43,7 +44,6 @@ const Checkout = () => {
     const handlePlaceOrder = () => {
         const { firstName, lastName, email, phone, houseNumber, laneStreet, city, agreeTerms } = orderData;
         
-        // Ensure all mandatory fields are completed before proceeding
         if (!firstName || !lastName || !email || !phone || !houseNumber || !laneStreet || !city) {
             alert("Please fill in all required fields marked with *");
             return;
@@ -66,7 +66,7 @@ const Checkout = () => {
     const processOnlinePayment = () => {
         const orderId = `MCX${Date.now()}`;
         
-        // Generating a security hash to verify request authenticity with PayHere
+        // Correctly generating security hash for PayHere Sandbox
         const hashedSecret = CryptoJS.MD5(PAYMENT_GATEWAY_CONFIG.MERCHANT_SECRET).toString().toUpperCase();
         const authString = PAYMENT_GATEWAY_CONFIG.MERCHANT_ID + orderId + PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT + PAYMENT_GATEWAY_CONFIG.CURRENCY + hashedSecret;
         const securityHash = CryptoJS.MD5(authString).toString().toUpperCase();
@@ -95,6 +95,7 @@ const Checkout = () => {
             window.payhere.startPayment(paymentPayload);
 
             window.payhere.onCompleted = (confirmedOrderId) => {
+                // Payment success: Proceed to save order in backend
                 handleOrderSubmission(confirmedOrderId);
             };
 
@@ -108,13 +109,14 @@ const Checkout = () => {
             };
         } else {
             setIsLoading(false);
-            alert("Payment SDK failed to load. Please check your internet connection.");
+            alert("Payment SDK failed to load.");
         }
     };
 
     const handleOrderSubmission = async (referenceId) => {
         try {
-            const response = await fetch('http://localhost:5000/orders', {
+            // Fixed: Updated URL to include '/api' as defined in the NestJS Controller
+            const response = await fetch('http://localhost:5000/api/orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -128,11 +130,13 @@ const Checkout = () => {
             if (response.ok) {
                 navigate('/checkout/success');
             } else {
-                throw new Error("Order persistence failed on server side");
+                const errorLog = await response.json();
+                console.error("Backend Error:", errorLog);
+                throw new Error("Order persistence failed");
             }
         } catch (error) {
             console.error("Submission error:", error);
-            alert("Connectivity issue: Unable to save your order. Please contact support.");
+            alert("Connectivity issue: Unable to save your order to the server.");
         } finally {
             setIsLoading(false);
         }
