@@ -6,7 +6,7 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, mockLogin } = useAuth();
 
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -60,6 +60,19 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleMockLogin = (role) => {
+    setLoading(true);
+    setSuccessMessage(`Logging in as ${role}...`);
+    setTimeout(() => {
+      mockLogin(role);
+      if (role === "admin") navigate("/admin");
+      else if (role === "supplier") navigate("/supplier");
+      else if (role === "pharmacist") navigate("/pharmacist");
+      else navigate("/customer");
+      setLoading(false);
+    }, 500);
   };
 
   return (
@@ -195,6 +208,43 @@ const Login = () => {
           >
             Forgot password?
           </Link>
+        </div>
+
+        {/* Mock Login Buttons for Testing */}
+        <div className="mt-8 border-t-2 border-slate-100 pt-6">
+          <p className="text-center text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">
+            Test Login (Bypass Auth)
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => handleMockLogin('admin')}
+              className="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition-colors"
+            >
+              Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => handleMockLogin('pharmacist')}
+              className="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition-colors"
+            >
+              Pharmacist
+            </button>
+            <button
+              type="button"
+              onClick={() => handleMockLogin('supplier')}
+              className="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition-colors"
+            >
+              Supplier (Seller)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleMockLogin('customer')}
+              className="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition-colors"
+            >
+              Customer
+            </button>
+          </div>
         </div>
       </div>
 

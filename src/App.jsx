@@ -12,6 +12,7 @@ import RegisterSuccess from "./pages/auth/RegisterSuccess";
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
 import AdminLayout from "./layouts/AdminLayout";
+import PharmacistLayout from "./layouts/PharmacistLayout";
 
 /* ================== SUPPLIER PAGES ================== */
 import Dashboard from "./pages/supplier/Dashboard";
@@ -35,6 +36,23 @@ import AdminPayments from "./pages/admin/AdminPayments";
 import AccountRequests from "./pages/admin/AccountRequests";
 import SearchAnalytics from './pages/admin/SearchAnalytics';
 import AdminProductApproval from './pages/admin/AdminProductApproval';
+/* ================== PHARMACIST PAGES ================== */
+import PharmacistDashboard from "./pages/pharmacist/PharmacistDashboard";
+import PharmacistPrescriptions from "./pages/pharmacist/PharmacistPrescriptions";
+import PharmacistVerification from "./pages/pharmacist/PharmacistVerification";
+import PharmacistDispensing from "./pages/pharmacist/PharmacistDispensing";
+import PharmacistPatients from "./pages/pharmacist/PharmacistPatients";
+import PharmacistInventory from "./pages/pharmacist/PharmacistInventory";
+import PharmacistDrugLookup from "./pages/pharmacist/PharmacistDrugLookup";
+import PharmacistReports from "./pages/pharmacist/PharmacistReports";
+import PharmacistAlerts from "./pages/pharmacist/PharmacistAlerts";
+import PharmacistSettings from "./pages/pharmacist/PharmacistSettings";
+import PharmacistNewRxEntry from "./pages/pharmacist/PharmacistNewRxEntry";
+import PharmacistDispensedToday from "./pages/pharmacist/PharmacistDispensedToday";
+import PharmacistExpiringInventory from "./pages/pharmacist/PharmacistExpiringInventory";
+import PharmacistNewPatients from "./pages/pharmacist/PharmacistNewPatients";
+import PharmacistOnlineOrders from "./pages/pharmacist/PharmacistOnlineOrders";
+import PharmacistLowStock from "./pages/pharmacist/PharmacistLowStock";
 
 export default function App() {
   return (
@@ -91,6 +109,34 @@ export default function App() {
           <Route path="search-analytics" element={<SearchAnalytics />} />
           <Route path="adminproductapproval" element={<AdminProductApproval />} />
 
+        </Route>
+
+        {/* ========== PHARMACIST ROUTES (Protected) ========== */}
+        <Route
+          path="/pharmacist"
+          element={
+            <ProtectedRoute allowedRoles={["pharmacist"]}>
+              <PharmacistLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<PharmacistDashboard />} />
+          <Route path="prescriptions" element={<PharmacistPrescriptions />} />
+          <Route path="verification/:id" element={<PharmacistVerification />} />
+          <Route path="dispensing" element={<PharmacistDispensing />} />
+          <Route path="patients" element={<PharmacistPatients />} />
+          <Route path="inventory" element={<Products />} />
+          <Route path="lookup" element={<PharmacistDrugLookup />} />
+          <Route path="reports" element={<PharmacistReports />} />
+          <Route path="alerts" element={<PharmacistAlerts />} />
+          <Route path="settings" element={<PharmacistSettings />} />
+          <Route path="new-rx" element={<PharmacistNewRxEntry />} />
+          <Route path="dispensed-today" element={<PharmacistDispensedToday />} />
+          <Route path="expiring-inventory" element={<PharmacistExpiringInventory />} />
+          <Route path="new-patients" element={<PharmacistNewPatients />} />
+          <Route path="online-orders" element={<PharmacistOnlineOrders />} />
+          <Route path="low-stock" element={<PharmacistLowStock />} />
         </Route>
 
         {/* ========== 404 - NOT FOUND ========== */}

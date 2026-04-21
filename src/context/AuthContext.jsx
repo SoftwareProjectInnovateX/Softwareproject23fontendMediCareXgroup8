@@ -277,7 +277,9 @@ export function AuthProvider({ children }) {
   // Logout user
   const logout = async () => {
     try {
-      await signOut(auth);
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
       sessionStorage.clear();
       setUser(null);
       setCurrentUser(null);
@@ -285,8 +287,27 @@ export function AuthProvider({ children }) {
       return { success: true };
     } catch (error) {
       console.error("Logout error:", error);
-      throw new Error("Logout failed");
+      sessionStorage.clear();
+      setUser(null);
+      setCurrentUser(null);
+      setUserRole(null);
+      return { success: true };
     }
+  };
+
+  // Mock Login for bypassing Firebase Auth
+  const mockLogin = (role) => {
+    const mockUser = { 
+      uid: `mock_${role}_123`, 
+      email: `test@${role}.com`, 
+      role: role 
+    };
+    setUser(mockUser);
+    setCurrentUser(mockUser);
+    setUserRole(role);
+    sessionStorage.setItem("userId", mockUser.uid);
+    sessionStorage.setItem("userRole", role);
+    return { success: true, user: mockUser };
   };
 
   // Get current user's full data
@@ -440,11 +461,20 @@ export function AuthProvider({ children }) {
     resetPassword,
     getCurrentUserData,
     getSupplierProfile,
+    mockLogin,
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {loading ? (
+        <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif' }}>
+          <h2>Firebase is trying to connect...</h2>
+          <p>If you are stuck on this screen, it means your <b>.env</b> file is missing the correct Firebase API Keys!</p>
+          <p>Please update your `.env` file with the keys starting with <code>VITE_</code> and restart your development server.</p>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }

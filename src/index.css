@@ -1,3 +1,9 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .card {
+    @apply bg-white p-6 rounded-2xl shadow-sm border border-slate-100 border-l-[5px] border-l-blue-500 transition-all duration-200;
+  }
+}
