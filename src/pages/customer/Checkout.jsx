@@ -1,133 +1,172 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import DeliveryForm from '../../components/checkout/DeliveryForm';
+import CryptoJS from 'crypto-js';
+import BillingDetails from '../../components/checkout/BillingDetails';
 import OrderSummary from '../../components/checkout/OrderSummary';
-import PaymentMethod from '../../components/checkout/PaymentMethod';
+
+// Centralized configuration for payment settings to allow easy maintenance
+const PAYMENT_GATEWAY_CONFIG = {
+    MERCHANT_ID: "1235095",
+    MERCHANT_SECRET: "MzA5OTIzMDE4OTM4MTA0NjU1NzI1Nzg1",
+    CURRENCY: "LKR",
+    TOTAL_AMOUNT: "8000.00",
+    NOTIFY_URL: "http://localhost:5000/orders/notify"
+};
 
 const Checkout = () => {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     
-    // පාරිභෝගික දත්ත ගබඩා කිරීම
-    const [formData, setFormData] = useState({
+    // State management for the entire checkout form
+    const [orderData, setOrderData] = useState({
         email: '',
         firstName: '',
-        phone: '',
-        street: '',
+        lastName: '',
+        country: 'Sri Lanka',
+        houseNumber: '',
+        laneStreet: '',
         city: '',
-        paymentMethod: 'ONLINE', // Default: Online Payment
+        phone: '',
+        orderNotes: '',
+        agreeTerms: false,
+        paymentMethod: 'ONLINE' 
     });
 
     const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        setOrderData(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
     };
 
-    // PayHere ගෙවීම් ක්‍රියාවලිය පටන් ගැනීම
     const handlePlaceOrder = () => {
-        if (formData.paymentMethod === 'ONLINE') {
-            startPayHerePayment();
+        const { firstName, lastName, email, phone, houseNumber, laneStreet, city, agreeTerms } = orderData;
+        
+        // Ensure all mandatory fields are completed before proceeding
+        if (!firstName || !lastName || !email || !phone || !houseNumber || !laneStreet || !city) {
+            alert("Please fill in all required fields marked with *");
+            return;
+        }
+
+        if (!agreeTerms) {
+            alert("Please accept the terms and conditions to proceed.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        if (orderData.paymentMethod === 'ONLINE') {
+            processOnlinePayment();
         } else {
-            saveOrderToBackend("COD_" + Date.now());
+            handleOrderSubmission(`COD_${Date.now()}`);
         }
     };
 
-    const startPayHerePayment = () => {
-        const orderId = "MCX_" + Date.now();
+    const processOnlinePayment = () => {
+        const orderId = `MCX${Date.now()}`;
         
-        const payment = {
-            sandbox: true, // Sandbox mode සක්‍රීයයි
-            merchant_id: "YOUR_MERCHANT_ID", // ඔයාගේ Merchant ID එක මෙතනට දාන්න
-            return_url: window.location.origin + '/checkout/success',
-            cancel_url: window.location.origin + '/checkout',
-            notify_url: 'http://localhost:5000/orders/notify', // NestJS Backend URL එක
+        // Generating a security hash to verify request authenticity with PayHere
+        const hashedSecret = CryptoJS.MD5(PAYMENT_GATEWAY_CONFIG.MERCHANT_SECRET).toString().toUpperCase();
+        const authString = PAYMENT_GATEWAY_CONFIG.MERCHANT_ID + orderId + PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT + PAYMENT_GATEWAY_CONFIG.CURRENCY + hashedSecret;
+        const securityHash = CryptoJS.MD5(authString).toString().toUpperCase();
+
+        const paymentPayload = {
+            sandbox: true,
+            merchant_id: PAYMENT_GATEWAY_CONFIG.MERCHANT_ID,
+            return_url: `${window.location.origin}/checkout/success`,
+            cancel_url: `${window.location.origin}/checkout/cancel`,
+            notify_url: PAYMENT_GATEWAY_CONFIG.NOTIFY_URL,
             order_id: orderId,
             items: "MediCareX Medicine Order",
-            amount: "10000.00",
-            currency: "LKR",
-            first_name: formData.firstName,
-            last_name: "",
-            email: formData.email,
-            phone: formData.phone,
-            address: formData.street,
-            city: formData.city,
+            amount: PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT,
+            currency: PAYMENT_GATEWAY_CONFIG.CURRENCY,
+            hash: securityHash,
+            first_name: orderData.firstName,
+            last_name: orderData.lastName,
+            email: orderData.email,
+            phone: orderData.phone,
+            address: `${orderData.houseNumber}, ${orderData.laneStreet}`,
+            city: orderData.city,
             country: "Sri Lanka",
         };
 
         if (window.payhere) {
-            window.payhere.startPayment(payment);
+            window.payhere.startPayment(paymentPayload);
 
-            window.payhere.onCompleted = (orderId) => {
-                console.log("Payment completed. OrderID:" + orderId);
-                saveOrderToBackend(orderId);
+            window.payhere.onCompleted = (confirmedOrderId) => {
+                handleOrderSubmission(confirmedOrderId);
             };
 
             window.payhere.onDismissed = () => {
-                alert("Payment dismissed");
+                setIsLoading(false);
             };
 
             window.payhere.onError = (error) => {
-                alert("Payment Error: " + error);
+                setIsLoading(false);
+                alert(`Payment process failed: ${error}`);
             };
+        } else {
+            setIsLoading(false);
+            alert("Payment SDK failed to load. Please check your internet connection.");
         }
     };
 
-    // NestJS Backend එකට සහ Firebase වලට දත්ත යැවීම
-    const saveOrderToBackend = async (confirmedOrderId) => {
-        setIsLoading(true);
+    const handleOrderSubmission = async (referenceId) => {
         try {
             const response = await fetch('http://localhost:5000/orders', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ...formData,
-                    orderId: confirmedOrderId,
-                    amount: 10000,
-                    status: 'Paid'
+                    ...orderData,
+                    orderId: referenceId,
+                    totalAmount: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
+                    orderStatus: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Pending-COD'
                 }),
             });
 
             if (response.ok) {
                 navigate('/checkout/success');
+            } else {
+                throw new Error("Order persistence failed on server side");
             }
         } catch (error) {
-            console.error("Error saving order:", error);
-            alert("Failed to save order. Please contact support.");
+            console.error("Submission error:", error);
+            alert("Connectivity issue: Unable to save your order. Please contact support.");
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 py-12">
-            <div className="max-w-7xl mx-auto px-6">
-                <h1 className="text-3xl font-bold text-blue-900 mb-8">Checkout</h1>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    {/* වම් පැත්ත: පෝරමය */}
-                    <div className="lg:col-span-8 space-y-6">
-                        <DeliveryForm formData={formData} handleInputChange={handleInputChange} />
-                        <PaymentMethod 
-                            selectedMethod={formData.paymentMethod} 
-                            setMethod={(m) => setFormData({...formData, paymentMethod: m})} 
-                        />
-                    </div>
+        <div className="min-h-screen bg-white font-sans text-slate-800">
+            <nav className="max-w-7xl mx-auto px-4 py-4 text-sm text-slate-500 border-b border-slate-100 mb-8">
+                Home &gt; <span className="text-blue-900 font-medium">Checkout</span>
+            </nav>
 
-                    {/* දකුණු පැත්ත: සාරාංශය */}
-                    <div className="lg:col-span-4">
-                        <div className="sticky top-6">
-                            <OrderSummary subtotal={9500} delivery={500} />
-                            <button 
-                                onClick={handlePlaceOrder}
-                                disabled={isLoading}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl mt-6 transition-all shadow-lg"
-                            >
-                                {isLoading ? "Processing..." : "Confirm & Pay Now"}
-                            </button>
-                        </div>
-                    </div>
+            <main className="max-w-7xl mx-auto px-6 pb-20">
+                <header>
+                    <h1 className="text-4xl font-bold text-blue-900 mb-10">Checkout</h1>
+                </header>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                    <section className="lg:col-span-7">
+                        <BillingDetails 
+                            formData={orderData} 
+                            handleInputChange={handleInputChange} 
+                        />
+                    </section>
+                    
+                    <aside className="lg:col-span-5">
+                        <OrderSummary 
+                            formData={orderData} 
+                            handleInputChange={handleInputChange} 
+                            handlePlaceOrder={handlePlaceOrder}
+                            isLoading={isLoading}
+                        />
+                    </aside>
                 </div>
-            </div>
+            </main>
         </div>
     );
 };
