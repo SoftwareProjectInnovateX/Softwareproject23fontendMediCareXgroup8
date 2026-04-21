@@ -29,13 +29,10 @@ export default function Products() {
   const [orderQty, setOrderQty] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ── Smart Search state ──────────────────────────────────────────
-  // null  = not searched yet → show normal filtered table
-  // []    = searched, no results
-  // [...] = search results to display as cards
+
   const [searchResults, setSearchResults] = useState(null);
   const [isSearchLoading, setIsSearchLoading] = useState(false);
-  // ────────────────────────────────────────────────────────────────
+  
 
   useEffect(() => {
     loadProducts();
@@ -150,13 +147,10 @@ export default function Products() {
         date: new Date().toISOString().split("T")[0],
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+         pharmacistAcknowledged: false,
       });
 
-      // ── ORDER PLACED ──────────────────────────────────────────────────────
-      // Supplier Remaining (minStock) goes DOWN by qty.
-      // Admin Stock (stock) and Stock Supplied (stock) do NOT change yet.
-      // They will increase when the supplier APPROVES the order.
-      const newMinStock = latestMinStock - qty;
+    
 
       await updateDoc(adminRef, {
         minStock: newMinStock,
@@ -247,7 +241,7 @@ export default function Products() {
         Admin Dashboard - Consolidated Inventory
       </p>
 
-      {/* ── Smart Search Bar ─────────────────────────────────────── */}
+      {/*  Smart Search Bar  */}
       <div className="mb-5">
         <div className="flex items-start gap-3">
           <div className="flex-1 max-w-2xl">
@@ -293,7 +287,7 @@ export default function Products() {
           </div>
         )}
       </div>
-      {/* ─────────────────────────────────────────────────────────── */}
+      
 
       {/* Category Bar — hidden while in smart search mode */}
       {!isSmartMode && (
