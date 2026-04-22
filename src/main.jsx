@@ -1,15 +1,18 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import App from "./App";
-import { AuthProvider } from "./context/AuthContext";
-import "./index.css";
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </BrowserRouter>
-  </React.StrictMode>
-);
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import './index.css';
+import App from './App.jsx';
+
+/**
+ * Entry point of the application.
+ * Renders the App component within StrictMode to help identify potential issues during development.
+ */
+const rootElement = document.getElementById('root');
+
+if (rootElement) {
+    createRoot(rootElement).render(
+        <StrictMode>
+            <App />
+        </StrictMode>
+    );
+}
