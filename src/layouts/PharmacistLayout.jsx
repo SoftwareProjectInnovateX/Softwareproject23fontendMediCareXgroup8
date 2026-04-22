@@ -4,7 +4,7 @@ import PharmacistHeader from "../components/PharmacistHeader";
 
 export default function PharmacistLayout() {
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f1f5f9" }}>
+   <div style={{ flex: 1, display: "flex", flexDirection: "column", marginLeft: "230px" }}>
 
       {/* White sidebar */}
       <PharmacistSidebar />

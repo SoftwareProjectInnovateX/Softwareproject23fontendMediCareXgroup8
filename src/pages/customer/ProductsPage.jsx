@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useCartStore } from "../../stores/cartStore";
 import { db } from "../../lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
 import { CATEGORIES } from "../../data/categories";
 import {
   ShoppingCart, X, Package, Search, Tag, ChevronDown,
@@ -13,8 +13,6 @@ import {
   Activity, HandHeart, Star, LayoutGrid,
 } from "lucide-react";
 
-// Picks a lucide icon based on keywords found in the category name
-// Falls back to <Pill> if nothing matches
 function getCategoryIcon(name = "", size = 14, color = "currentColor") {
   const n = name.toLowerCase();
   if (n.includes("all"))                                                        return <LayoutGrid    size={size} color={color} />;
@@ -44,7 +42,6 @@ function getCategoryIcon(name = "", size = 14, color = "currentColor") {
   return <Pill size={size} color={color} />;
 }
 
-// Shared color tokens
 const C = {
   bg:          "#f1f5f9",
   surface:     "#ffffff",
@@ -66,21 +63,53 @@ function ProductCard({ product }) {
   const addItem   = useCartStore((state) => state.addItem);
   const cartItems = useCartStore((state) => state.items);
   const [showDetails, setShowDetails] = useState(false);
+  const [localStock, setLocalStock]   = useState(product.stock ?? 0);
 
-  // How many of this product are already in the cart
+  useEffect(() => {
+    setLocalStock(product.stock ?? 0);
+  }, [product.stock]);
+
   const cartQty        = cartItems.find((i) => i.id === product.id)?.qty ?? 0;
-  // Real available stock = total stock minus what's already in the cart
-  const availableStock = (product.stock ?? 0) - cartQty;
+  const availableStock = localStock - cartQty;
 
-  const handleAddToCart = (e) => {
+  const handleAddToCart = async (e) => {
     e?.stopPropagation();
     if (availableStock <= 0) return;
+
     addItem(product, 1);
+
+    try {
+      const stockId = product.stockId || product.productCode;
+      if (stockId) {
+        const q    = query(collection(db, "products"), where("productCode", "==", stockId));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const productDoc   = snap.docs[0];
+          const currentStock = productDoc.data().stock ?? 0;
+          const newStock     = Math.max(0, currentStock - 1);
+
+          await updateDoc(doc(db, "products", productDoc.id), { stock: newStock });
+
+          const adminQ    = query(collection(db, "adminProducts"), where("productId", "==", productDoc.id));
+          const adminSnap = await getDocs(adminQ);
+          if (!adminSnap.empty) {
+            const adminDoc   = adminSnap.docs[0];
+            const adminStock = adminDoc.data().stock ?? 0;
+            await updateDoc(doc(db, "adminProducts", adminDoc.id), {
+              stock: Math.max(0, adminStock - 1),
+            });
+          }
+
+          setLocalStock(newStock);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to update stock:", err);
+    }
   };
 
   return (
     <>
-      {/* Card — clicking it opens the detail modal */}
       <div
         onClick={() => setShowDetails(true)}
         className="rounded-2xl overflow-hidden cursor-pointer transition-shadow duration-200"
@@ -93,18 +122,10 @@ function ProductCard({ product }) {
         onMouseEnter={e => e.currentTarget.style.boxShadow = "0 8px 24px rgba(26,135,225,0.15)"}
         onMouseLeave={e => e.currentTarget.style.boxShadow = "0 1px 4px rgba(26,135,225,0.07)"}
       >
-        {/* Product image or fallback icon */}
         {product.imageUrl ? (
-          <img
-            src={product.imageUrl}
-            alt={product.name}
-            className="w-full h-[200px] object-cover"
-          />
+          <img src={product.imageUrl} alt={product.name} className="w-full h-[200px] object-cover" />
         ) : (
-          <div
-            className="w-full h-[200px] flex items-center justify-center"
-            style={{ background: "rgba(26,135,225,0.06)" }}
-          >
+          <div className="w-full h-[200px] flex items-center justify-center" style={{ background: "rgba(26,135,225,0.06)" }}>
             <Package size={48} color={C.accent} />
           </div>
         )}
@@ -113,37 +134,15 @@ function ProductCard({ product }) {
           <h3 className="text-[15px] font-bold mb-1.5" style={{ color: C.textPrimary }}>
             {product.name}
           </h3>
-
-          {/* Description clamped to 2 lines */}
-          <p
-            className="text-xs leading-relaxed mb-2.5 line-clamp-2"
-            style={{ color: C.textMuted }}
-          >
+          <p className="text-xs leading-relaxed mb-2.5 line-clamp-2" style={{ color: C.textMuted }}>
             {product.description}
           </p>
-
           <p className="text-base font-bold mb-1.5" style={{ color: C.accent }}>
-            Rs. {product.price}
+            Rs. {product.retailPrice ? Number(product.retailPrice).toFixed(2) : product.price}
           </p>
-
-          {/* Stock count + "in cart" badge if applicable */}
           <p className="text-xs mb-3.5" style={{ color: C.textMuted }}>
-            Stock: {product.stock ?? 0}
-            {cartQty > 0 && (
-              <span
-                className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-md"
-                style={{
-                  background: "rgba(234,88,12,0.1)",
-                  color: "#ea580c",
-                  border: "1px solid rgba(234,88,12,0.2)",
-                }}
-              >
-                {cartQty} in cart
-              </span>
-            )}
+            Stock: {localStock}
           </p>
-
-          {/* Add to cart — disabled when out of stock */}
           <button
             onClick={handleAddToCart}
             disabled={availableStock <= 0}
@@ -162,7 +161,6 @@ function ProductCard({ product }) {
         </div>
       </div>
 
-      {/* Detail modal — shown when card is clicked */}
       {showDetails && (
         <div
           className="fixed inset-0 flex justify-center items-center p-4 z-50"
@@ -177,38 +175,23 @@ function ProductCard({ product }) {
               fontFamily: FONT.body,
             }}
           >
-            {/* Close button */}
             <div
               className="flex justify-end px-[18px] py-3.5"
-              style={{
-                borderBottom: `1px solid ${C.border}`,
-                background: "rgba(26,135,225,0.04)",
-              }}
+              style={{ borderBottom: `1px solid ${C.border}`, background: "rgba(26,135,225,0.04)" }}
             >
               <button
                 onClick={() => setShowDetails(false)}
                 className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer"
-                style={{
-                  background: "rgba(26,135,225,0.08)",
-                  border: `1px solid ${C.border}`,
-                }}
+                style={{ background: "rgba(26,135,225,0.08)", border: `1px solid ${C.border}` }}
               >
                 <X size={15} color={C.textMuted} />
               </button>
             </div>
 
-            {/* Larger product image in modal */}
             {product.imageUrl ? (
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                className="w-full h-[240px] object-cover"
-              />
+              <img src={product.imageUrl} alt={product.name} className="w-full h-[240px] object-cover" />
             ) : (
-              <div
-                className="w-full h-[240px] flex items-center justify-center"
-                style={{ background: "rgba(26,135,225,0.06)" }}
-              >
+              <div className="w-full h-[240px] flex items-center justify-center" style={{ background: "rgba(26,135,225,0.06)" }}>
                 <Package size={64} color={C.accent} />
               </div>
             )}
@@ -221,25 +204,11 @@ function ProductCard({ product }) {
                 {product.description}
               </p>
               <p className="text-xl font-bold mb-2" style={{ color: C.accent }}>
-                Rs. {product.price}
+                Rs. {product.retailPrice ? Number(product.retailPrice).toFixed(2) : product.price}
               </p>
               <p className="text-xs mb-5" style={{ color: C.textMuted }}>
-                Stock: {product.stock ?? 0}
-                {cartQty > 0 && (
-                  <span
-                    className="ml-2 text-[11px] font-semibold px-2 py-0.5 rounded-md"
-                    style={{
-                      background: "rgba(234,88,12,0.1)",
-                      color: "#ea580c",
-                      border: "1px solid rgba(234,88,12,0.2)",
-                    }}
-                  >
-                    {cartQty} in cart
-                  </span>
-                )}
+                Stock: {localStock}
               </p>
-
-              {/* Add to cart from modal — also closes the modal */}
               <button
                 onClick={(e) => { handleAddToCart(e); setShowDetails(false); }}
                 disabled={availableStock <= 0}
@@ -271,11 +240,8 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [products, setProducts]                 = useState([]);
   const [dropdownOpen, setDropdownOpen]         = useState(false);
+  const dropdownRef                             = useRef(null);
 
-  // Ref to the dropdown wrapper — used to detect clicks outside and close it
-  const dropdownRef = useRef(null);
-
-  // Close the category dropdown when clicking anywhere outside it
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -286,65 +252,49 @@ export default function ProductsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // "All Products" is always first in the list
   const categories = [
     { id: 'all', name: 'All Products' },
     ...CATEGORIES,
   ];
 
-  // Listen in real-time to both product and stock collections
   useEffect(() => {
     let stockMap    = {};
     let productList = [];
 
-    // Merges product info with stock levels from the separate stock collection
     const merge = (productsData, stockData) => {
       const merged = productsData.map((p) => ({
         ...p,
-        stock: stockData[p.productCode || p.stockId]?.stock ?? 0,
+        stock: stockData[p.stockId || p.productCode]?.stock ?? 0,
       }));
       setProducts(merged);
     };
 
-    // Listen for product details (name, price, image, etc.)
-    const unsubProducts = onSnapshot(
-      collection(db, "pharmacistProducts"),
-      (snap) => {
-        productList = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        merge(productList, stockMap);
-      }
-    );
+    const unsubProducts = onSnapshot(collection(db, "pharmacistProducts"), (snap) => {
+      productList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      merge(productList, stockMap);
+    });
 
-    // Listen for live stock levels
-    const unsubStock = onSnapshot(
-      collection(db, "products"),
-      (snap) => {
-        stockMap = {};
-        snap.forEach((doc) => {
-          const data = doc.data();
-          const key  = data.productCode || doc.id;
-          stockMap[key] = data;
-        });
-        merge(productList, stockMap);
-      }
-    );
+    const unsubStock = onSnapshot(collection(db, "products"), (snap) => {
+      stockMap = {};
+      snap.forEach((d) => {
+        const data = d.data();
+        const key  = data.productCode || d.id;
+        stockMap[key] = data;
+      });
+      merge(productList, stockMap);
+    });
 
-    // Clean up both listeners when the component unmounts
     return () => { unsubProducts(); unsubStock(); };
   }, []);
 
-  // Filter products by search term (checks multiple fields) and selected category
   const filteredProducts = products.filter((p) => {
     const term = searchTerm.toLowerCase().trim();
     const matchSearch =
       !term ||
-      (p.name         || "").toLowerCase().includes(term) ||
-      (p.productName  || "").toLowerCase().includes(term) ||
-      (p.title        || "").toLowerCase().includes(term) ||
-      (p.description  || "").toLowerCase().includes(term) ||
-      (p.category     || "").toLowerCase().includes(term) ||
-      (p.brand        || "").toLowerCase().includes(term) ||
-      (p.genericName  || "").toLowerCase().includes(term);
+      (p.name        || "").toLowerCase().includes(term) ||
+      (p.productName || "").toLowerCase().includes(term) ||
+      (p.description || "").toLowerCase().includes(term) ||
+      (p.category    || "").toLowerCase().includes(term);
     const matchCategory = selectedCategory === 'all' || p.category === selectedCategory;
     return matchSearch && matchCategory;
   });
@@ -352,15 +302,11 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
 
-      {/* Page header banner */}
       <div
         className="px-6 pt-14 pb-12 text-center"
         style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}
       >
-        <h1
-          className="text-[38px] font-bold text-white mb-3"
-          style={{ fontFamily: FONT.display }}
-        >
+       <h1 className="text-3xl font-bold text-white mb-3" style={{ fontFamily: FONT.display }}>
           Our Products
         </h1>
         <p className="text-[15px] text-white/75 max-w-[520px] mx-auto">
@@ -368,42 +314,23 @@ export default function ProductsPage() {
         </p>
       </div>
 
-      {/* Sticky search and category filter bar */}
       <div
         className="sticky top-[72px] z-40"
-        style={{
-          background: C.surface,
-          borderBottom: `1px solid ${C.border}`,
-          boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
-        }}
+        style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(26,135,225,0.07)" }}
       >
         <div className="max-w-[1200px] mx-auto px-6 py-3.5 flex gap-3 items-center flex-wrap">
-
-          {/* Search input with icon */}
           <div className="relative flex-1 min-w-[200px]">
-            <Search
-              size={15}
-              color={C.textMuted}
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-            />
+            <Search size={15} color={C.textMuted} className="absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               placeholder="Search products..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-[9px] rounded-xl text-[13px] outline-none box-border"
-              style={{
-                border: `1px solid ${C.border}`,
-                color: C.textPrimary,
-                fontFamily: FONT.body,
-                background: C.bg,
-              }}
+              style={{ border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body, background: C.bg }}
             />
           </div>
 
-          {/* Custom category dropdown — always opens downward */}
           <div ref={dropdownRef} className="relative flex-shrink-0">
-
-            {/* Trigger button shows selected category with its icon */}
             <button
               onClick={() => setDropdownOpen((o) => !o)}
               className="flex items-center gap-2 px-3.5 py-[9px] rounded-xl text-[13px] font-semibold outline-none cursor-pointer min-w-[180px] transition-all duration-150"
@@ -423,7 +350,6 @@ export default function ProductsPage() {
                 )}
                 {categories.find((c) => c.id === selectedCategory)?.name || "All Products"}
               </span>
-              {/* Arrow rotates 180° when open */}
               <ChevronDown
                 size={15}
                 color={selectedCategory !== 'all' ? C.accent : C.textMuted}
@@ -432,15 +358,10 @@ export default function ProductsPage() {
               />
             </button>
 
-            {/* Dropdown list — rendered below the trigger */}
             {dropdownOpen && (
               <div
                 className="absolute top-[calc(100%+6px)] left-0 min-w-full z-[100] rounded-xl overflow-hidden"
-                style={{
-                  background: C.surface,
-                  border: `1px solid ${C.border}`,
-                  boxShadow: "0 8px 24px rgba(15,42,94,0.13)",
-                }}
+                style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 8px 24px rgba(15,42,94,0.13)" }}
               >
                 {categories.map((cat) => {
                   const active = selectedCategory === cat.id;
@@ -467,21 +388,14 @@ export default function ProductsPage() {
               </div>
             )}
           </div>
-
         </div>
       </div>
 
-      {/* Products grid */}
       <div className="max-w-[1200px] mx-auto px-6 py-9">
-        {/* Empty state when search/filter returns nothing */}
         {filteredProducts.length === 0 ? (
           <div
             className="rounded-2xl py-[72px] text-center"
-            style={{
-              background: C.surface,
-              border: `1px solid ${C.border}`,
-              boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
-            }}
+            style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(26,135,225,0.07)" }}
           >
             <Tag size={40} color={C.textMuted} className="mx-auto mb-3.5" />
             <p className="text-[15px] font-bold" style={{ color: C.textSoft }}>No products found.</p>

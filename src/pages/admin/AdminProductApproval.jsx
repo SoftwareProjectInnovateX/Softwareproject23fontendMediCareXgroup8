@@ -47,9 +47,33 @@ export default function AdminProductApproval() {
     if (!window.confirm(`Approve "${product.productName}"?\nA product code will be auto-generated.`)) return;
     try {
       setActionLoading(product.id);
+
+      // 1. Approve on backend
       const res = await fetch(`${API_BASE}/admin/pending-products/${product.id}/approve`, { method: 'PATCH' });
       if (!res.ok) throw new Error('Approval failed');
       const { productCode } = await res.json();
+
+      // 2. Auto-create pharmacist pending product
+      await fetch(`${API_BASE}/pharmacist/pending-products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName:    product.productName,
+          category:       product.category,
+          description:    product.description,
+          imageUrl:       product.imageUrl || '',
+          supplierId:     product.supplierId,
+          supplierName:   product.supplierName,
+          stockId:        productCode,
+          retailPrice:    Number(product.wholesalePrice) * 1.2,
+          wholesalePrice: Number(product.wholesalePrice),
+          stock:          product.stock,
+          minStock:       product.minStock,
+          productCode,
+          status:         'pending',
+        }),
+      });
+
       alert(`Product approved!\nProduct Code: ${productCode}`);
       fetchAll();
     } catch (err) {
@@ -116,21 +140,17 @@ export default function AdminProductApproval() {
 
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
-
-      {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Product Approval</h1>
         <p className="text-sm text-gray-500 mt-1">Review and approve supplier product submissions</p>
       </div>
 
-      {/* Stats row */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card title="Awaiting Review" value={pendingCount}  />
         <Card title="Approved"        value={approvedCount} />
         <Card title="Rejected"        value={rejectedCount} />
       </div>
 
-      {/* Filter tabs + search */}
       <div className="bg-white p-4 rounded-xl shadow-sm mb-5 flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-2 flex-wrap">
           {FILTER_TABS.map((tab) => (
@@ -161,7 +181,6 @@ export default function AdminProductApproval() {
         />
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="py-16 text-center text-slate-500 text-lg">Loading submissions...</div>
@@ -255,7 +274,6 @@ export default function AdminProductApproval() {
         )}
       </div>
 
-      {/* Reject Modal */}
       {rejectModal && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"

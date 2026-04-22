@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 const C = {
-  bg:         "#0f2a5e",
+  bg:         "#0f56d9",
   surface:    "rgba(255,255,255,0.05)",
   border:     "rgba(26,135,225,0.25)",
   accent:     "#1a87e1",

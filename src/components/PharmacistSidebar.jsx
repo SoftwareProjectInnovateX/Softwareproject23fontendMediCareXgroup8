@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 
 const C = {
-  sidebar: "linear-gradient(180deg, #1a87e1 0%, #0284c7 100%)",
+  sidebar: "linear-gradient(180deg, #1737c2 0%, #0284c7 100%)",
   border: "rgba(255,255,255,0.18)",
 };
 
@@ -38,14 +38,15 @@ export default function PharmacistSidebar() {
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@500&display=swap" rel="stylesheet" />
 
       <aside style={{
-        width: "230px", minHeight: "100vh",
-        background: C.sidebar,
-        borderRight: `1px solid ${C.border}`,
-        display: "flex", flexDirection: "column",
-        fontFamily: FONT.body,
-        boxShadow: "2px 0 16px rgba(2,132,199,0.3)",
-      }}>
-
+    width: "230px", height: "100vh",
+    position: "fixed", top: 0, left: 0,
+    background: C.sidebar,
+    borderRight: `1px solid ${C.border}`,
+    display: "flex", flexDirection: "column",
+    fontFamily: FONT.body,
+    boxShadow: "2px 0 16px rgba(2,132,199,0.3)",
+    overflowY: "auto", zIndex: 100,
+  }}>
         {/* Logo */}
         <div style={{ padding: "28px 20px 22px", borderBottom: `1px solid ${C.border}` }}>
           <img
@@ -54,7 +55,7 @@ export default function PharmacistSidebar() {
             style={{ width: 120, height: "auto", objectFit: "contain", marginBottom: 6 }}
           />
           <div style={{
-            fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 3,
+            fontSize: 11, color: "rgb(255, 255, 255)", marginTop: 3,
             textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600,
           }}>
             Pharmacist Panel
@@ -66,7 +67,7 @@ export default function PharmacistSidebar() {
           {navItems.map(({ section, items }) => (
             <div key={section}>
               <div style={{
-                fontSize: 11, color: "rgba(255,255,255,0.55)",
+                fontSize: 11, color: "rgb(255, 255, 255)",
                 textTransform: "uppercase", letterSpacing: "0.12em",
                 fontWeight: 700, padding: "14px 12px 5px",
               }}>

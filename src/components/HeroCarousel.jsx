@@ -23,13 +23,13 @@ export default function HeroCarousel() {
       title: "MediCareX - Smart Pharmacy",
       description: "Safe, easy and reliable medicine delivery system.",
       image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800",
-      gradient: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)",
+      gradient: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)"
     },
     {
       title: "Care You Can Trust",
       description: "High-quality medicines for your family.",
       image: "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=800",
-      gradient: "linear-gradient(135deg, #0a1f47 0%, #0284c7 100%)",
+      gradient: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)"
     },
   ];
 

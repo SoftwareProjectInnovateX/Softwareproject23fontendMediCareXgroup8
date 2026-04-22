@@ -1,10 +1,8 @@
-
 import { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import { Package } from "lucide-react";
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:          "#f1f5f9",
   surface:     "#ffffff",
@@ -15,15 +13,9 @@ const C = {
   textSoft:    "#475569",
 };
 
-const FONT = {
-  display: "'Playfair Display', serif",
-  body:    "'DM Sans', sans-serif",
-};
-
 export default function MyProducts() {
   const [products, setProducts] = useState([]);
 
-  // Real-time listener – updates the grid whenever a product is added/removed
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "pharmacistProducts"), snap => {
       setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -42,7 +34,6 @@ export default function MyProducts() {
         </p>
       </div>
 
-      {/* ── Empty state ── */}
       {products.length === 0 ? (
         <div className="text-center py-[60px] text-[#64748b]">
           <Package size={44} color={C.textMuted} className="mx-auto mb-[14px]" />
@@ -50,7 +41,6 @@ export default function MyProducts() {
           <p className="text-[12px] mt-1 text-[#64748b]">Add your first product using the form.</p>
         </div>
       ) : (
-        /* Auto-fill grid: minimum card width 220px, expands to fill available space */
         <div
           className="grid gap-4"
           style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}
@@ -60,7 +50,6 @@ export default function MyProducts() {
               key={p.id}
               className="bg-white border border-[rgba(26,135,225,0.18)] rounded-[12px] overflow-hidden shadow-[0_1px_4px_rgba(26,135,225,0.07)]"
             >
-              {/* Product thumbnail */}
               <img
                 src={p.imageUrl}
                 alt={p.name}
@@ -68,12 +57,10 @@ export default function MyProducts() {
               />
 
               <div className="px-[14px] py-3">
-                {/* Category pill */}
                 <span className="text-[10px] font-bold bg-[rgba(26,135,225,0.1)] text-[#1a87e1] px-2 py-[2px] rounded-[6px] uppercase tracking-[0.06em]">
                   {p.category}
                 </span>
 
-                {/* Tag chips: "New" and/or "Best Seller" shown when present in tags array */}
                 {p.tags && p.tags.length > 0 && (
                   <div className="flex gap-1 mt-[6px] flex-wrap">
                     {p.tags.includes("newArrival") && (
@@ -93,13 +80,12 @@ export default function MyProducts() {
                   {p.name}
                 </h3>
 
-                {/* Description clamped to 2 lines */}
                 <p className="text-[11px] text-[#64748b] leading-[1.5] line-clamp-2">
                   {p.description}
                 </p>
 
                 <p className="text-[14px] font-bold text-[#1a87e1] mt-[10px]">
-                  Rs. {p.price}
+                  Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : Number(p.price).toFixed(2)}
                 </p>
               </div>
             </div>
