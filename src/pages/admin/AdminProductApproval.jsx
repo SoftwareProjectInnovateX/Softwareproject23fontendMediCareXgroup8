@@ -1,6 +1,6 @@
 // AdminProductApproval.jsx
 import React, { useState, useEffect } from 'react';
-import Card from "../../components/Card";
+import Card from '../../components/Card';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
