@@ -82,8 +82,8 @@ export default function ChatBot({ onClose }) {
     >
       {/* Header */}
       <div className="bg-[#0b5ed7] px-4 py-3 flex items-center gap-3">
-        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-          <span className="text-[#0b5ed7] font-bold text-sm">+</span>
+        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center overflow-hidden">
+           <img src="/src/assets/logo.png" alt="MediCareX" className="w-6 h-6 object-contain" />
         </div>
         <div>
           <p className="text-white font-semibold text-sm">Health Assistant</p>
@@ -119,7 +119,7 @@ export default function ChatBot({ onClose }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-200">
         {messages.map((msg, index) => (
           <div
             key={index}
@@ -128,7 +128,7 @@ export default function ChatBot({ onClose }) {
             {msg.role === "bot" && (
               <div
                 className="w-7 h-7 bg-blue-100 rounded-full flex items-center
-                              justify-center mr-2 flex-shrink-0 mt-1"
+                              justify-center mr-2 flex-shrink-0 mt-1 "
               >
                 <span className="text-[#0b5ed7] text-xs font-bold">+</span>
               </div>
@@ -210,7 +210,7 @@ export default function ChatBot({ onClose }) {
                        text-white rounded-xl transition-all border-none cursor-pointer"
           >
             <svg
-              className="w-4 h-4"
+              className="w-4 h-4 rotate-90"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
