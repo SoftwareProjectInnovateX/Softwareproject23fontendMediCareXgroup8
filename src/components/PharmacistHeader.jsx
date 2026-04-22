@@ -1,5 +1,5 @@
-import React, { useContext } from 'react';
-import { Search, Bell, Plus } from 'lucide-react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
+import { Search, Bell, Plus, User, FileText, Pill } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlertContext } from '../layouts/PharmacistLayout';
 
@@ -7,26 +7,208 @@ const PharmacistHeader = () => {
   const navigate = useNavigate();
   const { unreadAlerts, userProfile } = useContext(AlertContext);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [results, setResults] = useState({ patients: [], prescriptions: [], drugs: [] });
+  
+  const searchRef = useRef(null);
+
   const displayAvatar = userProfile?.avatarUrl || `https://ui-avatars.com/api/?name=${(userProfile?.name || 'Pharmacist').replace(' ', '+')}&background=ffffff&color=084298`;
 
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Perform Search against LocalStorage Caches
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setResults({ patients: [], prescriptions: [], drugs: [] });
+      setIsDropdownOpen(false);
+      return;
+    }
+
+    const q = searchQuery.toLowerCase();
+    
+    // Parse Local Storage Caches safely
+    let pCache = [], rxCache = [], dCache = [];
+    try { pCache = JSON.parse(localStorage.getItem('medicarex_patients') || '[]'); } catch(e){}
+    try { rxCache = JSON.parse(localStorage.getItem('medicarex_prescriptions_queue') || '[]'); } catch(e){}
+    try { dCache = JSON.parse(localStorage.getItem('pharmacist_drug_catalog') || '[]'); } catch(e){}
+
+    // Filter
+    const matchedPatients = pCache.filter(p => 
+      (p.name && p.name.toLowerCase().includes(q)) || 
+      (p.phone && p.phone.toLowerCase().includes(q)) ||
+      (p.id && p.id.toLowerCase().includes(q))
+    ).slice(0, 3); // Max 3 items
+
+    const matchedRx = rxCache.filter(rx => 
+      (rx.patientName && rx.patientName.toLowerCase().includes(q)) || 
+      (rx.id && `rx-${rx.id}`.toLowerCase().includes(q)) ||
+      (rx.id && rx.id.toLowerCase().includes(q))
+    ).slice(0, 3);
+
+    const matchedDrugs = dCache.filter(d => 
+      (d.name && d.name.toLowerCase().includes(q)) || 
+      (d.ndc && d.ndc.toLowerCase().includes(q)) ||
+      (d.category && d.category.toLowerCase().includes(q))
+    ).slice(0, 3);
+
+    setResults({
+      patients: matchedPatients,
+      prescriptions: matchedRx,
+      drugs: matchedDrugs
+    });
+    
+    setIsDropdownOpen(true);
+  }, [searchQuery]);
+
+  const handleResultClick = (targetType, targetValue) => {
+    setSearchQuery('');
+    setIsDropdownOpen(false);
+    
+    switch(targetType) {
+      case 'patient':
+        navigate('/pharmacist/patients', { state: { searchTarget: targetValue } });
+        break;
+      case 'prescription':
+        navigate('/pharmacist/prescriptions', { state: { searchTarget: targetValue } });
+        break;
+      case 'drug':
+        navigate('/pharmacist/drug-lookup', { state: { searchTarget: targetValue } });
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+       // If they just press enter, try navigating to the first relevant page
+       if (results.prescriptions.length > 0) {
+         handleResultClick('prescription', results.prescriptions[0].id);
+       } else if (results.patients.length > 0) {
+         handleResultClick('patient', results.patients[0].id);
+       } else if (results.drugs.length > 0) {
+         handleResultClick('drug', results.drugs[0].name);
+       }
+    }
+  };
+
+  const hasResults = results.patients.length > 0 || results.prescriptions.length > 0 || results.drugs.length > 0;
+
   return (
-    <div className="h-[70px] bg-[#9fbaf2] border-b border-gray-200 px-8 flex items-center justify-between sticky top-0 z-10 transition-colors duration-200">
+    <div className="h-[70px] bg-[#9fbaf2] border-b border-gray-200 px-8 flex items-center justify-between sticky top-0 z-[100] transition-colors duration-200">
       {/* Title / Search */}
-      <div className="flex-1 max-w-2xl">
-        <div className="relative">
+      <div className="flex-1 max-w-2xl relative" ref={searchRef}>
+        <div className="relative z-10 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
           <input 
             type="text" 
             placeholder="Search Rx#, Patient, or Drug..." 
-            className="w-full pl-10 pr-4 py-2 bg-white/70 border-none rounded-lg text-sm text-gray-800 placeholder-gray-500 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => { if(searchQuery.trim() && hasResults) setIsDropdownOpen(true); }}
+            onKeyDown={handleKeyDown}
+            className="w-full pl-10 pr-4 py-2 bg-white/70 border-none rounded-lg text-sm text-gray-800 placeholder-gray-500 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
           />
         </div>
+
+        {/* Global Search Autocomplete Dropdown */}
+        {isDropdownOpen && hasResults && (
+          <div className="absolute left-0 right-0 top-[110%] bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="max-h-[70vh] overflow-y-auto py-2">
+              
+              {/* Prescriptions */}
+              {results.prescriptions.length > 0 && (
+                <div className="mb-2">
+                  <h3 className="px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 flex items-center gap-2">
+                    <FileText className="w-3 h-3" /> Rx Orders
+                  </h3>
+                  {results.prescriptions.map(rx => (
+                    <div 
+                      key={rx.id} 
+                      onClick={() => handleResultClick('prescription', rx.id)}
+                      className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer flex justify-between items-center transition-colors border-l-2 border-l-transparent hover:border-l-blue-500"
+                    >
+                      <div>
+                        <span className="text-sm font-bold text-slate-800 block">#RX-{rx.id}</span>
+                        <span className="text-xs text-slate-500">{rx.patientName}</span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${rx.status === 'Completed' || rx.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {rx.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Patients */}
+              {results.patients.length > 0 && (
+                <div className="mb-2">
+                  <h3 className="px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 flex items-center gap-2">
+                    <User className="w-3 h-3" /> Patients
+                  </h3>
+                  {results.patients.map(p => (
+                    <div 
+                      key={p.id} 
+                      onClick={() => handleResultClick('patient', p.name)}
+                      className="px-4 py-2.5 hover:bg-emerald-50 cursor-pointer flex justify-between items-center transition-colors border-l-2 border-l-transparent hover:border-l-emerald-500"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: `#${p.avatarColor || '94a3b8'}`}}>
+                          {p.name.charAt(0)}
+                        </div>
+                        <div>
+                          <span className="text-sm font-bold text-slate-800 block">{p.name}</span>
+                          <span className="text-xs text-slate-500">{p.id} • {p.phone || 'No phone'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Drugs */}
+              {results.drugs.length > 0 && (
+                <div>
+                  <h3 className="px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 flex items-center gap-2">
+                    <Pill className="w-3 h-3" /> Inventory
+                  </h3>
+                  {results.drugs.map(d => (
+                    <div 
+                      key={d.id} 
+                      onClick={() => handleResultClick('drug', d.name)}
+                      className="px-4 py-2.5 hover:bg-purple-50 cursor-pointer flex justify-between items-center transition-colors border-l-2 border-l-transparent hover:border-l-purple-500"
+                    >
+                      <div>
+                        <span className="text-sm font-bold text-slate-800 block">{d.name}</span>
+                        <span className="text-xs text-slate-500">{d.category}</span>
+                      </div>
+                      <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                        Stock: {d.stock}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right Actions */}
       <div className="flex items-center gap-4 pl-8">
         <button 
-          onClick={() => navigate('/pharmacist/alerts')}
+          onClick={() => navigate('/pharmacist/notifications')}
           className="text-gray-800 hover:text-black transition-colors relative p-2 rounded-full hover:bg-white/30"
         >
           <Bell className="w-5 h-5" />
@@ -56,4 +238,3 @@ const PharmacistHeader = () => {
 };
 
 export default PharmacistHeader;
-

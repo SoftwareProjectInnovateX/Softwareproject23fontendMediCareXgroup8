@@ -1,49 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Search, CheckCircle, FileText, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const PharmacistDispensedToday = () => {
   const navigate = useNavigate();
+  const [dispensedSummary, setDispensedSummary] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Mock data for today's dispensed prescriptions with payment
-  const dispensedSummary = [
-    { 
-      id: '#INV-8890', 
-      patient: 'John Doe', 
-      phone: '071 234 5678',
-      time: '12:45 PM', 
-      medicines: 3, 
-      total: '$45.00',
-      pharmacist: 'Fhathima' 
-    },
-    { 
-      id: '#INV-8889', 
-      patient: 'Nimal Perera', 
-      phone: '077 890 1234',
-      time: '11:30 AM', 
-      medicines: 1, 
-      total: '$12.50',
-      pharmacist: 'Amila' 
-    },
-    { 
-      id: '#INV-8888', 
-      patient: 'Sarah Smith', 
-      phone: '070 555 4444',
-      time: '10:15 AM', 
-      medicines: 2, 
-      total: '$28.00',
-      pharmacist: 'Fhathima' 
-    },
-    { 
-      id: '#INV-8887', 
-      patient: 'Sunil Shantha', 
-      phone: '075 111 2222',
-      time: '09:05 AM', 
-      medicines: 4, 
-      total: '$110.00',
-      pharmacist: 'Dr. Sarah L.' 
-    }
-  ];
+  useEffect(() => {
+     try {
+        const dispensedJSON = localStorage.getItem('medicarex_dispensed_today');
+        if (dispensedJSON) {
+           const dispensedList = JSON.parse(dispensedJSON);
+           const todayStr = new Date().toDateString();
+           const todaysList = dispensedList.filter(item => item.dispensedDate === todayStr);
+           setDispensedSummary(todaysList);
+        }
+     } catch(e) {}
+  }, []);
+
+  const filteredSummary = dispensedSummary.filter(item => 
+     item.rxId?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+     item.verifiedPatient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     (item.patientId && item.patientId.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const totalRevenue = filteredSummary.reduce((acc, item) => acc + (item.total || 0), 0);
+  const totalItemsDispensed = filteredSummary.reduce((acc, item) => acc + (item.orderItems?.length || 0), 0);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -63,16 +46,16 @@ const PharmacistDispensedToday = () => {
       {/* Stats Summary */}
       <div className="grid grid-cols-3 gap-6">
         <div className="card bg-emerald-50 border-emerald-100 ">
-          <p className="text-sm font-medium text-emerald-600 ">Total PharmacistPatients Today</p>
-          <h2 className="text-3xl font-bold text-emerald-700 mt-1">{dispensedSummary.length}</h2>
+          <p className="text-sm font-medium text-emerald-600 ">Total Patients Today</p>
+          <h2 className="text-3xl font-bold text-emerald-700 mt-1">{filteredSummary.length}</h2>
         </div>
         <div className="card bg-blue-50 border-blue-100 ">
           <p className="text-sm font-medium text-blue-600 ">Items Dispensed</p>
-          <h2 className="text-3xl font-bold text-blue-700 mt-1">10</h2>
+          <h2 className="text-3xl font-bold text-blue-700 mt-1">{totalItemsDispensed}</h2>
         </div>
         <div className="card bg-amber-50 border-amber-100 ">
           <p className="text-sm font-medium text-amber-600 ">Total Revenue</p>
-          <h2 className="text-3xl font-bold text-amber-700 mt-1">$195.50</h2>
+          <h2 className="text-3xl font-bold text-amber-700 mt-1">Rs. {totalRevenue.toFixed(2)}</h2>
         </div>
       </div>
 
@@ -84,6 +67,8 @@ const PharmacistDispensedToday = () => {
             <input 
               type="text" 
               placeholder="Search by Invoice, Patient, or Phone..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-md text-sm outline-none focus:border-emerald-500 " 
             />
           </div>
@@ -104,11 +89,11 @@ const PharmacistDispensedToday = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 ">
-              {dispensedSummary.map((item, index) => (
+              {filteredSummary.length > 0 ? filteredSummary.map((item, index) => (
                 <tr key={index} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-bold text-slate-800 ">{item.id}</div>
-                    <div className="text-xs text-slate-500 mt-1">{item.time}</div>
+                    <div className="text-sm font-bold text-slate-800 ">#{item.rxId}</div>
+                    <div className="text-xs text-slate-500 mt-1">{item.dispensedTime || 'Just now'}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -116,19 +101,19 @@ const PharmacistDispensedToday = () => {
                         <User className="w-4 h-4" />
                       </div>
                       <div>
-                        <div className="text-sm font-bold text-slate-800 ">{item.patient}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{item.phone}</div>
+                        <div className="text-sm font-bold text-slate-800 ">{item.verifiedPatient}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{item.patientId || 'N/A'}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-600 ">
                       <FileText className="w-3 h-3" />
-                      {item.medicines} item(s)
+                      {item.orderItems?.length || 0} item(s)
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="text-sm font-bold text-slate-800 ">{item.total}</div>
+                    <div className="text-sm font-bold text-slate-800 ">Rs. {item.total?.toFixed(2)}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 ">
@@ -137,7 +122,13 @@ const PharmacistDispensedToday = () => {
                     </span>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                   <td colSpan="5" className="py-12 text-center text-slate-400">
+                     <p>No dispensed prescriptions found for today.</p>
+                   </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

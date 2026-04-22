@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Search, AlertTriangle, Calendar, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,48 +7,61 @@ const PharmacistExpiringInventory = () => {
   const [expandedId, setExpandedId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Generate dates relative to today for demonstration
-  const today = new Date();
-  const getRelativeDate = (days) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + days);
-    return d.toISOString().split('T')[0];
-  };
+  const [expiringMedicines, setExpiringMedicines] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data for expiring / expired medicines within 7 days
-  const expiringMedicines = [
-    { 
-      id: 1, 
-      name: 'Amoxicillin', 
-      dosage: '500mg', 
-      totalQty: 150,
-      status: 'Expiring in 3 Days',
-      batches: [
-        { batchNo: 'B-7721', qty: 100, expiryDate: getRelativeDate(3), mfgDate: '2024-05-15' },
-        { batchNo: 'B-7722', qty: 50, expiryDate: getRelativeDate(4), mfgDate: '2024-06-01' }
-      ]
-    },
-    { 
-      id: 2, 
-      name: 'Metformin', 
-      dosage: '850mg', 
-      totalQty: 300,
-      status: 'Expired',
-      batches: [
-        { batchNo: 'M-4429', qty: 300, expiryDate: getRelativeDate(-2), mfgDate: '2023-04-10' }
-      ]
-    },
-    { 
-      id: 3, 
-      name: 'Atorvastatin', 
-      dosage: '20mg', 
-      totalQty: 45,
-      status: 'Expiring in 6 Days',
-      batches: [
-        { batchNo: 'A-1102', qty: 45, expiryDate: getRelativeDate(6), mfgDate: '2023-05-20' }
-      ]
-    }
-  ];
+  useEffect(() => {
+    import('../../services/pharmacistService').then(({ getInventory }) => {
+       getInventory().then((inv) => {
+         const today = new Date();
+         today.setHours(0, 0, 0, 0);
+
+         const inFewWeeks = new Date(today);
+         inFewWeeks.setDate(inFewWeeks.getDate() + 30);
+         
+         const expiringList = inv.filter(item => {
+            const dateStr = item.expiryDate ?? item.expiry ?? item.expirationDate;
+            if (!dateStr) return false;
+            const expDate = new Date(dateStr);
+            return expDate <= inFewWeeks;
+         }).map((item, idx) => {
+            const dateStr = item.expiryDate ?? item.expiry ?? item.expirationDate;
+            const expDate = new Date(dateStr);
+            expDate.setHours(0, 0, 0, 0);
+            const isExpired = expDate < today;
+            const msDiff = expDate - today;
+            const daysDiff = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
+            
+            let statusStr = '';
+            if (isExpired) {
+               statusStr = 'Expired';
+            } else if (daysDiff === 0) {
+               statusStr = 'Expiring Today';
+            } else {
+               statusStr = `Expiring in ${daysDiff} Days`;
+            }
+
+            return {
+               id: item.id || idx,
+               name: item.name || 'Unknown',
+               dosage: item.dosage || 'N/A',
+               totalQty: Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0),
+               status: statusStr,
+               batches: [
+                  {
+                     batchNo: item.batch || item.sku || `B-${Math.floor(Math.random()*10000)}`,
+                     qty: Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0),
+                     expiryDate: dateStr,
+                     mfgDate: item.mfgDate ?? 'Unknown'
+                  }
+               ]
+            };
+         });
+         setExpiringMedicines(expiringList);
+         setIsLoading(false);
+       }).catch(() => setIsLoading(false));
+    }).catch(() => setIsLoading(false));
+  }, []);
 
   const filteredMedicines = expiringMedicines.filter(med => 
     med.name.toLowerCase().includes(searchTerm.toLowerCase()) || 

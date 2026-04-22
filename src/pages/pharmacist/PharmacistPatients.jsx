@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getPatients, addPatient, updatePatient } from '../../services/pharmacistService';
 import { 
   Search, 
   UserPlus, 
@@ -55,33 +57,84 @@ export const initialPatients = [
 ];
 
 const PharmacistPatients = () => {
-  const getInitialPatients = () => {
-    try {
-      const saved = localStorage.getItem('medicarex_patients');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return initialPatients;
-  };
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [patients, setPatients] = useState(getInitialPatients());
+  const [patients, setPatients] = useState([]);
   const [activePatientId, setActivePatientId] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+     const initData = async () => {
+         try {
+             let pts = await getPatients();
+             if (pts.length === 0) {
+                 // Seed initial
+                 for (const p of initialPatients) {
+                     await addPatient(p);
+                 }
+                 pts = await getPatients();
+             }
+
+             // Auto-delete medications older than 6 months locally or just filter them visually
+             const sixMonthsAgo = new Date();
+             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+             const cutoffTime = sixMonthsAgo.getTime();
+
+             const processed = pts.map(p => {
+                if (p.medications) {
+                   p.medications = p.medications.filter(med => {
+                      let medTime = med.timestamp;
+                      if (!medTime && med.date) {
+                          const dateStr = med.date.includes(' at ') ? med.date.split(' at ')[0] : med.date;
+                          medTime = new Date(dateStr).getTime();
+                      }
+                      return isNaN(medTime) ? true : medTime >= cutoffTime;
+                   });
+                   p.activeCount = p.medications.filter(m => m.status === 'Active').length;
+                }
+                return p;
+             });
+
+             setPatients(processed);
+             setIsLoading(false);
+         } catch(e) {
+             console.error(e);
+             setIsLoading(false);
+         }
+     };
+     initData();
+  }, []);
   const [sortBy, setSortBy] = useState('Recent');
   const [searchQuery, setSearchQuery] = useState('');
-  
   const [medFilter, setMedFilter] = useState('Active PharmacistPrescriptions');
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editedPatient, setEditedPatient] = useState(null);
   const [isAddingPatient, setIsAddingPatient] = useState(false);
-  const [newPatient, setNewPatient] = useState({ firstName: '', lastName: '', dob: '', phone: '', address: '' });
+  const [newPatient, setNewPatient] = useState({ firstName: '', lastName: '', dob: '', phone: '', email: '', address: '' });
   const [newNote, setNewNote] = useState({ type: 'Counseling', content: '' });
 
   useEffect(() => {
-    localStorage.setItem('medicarex_patients', JSON.stringify(patients));
-  }, [patients]);
+    if (location.state?.searchTarget) {
+      setSearchQuery(location.state.searchTarget);
+      
+      const matched = patients.find(p => 
+        p.name.toLowerCase() === location.state.searchTarget.toLowerCase() || 
+        p.id.toLowerCase() === location.state.searchTarget.toLowerCase()
+      );
+      if (matched) setActivePatientId(matched.id);
+      
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   const activePatient = patients.find(p => p.id === activePatientId) || null;
 
   const processedPatients = [...patients]
+    .filter((patient, index, self) => 
+      index === self.findIndex((p) => p.name.toLowerCase() === patient.name.toLowerCase())
+    )
     .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.id.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'Recent') return b.timestamp - a.timestamp;
@@ -99,6 +152,7 @@ const PharmacistPatients = () => {
       age: 34,
       gender: 'Unknown',
       phone: newPatient.phone,
+      email: newPatient.email,
       address: newPatient.address,
       insurance: 'N/A',
       insuranceId: 'N/A',
@@ -111,10 +165,17 @@ const PharmacistPatients = () => {
       medications: [],
       notes: []
     };
+    
+    // Optimistic update
     setPatients([p, ...patients]);
     setActivePatientId(newId);
     setIsAddingPatient(false);
-    setNewPatient({ firstName: '', lastName: '', dob: '', phone: '', address: '' });
+    setNewPatient({ firstName: '', lastName: '', dob: '', phone: '', email: '', address: '' });
+    
+    // Save to Firebase
+    addPatient(p).then(savedP => {
+      // replace mock with real ID if necessary, but we used custom ID `#XXXXX` so it's fine.
+    }).catch(console.error);
   };
 
   const handleAddNote = () => {
@@ -130,7 +191,15 @@ const PharmacistPatients = () => {
     setPatients(updatedPatients);
     setIsAddingNote(false);
     setNewNote({ type: 'Counseling', content: '' });
+
+    // Save to Firebase
+    const target = updatedPatients.find(p => p.id === activePatientId);
+    if(target && target.firebaseId) {
+        updatePatient(target.firebaseId, { notes: target.notes }).catch(console.error);
+    }
   };
+
+  if (isLoading) return <div className="p-8 text-center text-slate-500">Loading patients from Firebase...</div>;
 
   return (
     <div className="flex -m-6 h-[calc(100vh-80px)] overflow-hidden relative">
@@ -163,6 +232,10 @@ const PharmacistPatients = () => {
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Phone</label>
                 <input type="tel" value={newPatient.phone} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} placeholder="(555) 000-0000" className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
+                <input type="email" value={newPatient.email} onChange={e => setNewPatient({...newPatient, email: e.target.value})} placeholder="john@example.com" className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />
               </div>
               <div className="col-span-2">
                  <label className="text-xs font-bold text-slate-500 uppercase">Address</label>
@@ -234,8 +307,8 @@ const PharmacistPatients = () => {
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className={`font-bold leading-tight ${isActive ? 'text-lg text-white' : 'text-slate-800'}`}>{patient.name}</h3>
-                    <p className={`text-xs mt-0.5 font-medium ${isActive ? 'text-blue-200' : 'text-slate-400'}`}>ID: {patient.id}</p>
+                    <h3 className={`font-bold leading-tight text-lg ${isActive ? 'text-white' : 'text-slate-800'}`}>{patient.name}</h3>
+                    <p className={`text-lg mt-0.5 font-medium ${isActive ? 'text-blue-200' : 'text-slate-500'}`}>ID: {patient.id}</p>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider ${
                     isActive ? 'bg-blue-700 text-blue-100' : 
@@ -269,7 +342,12 @@ const PharmacistPatients = () => {
         {/* Top Actions */}
         <div className="flex justify-end">
           <button 
-            onClick={() => setIsEditingProfile(!isEditingProfile)}
+            onClick={() => {
+              if (!isEditingProfile) {
+                setEditedPatient({...activePatient});
+              }
+              setIsEditingProfile(!isEditingProfile);
+            }}
             className="bg-white border border-slate-200 text-slate-600 font-bold text-sm px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
           >
             {isEditingProfile ? 'Cancel Editing' : 'Edit Profile'}
@@ -284,31 +362,35 @@ const PharmacistPatients = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div>
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Full Name</label>
-                   <input type="text" defaultValue={activePatient.name} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
+                   <input type="text" value={editedPatient?.name || ''} onChange={e => setEditedPatient({...editedPatient, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
                  </div>
                  <div>
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Date of Birth</label>
-                   <input type="text" defaultValue={activePatient.dob} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
+                   <input type="text" value={editedPatient?.dob || ''} onChange={e => setEditedPatient({...editedPatient, dob: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
                  </div>
-                 <div>
-                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Phone</label>
-                   <input type="tel" defaultValue={activePatient.phone} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
-                 </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Phone</label>
+                    <input type="text" value={editedPatient?.phone || ''} onChange={e => setEditedPatient({...editedPatient, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</label>
+                    <input type="text" value={editedPatient?.email || ''} onChange={e => setEditedPatient({...editedPatient, email: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
+                  </div>
                  <div>
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Gender</label>
-                   <input type="text" defaultValue={activePatient.gender} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
+                   <input type="text" value={editedPatient?.gender || ''} onChange={e => setEditedPatient({...editedPatient, gender: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
                  </div>
                  <div className="md:col-span-2">
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Address</label>
-                   <input type="text" defaultValue={activePatient.address} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
+                   <input type="text" value={editedPatient?.address || ''} onChange={e => setEditedPatient({...editedPatient, address: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
                  </div>
                  <div>
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Insurance</label>
-                   <input type="text" defaultValue={`${activePatient.insurance} ${activePatient.insuranceId !== 'N/A' ? activePatient.insuranceId : ''}`} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
+                   <input type="text" value={editedPatient?.insurance || ''} onChange={e => setEditedPatient({...editedPatient, insurance: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
                  </div>
                  <div>
                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Primary Physician</label>
-                   <input type="text" defaultValue={activePatient.physician} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
+                   <input type="text" value={editedPatient?.physician || ''} onChange={e => setEditedPatient({...editedPatient, physician: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm outline-none focus:border-blue-500 font-semibold text-slate-700" />
                  </div>
                </div>
                <div className="flex justify-end gap-3 pt-2">
@@ -317,7 +399,19 @@ const PharmacistPatients = () => {
                    className="text-slate-500 hover:bg-slate-100 font-bold text-sm px-4 py-2 rounded-lg transition-colors"
                  >Cancel</button>
                  <button 
-                   onClick={() => setIsEditingProfile(false)}
+                   onClick={async () => {
+                     if (!editedPatient) return;
+                     const updatedPatients = patients.map(p => p.id === activePatient.id ? editedPatient : p);
+                     setPatients(updatedPatients);
+                     setIsEditingProfile(false);
+                     if (activePatient.firebaseId) {
+                       try {
+                         await updatePatient(activePatient.firebaseId, editedPatient);
+                       } catch (e) {
+                         console.error("Error updating patient in Firebase:", e);
+                       }
+                     }
+                   }}
                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-6 py-2 rounded-lg transition-colors shadow-sm"
                  >Save Changes</button>
                </div>
@@ -339,8 +433,7 @@ const PharmacistPatients = () => {
                   </div>
                </div>
 
-               {/* Data Grid */}
-               <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-y-4 gap-x-6 text-sm">
+               <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm">
                   <div>
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Date of Birth</span>
                      <span className="font-semibold text-slate-700">{activePatient.dob}</span>
@@ -348,6 +441,10 @@ const PharmacistPatients = () => {
                   <div>
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Phone</span>
                      <span className="font-semibold text-slate-700">{activePatient.phone}</span>
+                  </div>
+                  <div>
+                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</span>
+                     <span className="font-semibold text-slate-700 break-all">{activePatient.email || 'N/A'}</span>
                   </div>
                   <div>
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Address</span>

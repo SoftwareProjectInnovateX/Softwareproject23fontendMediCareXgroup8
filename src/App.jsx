@@ -8,6 +8,7 @@ import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import CustomerDashboard from "./pages/customer/CustomerDashboard"; //to use for testings
 import RegisterSuccess from "./pages/auth/RegisterSuccess";
+import PaymentGateway from "./pages/shared/PaymentGateway";
 
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
@@ -45,7 +46,7 @@ import PharmacistPatients from "./pages/pharmacist/PharmacistPatients";
 import PharmacistInventory from "./pages/pharmacist/PharmacistInventory";
 import PharmacistDrugLookup from "./pages/pharmacist/PharmacistDrugLookup";
 import PharmacistReports from "./pages/pharmacist/PharmacistReports";
-import PharmacistAlerts from "./pages/pharmacist/PharmacistAlerts";
+import PharmacistNotifications from "./pages/pharmacist/PharmacistNotifications";
 import PharmacistSettings from "./pages/pharmacist/PharmacistSettings";
 import PharmacistNewRxEntry from "./pages/pharmacist/PharmacistNewRxEntry";
 import PharmacistDispensedToday from "./pages/pharmacist/PharmacistDispensedToday";
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="/auth" element={<Navigate to="/login" replace />} /> 
         <Route path="/customer" element={<CustomerDashboard />} /> 
         <Route path="/register-success" element={<RegisterSuccess />} />
+        <Route path="/payment-gateway/:id" element={<PaymentGateway />} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -129,7 +131,7 @@ export default function App() {
           <Route path="inventory" element={<Products />} />
           <Route path="lookup" element={<PharmacistDrugLookup />} />
           <Route path="reports" element={<PharmacistReports />} />
-          <Route path="alerts" element={<PharmacistAlerts />} />
+          <Route path="notifications" element={<PharmacistNotifications />} />
           <Route path="settings" element={<PharmacistSettings />} />
           <Route path="new-rx" element={<PharmacistNewRxEntry />} />
           <Route path="dispensed-today" element={<PharmacistDispensedToday />} />

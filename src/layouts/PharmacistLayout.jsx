@@ -18,26 +18,19 @@ const PharmacistLayout = () => {
         avatarUrl: ''
      };
   });
-  const [pendingRxCount, setPendingRxCount] = useState(() => {
-    try {
-      const saved = localStorage.getItem('medicarex_prescriptions_queue');
-      if (saved) {
-        const queue = JSON.parse(saved);
-        return queue.filter(q => q.status === 'In Review' || q.status === 'New').length;
-      }
-    } catch {}
-    return 12;
-  });
+  const [pendingRxCount, setPendingRxCount] = useState(0);
 
   const updateQueueCount = () => {
-    try {
-      const saved = localStorage.getItem('medicarex_prescriptions_queue');
-      if (saved) {
-        const queue = JSON.parse(saved);
-        setPendingRxCount(queue.filter(q => q.status === 'In Review' || q.status === 'New').length);
-      }
-    } catch {}
+     import('../services/pharmacistService').then(({ getPrescriptions }) => {
+        getPrescriptions().then(qs => {
+           setPendingRxCount(qs.filter(q => q.status === 'In Review' || q.status === 'New').length);
+        }).catch(console.error);
+     });
   };
+
+  React.useEffect(() => {
+     updateQueueCount();
+  }, []);
 
   return (
     <AlertContext.Provider value={{ unreadAlerts, setUnreadAlerts, pendingRxCount, updateQueueCount, userProfile, setUserProfile }}>

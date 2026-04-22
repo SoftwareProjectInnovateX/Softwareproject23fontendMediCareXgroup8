@@ -23,9 +23,9 @@ import {
   BriefcaseMedical
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { initialPatients } from './PharmacistPatients';
 import { AlertContext } from '../../layouts/PharmacistLayout';
 import { useContext } from 'react';
+import { getPatients, updatePatient, addPatient, getPrescriptions, updatePrescription, addDispensedRecord, getDispensedHistory } from '../../services/pharmacistService';
 
 const inventoryMeds = [
   { name: 'Lisinopril 10mg Tablets', stock: 1200, unitPrice: 15.50 },
@@ -43,13 +43,11 @@ const PharmacistVerification = () => {
   const location = useLocation();
   const { updateQueueCount } = useContext(AlertContext);
   const [isVerified, setIsVerified] = useState(false);
-  const [patients, setPatients] = useState(() => {
-    try {
-      const saved = localStorage.getItem('medicarex_patients');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [...initialPatients];
-  });
+  const [patients, setPatients] = useState([]);
+  
+  useEffect(() => {
+     getPatients().then(setPatients).catch(console.error);
+  }, []);
 
   const [patientSearch, setPatientSearch] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -63,8 +61,9 @@ const PharmacistVerification = () => {
   const [isRejectSent, setIsRejectSent] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectLog, setRejectLog] = useState('');
-  const [newPatient, setNewPatient] = useState({ firstName: '', lastName: '', dob: '', phone: '', address: '' });
+  const [newPatient, setNewPatient] = useState({ firstName: '', lastName: '', dob: '', phone: '', address: '', email: '' });
   const [showApproveSuccess, setShowApproveSuccess] = useState(false);
+  const [dispenseRecordId, setDispenseRecordId] = useState(null);
 
   const [orderItems, setOrderItems] = useState([
     { id: 1, name: 'Lisinopril 10mg Tablets', form: 'Oral Tablet', freq: 'Once daily', qty: 30, refills: 3, unitPrice: 15.50, total: 465.00 },
@@ -80,11 +79,21 @@ const PharmacistVerification = () => {
   const [currentRefills, setCurrentRefills] = useState(0);
   const [clinicalNote, setClinicalNote] = useState('');
 
-  useEffect(() => {
-    localStorage.setItem('medicarex_patients', JSON.stringify(patients));
-  }, [patients]);
+  // removed localstorage patients sync
+
+  const [activePrescription, setActivePrescription] = useState(null);
 
   useEffect(() => {
+    const rxIdFromUrl = location.pathname.split('/').pop();
+    const activeRxId = (rxIdFromUrl && rxIdFromUrl !== 'verification') ? rxIdFromUrl : '88291';
+    
+    getPrescriptions().then(queueList => {
+       const match = queueList.find(q => q.id === activeRxId || q.queueId === activeRxId);
+       if (match) {
+           setActivePrescription(match);
+       }
+    }).catch(console.error);
+
     if (location.state?.rxPatientName) {
       const match = patients.find(p => p.name.toLowerCase() === location.state.rxPatientName.toLowerCase());
       if (match) {
@@ -111,7 +120,7 @@ const PharmacistVerification = () => {
          window.history.replaceState({}, document.title);
       }
     }
-  }, [location.state?.rxPatientName]);
+  }, [location.state?.rxPatientName, location.pathname, patients]);
 
   const flagContextMessage = location.state?.flagMessage;
 
@@ -120,7 +129,7 @@ const PharmacistVerification = () => {
     setShowPatientSuggestions(true);
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!selectedPatient) {
       alert("Please assign a patient to this prescription before approving.");
       return;
@@ -134,38 +143,54 @@ const PharmacistVerification = () => {
     const activeRxId = (rxIdFromUrl && rxIdFromUrl !== 'verification') ? rxIdFromUrl : '88291';
 
     try {
-      const savedQueue = localStorage.getItem('medicarex_prescriptions_queue');
-      if (savedQueue) {
-         let queue = JSON.parse(savedQueue);
-         const idx = queue.findIndex(q => q.id === activeRxId);
-         if (idx >= 0) {
-            queue[idx].status = 'Verified';
-            queue[idx].statusStyle = 'bg-emerald-100 text-emerald-700';
-            queue[idx].actionLabel = 'Dispense';
-            queue[idx].rowStyle = '';
-            localStorage.setItem('medicarex_prescriptions_queue', JSON.stringify(queue));
-            updateQueueCount();
-         }
-      }
+      let activeIsDigital = false;
+      const queueList = await getPrescriptions();
+      const match = queueList.find(q => String(q.id) === String(activeRxId) || String(q.queueId) === String(activeRxId)); 
+      // Actually, our custom IDs are mostly inside `id` or `queueId`.
 
-      // Add to persistent dispensing queue
-      const savedDispQueue = localStorage.getItem('medicarex_dispensing_queue');
-      let dispQueue = savedDispQueue ? JSON.parse(savedDispQueue) : [];
-      const exists = dispQueue.find(d => d.rxId === activeRxId);
-      if (!exists) {
-         dispQueue.unshift({
-            id: Date.now().toString(),
-            rxId: activeRxId,
-            orderItems: orderItems,
-            verifiedPatient: selectedPatient?.name,
-            total: orderItems.reduce((a,b)=>a+b.total,0),
-            paymentStatus: 'Pending Payment',
-            timestamp: Date.now()
+      if (match) {
+         activeIsDigital = match.isDigital || false;
+         await updatePrescription(match.firebaseId || match.id, {
+            status: 'Completed',
+            patientId: selectedPatient?.id,
+            statusStyle: 'bg-emerald-100 text-emerald-700',
+            actionLabel: 'Verified',
+            rowStyle: ''
          });
-         localStorage.setItem('medicarex_dispensing_queue', JSON.stringify(dispQueue));
+         // Delay queue update slightly to allow Firebase index to catch up
+         setTimeout(() => updateQueueCount(), 600);
       }
 
-    } catch(e) { console.error(e); }
+      // Check if an ACTIVE dispensing record already exists for this Rx
+      const existingDispQ = await getDispensedHistory();
+      const existingDisp = existingDispQ.find(d => d.rxId === activeRxId && !d.finalized);
+      
+      let dispenseDocId;
+      if (existingDisp) {
+         dispenseDocId = existingDisp.firebaseId || existingDisp.id;
+         // Optionally update it if needed, but we don't need to duplicate it.
+      } else {
+         const newDispenseRec = await addDispensedRecord({
+               rxId: activeRxId,
+               isDigital: activeIsDigital,
+               orderItems: orderItems,
+               verifiedPatient: selectedPatient?.name,
+               patientId: selectedPatient?.id,
+               total: orderItems.reduce((a,b)=>a+b.total,0),
+               paymentStatus: 'Pending Payment',
+               timestamp: Date.now(),
+               dispensedDate: new Date().toDateString(),
+               patientEmail: selectedPatient?.email || 'N/A'
+         });
+         dispenseDocId = newDispenseRec.id;
+      }
+
+      setDispenseRecordId(dispenseDocId);
+    } catch(e) { 
+      console.error(e); 
+      alert("Database Error: " + e.message);
+      return; // Stop the success modal from showing
+    }
 
     setShowApproveSuccess(true);
     setTimeout(() => {
@@ -176,11 +201,12 @@ const PharmacistVerification = () => {
             rxId: activeRxId,
             orderItems: orderItems,
             verifiedPatient: selectedPatient?.name,
+            patientId: selectedPatient?.id,
             total: orderItems.reduce((a,b)=>a+b.total,0),
             paymentStatus: 'Pending Payment'
          }
        });
-    }, 4000);
+    }, 1500); // Quick turnaround
   };
 
   const handleAddPatient = () => {
@@ -197,6 +223,7 @@ const PharmacistVerification = () => {
       age: age,
       gender: 'Unknown',
       phone: newPatient.phone || 'N/A',
+      email: newPatient.email || 'N/A',
       address: newPatient.address || 'N/A',
       insurance: 'N/A',
       insuranceId: 'N/A',
@@ -212,23 +239,29 @@ const PharmacistVerification = () => {
     setPatients([p, ...patients]);
     setSelectedPatient(p);
     setShowRegModal(false);
-    setNewPatient({ firstName: '', lastName: '', dob: '', phone: '', address: '' });
+    setNewPatient({ firstName: '', lastName: '', dob: '', phone: '', address: '', email: '' });
+    addPatient(p).catch(console.error);
   };
 
   const handleRejectSubmit = () => {
     setIsRejectSent(true);
-    setTimeout(() => {
+    setTimeout(async () => {
       const rxIdFromUrl = location.pathname.split('/').pop();
       const activeRxId = (rxIdFromUrl && rxIdFromUrl !== 'verification') ? rxIdFromUrl : '88291';
       
       try {
-        const savedQueue = localStorage.getItem('medicarex_prescriptions_queue');
-        if (savedQueue) {
-           let queue = JSON.parse(savedQueue);
-           const filteredQueue = queue.filter(q => q.id !== activeRxId);
-           localStorage.setItem('medicarex_prescriptions_queue', JSON.stringify(filteredQueue));
-           updateQueueCount();
-        }
+         const queueList = await getPrescriptions();
+         const match = queueList.find(q => String(q.id) === String(activeRxId) || String(q.queueId) === String(activeRxId));
+         if (match) {
+            // we could either delete it or mark as rejected. The UI simulated delete.
+            await updatePrescription(match.firebaseId || match.id, {
+               status: 'Rejected',
+               statusStyle: 'bg-red-100 text-red-700',
+               actionLabel: 'Archived',
+               rowStyle: 'bg-red-50 opacity-60'
+            });
+            updateQueueCount();
+         }
       } catch(e) {}
       
       setIsRejectSent(false);
@@ -239,24 +272,22 @@ const PharmacistVerification = () => {
 
   const handleFlagSubmit = () => {
     setIsFlagSent(true);
-    setTimeout(() => {
+    setTimeout(async () => {
       const rxIdFromUrl = location.pathname.split('/').pop();
       const activeRxId = (rxIdFromUrl && rxIdFromUrl !== 'verification') ? rxIdFromUrl : '88291';
       
       try {
-        const savedQueue = localStorage.getItem('medicarex_prescriptions_queue');
-        if (savedQueue) {
-           let queue = JSON.parse(savedQueue);
-           const idx = queue.findIndex(q => q.id === activeRxId);
-           if (idx >= 0) {
-              queue[idx].status = 'Flagged';
-              queue[idx].statusStyle = 'bg-amber-100 text-amber-700';
-              queue[idx].actionLabel = 'Review';
-              queue[idx].rowStyle = 'bg-amber-50 border-l-4 border-amber-500';
-              localStorage.setItem('medicarex_prescriptions_queue', JSON.stringify(queue));
-              updateQueueCount();
-           }
-        }
+         const queueList = await getPrescriptions();
+         const match = queueList.find(q => String(q.id) === String(activeRxId) || String(q.queueId) === String(activeRxId));
+         if (match) {
+            await updatePrescription(match.firebaseId || match.id, {
+               status: 'Flagged',
+               statusStyle: 'bg-amber-100 text-amber-700',
+               actionLabel: 'Review',
+               rowStyle: 'bg-amber-50 border-l-4 border-amber-500'
+            });
+            updateQueueCount();
+         }
       } catch(e) {}
 
       setIsFlagSent(false);
@@ -286,6 +317,16 @@ const PharmacistVerification = () => {
                 </div>
                 <FileSignature className="w-6 h-6 text-emerald-300" />
              </div>
+             
+             <button 
+                onClick={() => {
+                   window.open(`/payment-gateway/${dispenseRecordId}`, '_blank');
+                   // Still let the timeout navigate them forward
+                }}
+                className="mt-6 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
+             >
+                Demo: Open Payment Gateway
+             </button>
           </div>
         </div>
       )}
@@ -300,9 +341,9 @@ const PharmacistVerification = () => {
         </button>
 
         <p className="text-sm font-bold text-slate-500 tracking-wider">PRESCRIPTION / VERIFICATION WORKSPACE</p>
-        <h1 className="text-3xl font-black text-slate-800 mt-1">RX-98421004</h1>
+        <h1 className="text-3xl font-black text-slate-800 mt-1">RX-{activePrescription?.id || location.pathname.split('/').pop()}</h1>
         <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 font-medium">
-          <span className="w-2 h-2 rounded-full bg-amber-500"></span> In Progress (02:45)
+          <span className="w-2 h-2 rounded-full bg-amber-500"></span> In Progress
         </p>
       </div>
 
@@ -326,7 +367,11 @@ const PharmacistVerification = () => {
 
           {/* Prescription Image */}
           <div className="bg-white p-2 rounded-xl shadow-md border border-slate-200 mt-10 max-w-full overflow-hidden">
-             <img src="/prescription.png" alt="Scanned Prescription" className="w-full h-auto object-contain rounded-lg border border-slate-100" />
+             {activePrescription?.imageUrl ? (
+                <img src={activePrescription.imageUrl} alt="Scanned Prescription" className="w-full h-auto object-contain rounded-lg border border-slate-100" />
+             ) : (
+                <img src="/prescription.png" alt="Demo Prescription" className="w-full h-auto object-contain rounded-lg border border-slate-100" />
+             )}
           </div>
         </div>
 
@@ -406,7 +451,7 @@ const PharmacistVerification = () => {
                        {selectedPatient.name}
                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-bold uppercase tracking-wider">{selectedPatient.id}</span>
                      </h2>
-                     <p className="text-xs text-slate-500 font-medium mt-1">DOB: {selectedPatient.dob} ({selectedPatient.age}y) | {selectedPatient.phone}</p>
+                     <p className="text-xs text-slate-500 font-medium mt-1">DOB: {selectedPatient.dob} ({selectedPatient.age}y) | Phone: {selectedPatient.phone} | Email: {selectedPatient.email || 'N/A'}</p>
                    </div>
                    <button 
                      onClick={() => setSelectedPatient(null)}
@@ -689,6 +734,58 @@ const PharmacistVerification = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Filter/Registration Modals */}
+      {showRegModal && (
+        <div className="fixed inset-0 z-50 flex justify-center items-center backdrop-blur-sm" style={{backgroundColor: 'rgba(15, 23, 42, 0.4)'}}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-slate-800">Add New Patient</h2>
+              <button 
+                onClick={() => setShowRegModal(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">First Name</label>
+                <input type="text" value={newPatient.firstName} onChange={e => setNewPatient({...newPatient, firstName: e.target.value})} placeholder="John" className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Last Name</label>
+                <input type="text" value={newPatient.lastName} onChange={e => setNewPatient({...newPatient, lastName: e.target.value})} placeholder="Doe" className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Date of Birth</label>
+                <input type="date" value={newPatient.dob} onChange={e => setNewPatient({...newPatient, dob: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Phone</label>
+                <input type="tel" value={newPatient.phone} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} placeholder="(555) 000-0000" className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
+                <input type="email" value={newPatient.email} onChange={e => setNewPatient({...newPatient, email: e.target.value})} placeholder="patient@example.com" className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />
+              </div>
+              <div className="col-span-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase">Address</label>
+                 <input type="text" value={newPatient.address} onChange={e => setNewPatient({...newPatient, address: e.target.value})} placeholder="123 Main St, City, ST" className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-8">
+              <button 
+                onClick={() => setShowRegModal(false)}
+                className="px-4 py-2 font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors text-sm"
+              >Cancel</button>
+              <button 
+                onClick={handleAddPatient}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-lg transition-colors shadow-sm text-sm"
+              >Save Patient</button>
+            </div>
           </div>
         </div>
       )}

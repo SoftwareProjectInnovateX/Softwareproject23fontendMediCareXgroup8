@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getDispensedHistory, updateDispensedRecord, updatePatient, getPatients, getPrescriptions, updatePrescription } from '../../services/pharmacistService';
 import { 
   ClipboardCheck, 
   Hourglass, 
@@ -18,9 +19,12 @@ import {
 
 const PharmacistDispensing = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [dispOrders, setDispOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null); // High-level object for the Modal
   const [dailyRevenue, setDailyRevenue] = useState(0);
+
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     try {
@@ -36,22 +40,36 @@ const PharmacistDispensing = () => {
       }
     } catch(e) {}
 
-    try {
-      const saved = localStorage.getItem('medicarex_dispensing_queue');
-      if (saved) {
-        setDispOrders(JSON.parse(saved));
-      }
-    } catch(e) {}
+    const fetchData = async () => {
+        try {
+            const h = await getDispensedHistory();
+            const activeQueue = h.filter(d => !d.finalized);
+            setDispOrders(activeQueue);
+            setIsLoading(false);
+        } catch (e) {
+            console.error(e);
+            setIsLoading(false);
+        }
+    };
+    
+    fetchData();
+    const poller = setInterval(fetchData, 3000); // Poll every 3s to reflect external payment updates
+    return () => clearInterval(poller);
   }, []);
 
-  const markAsPaid = (orderId) => {
+  const markAsPaid = async (orderId) => {
+    const order = dispOrders.find(o => o.rxId === orderId);
+    if (!order) return;
+    
+    // update local state
     const updated = dispOrders.map(o => o.rxId === orderId ? { ...o, paymentStatus: 'Paid' } : o);
     setDispOrders(updated);
-    localStorage.setItem('medicarex_dispensing_queue', JSON.stringify(updated));
+    
+    // update Firebase
+    await updateDispensedRecord(order.firebaseId || order.id, { paymentStatus: 'Paid' }).catch(console.error);
     
     // Add to daily revenue
-    const order = dispOrders.find(o => o.rxId === orderId);
-    if (order && order.total) {
+    if (order.total) {
       setDailyRevenue(prev => {
         const newTotal = prev + order.total;
         localStorage.setItem('medicarex_daily_revenue', newTotal.toString());
@@ -68,63 +86,97 @@ const PharmacistDispensing = () => {
   };
 
   const handlePrintLabel = (item) => {
-    // We simply invoke the browser's generic print window. 
-    // Usually, in a real app, you'd open a new window or use a print CSS specifically for the component.
-    // For this prototype, alerting/confirming then printing is sufficient to demonstrate it works.
     window.print();
   };
 
-  const finalizeDispense = () => {
+  const finalizeDispense = async () => {
     if (!selectedOrder) return;
     const orderId = selectedOrder.rxId;
 
-    // 1. Update Patient's Medication List
+    // 1. Update Patient's Medication List in Firebase
     try {
-       const savedPatients = localStorage.getItem('medicarex_patients');
-       if (savedPatients) {
-          let pts = JSON.parse(savedPatients);
-          const pIdx = pts.findIndex(p => p.name === selectedOrder.verifiedPatient);
-          if (pIdx >= 0) {
-             const newMeds = selectedOrder.orderItems.map(item => ({
-                name: item.name,
-                form: `Qty: ${item.qty} | ${item.form || 'Standard'}`,
-                sig: item.freq || 'Take as directed by physician',
-                date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-                prescriber: 'Verified Pharmacist',
-                status: 'Active'
-             }));
-             
-             if (!pts[pIdx].medications) pts[pIdx].medications = [];
-             pts[pIdx].medications = [...newMeds, ...pts[pIdx].medications];
-             pts[pIdx].activeCount = pts[pIdx].medications.filter(m => m.status === 'Active').length;
-             
-             localStorage.setItem('medicarex_patients', JSON.stringify(pts));
-          }
-       }
+        const pts = await getPatients();
+        const pt = pts.find(p => p.name === selectedOrder.verifiedPatient || p.id === selectedOrder.patientId);
+         const now = new Date();
+         const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+         const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+         
+         const newMeds = selectedOrder.orderItems.map(item => ({
+            name: item.name,
+            form: `Qty: ${item.qty} | ${item.form || 'Standard'}`,
+            sig: item.freq || 'Take as directed by physician',
+            date: `${dateStr} at ${timeStr}`,
+            timestamp: now.getTime(),
+            prescriber: 'Verified Pharmacist',
+            status: 'Active'
+         }));
+
+        if (pt) {
+             const updatedMeds = [...newMeds, ...(pt.medications || [])];
+             await updatePatient(pt.firebaseId || pt.id, {
+                 medications: updatedMeds,
+                 activeCount: updatedMeds.filter(m => m.status === 'Active').length
+             });
+        } else {
+             // Register missing dummy patients from test data
+             const { addPatient } = await import('../../services/pharmacistService');
+             const newId = selectedOrder.patientId || ('#' + Math.floor(Math.random() * 900000 + 100000));
+             const newPatient = {
+                 id: newId,
+                 name: selectedOrder.verifiedPatient || 'Unknown Patient',
+                 dob: 'Unknown',
+                 age: 30,
+                 gender: 'Unknown',
+                 phone: 'N/A',
+                 email: 'N/A',
+                 address: 'Online Order Auto-Reg',
+                 insurance: 'N/A',
+                 insuranceId: 'N/A',
+                 physician: 'N/A',
+                 activeCount: newMeds.length,
+                 fading: false,
+                 avatarColor: '0ea5e9',
+                 avatarBg: 'e0f2fe',
+                 timestamp: Date.now(),
+                 medications: newMeds,
+                 notes: []
+             };
+             await addPatient(newPatient).catch(console.error);
+        }
     } catch(e) { console.error('Failed to update patient profile:', e); }
 
-    // 2. Clear from Verification Queue Context (to ensure it shows as completed there if applicable)
+    // 2. Clear from Verification Queue Context (if it still exists in Queue)
     try {
-       const savedQueue = localStorage.getItem('medicarex_prescriptions_queue');
-       if (savedQueue) {
-          let queue = JSON.parse(savedQueue);
-          const idx = queue.findIndex(q => q.id === orderId);
-          if (idx >= 0) {
-             queue[idx].status = 'Completed';
-             queue[idx].statusStyle = 'bg-slate-100 text-slate-500';
-             queue[idx].actionLabel = 'Archived';
-             queue[idx].rowStyle = 'opacity-50';
-             localStorage.setItem('medicarex_prescriptions_queue', JSON.stringify(queue));
-          }
-       }
+        const qs = await getPrescriptions();
+        const rx = qs.find(q => q.id === orderId || q.queueId === orderId);
+        if (rx) {
+             await updatePrescription(rx.firebaseId || rx.id, {
+                 status: 'Completed',
+                 statusStyle: 'bg-slate-100 text-slate-500',
+                 actionLabel: 'Archived',
+                 rowStyle: 'opacity-50'
+             });
+        }
     } catch(e) { console.error('Failed to update queue:', e); }
 
-    // 3. Remove from Active Dispensing Queue
+    // 3. Mark as Finalized in Dispensed History
+    try {
+        const h = await getDispensedHistory();
+        const dispRecs = h.filter(d => d.rxId === orderId);
+        if (dispRecs.length > 0) {
+             for (const dispRec of dispRecs) {
+                 await updateDispensedRecord(dispRec.firebaseId || dispRec.id, { 
+                     finalized: true,
+                     dispensedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                 });
+             }
+             window.dispatchEvent(new Event('dispensed_updated'));
+        }
+    } catch(e) { console.error('Failed to update dispensed history:', e); }
+    
+    // Update local state by removing from active
     const filtered = dispOrders.filter(o => o.rxId !== orderId);
     setDispOrders(filtered);
-    localStorage.setItem('medicarex_dispensing_queue', JSON.stringify(filtered));
-
-    // 4. Close Modal
     setSelectedOrder(null);
   };
 
@@ -191,14 +243,19 @@ const PharmacistDispensing = () => {
                      {order.paymentStatus === 'Pending Payment' ? (
                        <span className="bg-amber-50 text-amber-600 border border-amber-100 font-black text-[10px] uppercase px-2 py-1 rounded w-max flex items-center gap-1"><Hourglass className="w-3 h-3"/> Pending Payment</span>
                      ) : (
-                       <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] uppercase px-2 py-1 rounded w-max flex items-center gap-1"><CheckCircle className="w-3 h-3"/> Paid</span>
+                       <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] uppercase px-2 py-1 rounded w-max flex items-center gap-1">
+                         <CheckCircle className="w-3 h-3"/> {order.paymentMethod ? `Paid (${order.paymentMethod})` : 'Paid'}
+                       </span>
                      )}
                   </td>
                   <td className="td-cell text-slate-500 font-medium">
                      <span className="bg-slate-100 px-2 py-1 rounded text-xs font-mono font-bold text-slate-600 tracking-wider">#{order.rxId.toUpperCase()}</span>
                   </td>
                   <td className="td-cell">
-                    <div className="font-bold text-slate-800">{order.verifiedPatient}</div>
+                    <div className="font-bold text-slate-800 flex items-center flex-wrap gap-2">
+                       {order.verifiedPatient}
+                       {order.patientId && <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded tracking-wider">{order.patientId}</span>}
+                    </div>
                     <div className="text-xs font-black text-[#0b5ed7] mt-1 bg-blue-50 px-2 py-0.5 rounded w-max">Rs. {order.total?.toFixed(2)}</div>
                   </td>
                   <td className="td-cell">
@@ -217,7 +274,12 @@ const PharmacistDispensing = () => {
                   </td>
                   <td className="td-cell text-right pr-6">
                     {order.paymentStatus === 'Pending Payment' ? (
-                       <button onClick={() => markAsPaid(order.rxId)} className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-6 py-2.5 rounded-lg transition-colors shadow">Mark as Paid</button>
+                       <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => navigate(`/payment-gateway/${order.firebaseId || order.id}`)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-2.5 rounded-lg transition-colors shadow whitespace-nowrap">
+                             Demo Gateway
+                          </button>
+                          <button onClick={() => markAsPaid(order.rxId)} className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-6 py-2.5 rounded-lg transition-colors shadow">Mark as Paid</button>
+                       </div>
                     ) : (
                        <button onClick={() => handleOpenDispenseModal(order.rxId)} className="bg-[#0b5ed7] hover:bg-[#084298] text-white font-bold text-sm px-4 py-2.5 rounded-lg transition-colors shadow flex items-center justify-end gap-2 ml-auto">
                           Dispense Items <CheckCircle className="w-4 h-4" />
@@ -270,7 +332,10 @@ const PharmacistDispensing = () => {
                <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shrink-0 shadow-sm z-10">
                   <div>
                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Dispensing To</span>
-                     <span className="font-bold text-slate-800 text-base">{selectedOrder.verifiedPatient}</span>
+                     <div className="font-bold text-slate-800 text-base flex items-center gap-2">
+                       {selectedOrder.verifiedPatient}
+                       {selectedOrder.patientId && <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded uppercase tracking-wider">{selectedOrder.patientId}</span>}
+                     </div>
                   </div>
                   <div className="text-right flex items-center gap-3">
                      <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1 rounded text-xs font-black flex items-center gap-1">
@@ -298,7 +363,10 @@ const PharmacistDispensing = () => {
                                  <span className="font-bold text-slate-500 text-xs text-right">RX#{selectedOrder.rxId}</span>
                               </div>
                               <p className="font-black text-xs uppercase tracking-widest text-slate-500 mb-1">Patient</p>
-                              <p className="font-bold text-slate-800 text-sm mb-3 border-b border-slate-100 pb-2">{selectedOrder.verifiedPatient}</p>
+                              <div className="font-bold text-slate-800 text-sm mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
+                                {selectedOrder.verifiedPatient}
+                                {selectedOrder.patientId && <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider">{selectedOrder.patientId}</span>}
+                              </div>
                               
                               <p className="font-bold text-xs uppercase text-slate-500 bg-slate-100 px-2 py-0.5 w-max mb-1">Take {item.freq}</p>
                               <p className="font-medium text-slate-700 leading-snug mb-4">Take {item.qty} {item.form} as directed regularly.</p>

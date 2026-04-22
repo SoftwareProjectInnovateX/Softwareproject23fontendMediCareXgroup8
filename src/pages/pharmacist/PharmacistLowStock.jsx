@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Search, AlertCircle, Plus, PackagePlus, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,13 +9,31 @@ const PharmacistLowStock = () => {
   const [addQuantity, setAddQuantity] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Initial Mock Data
-  const [lowStockMeds, setLowStockMeds] = useState([
-    { id: 1, name: 'Paracetamol', dosage: '500mg', batch: 'B-1029', currentStock: 45, minLevel: 100 },
-    { id: 2, name: 'Vitamin C', dosage: '1000mg', batch: 'B-1055', currentStock: 12, minLevel: 50 },
-    { id: 3, name: 'Ibuprofen', dosage: '400mg', batch: 'B-2201', currentStock: 25, minLevel: 80 },
-    { id: 4, name: 'Cetirizine', dosage: '10mg', batch: 'B-3344', currentStock: 5, minLevel: 30 }
-  ]);
+  const [lowStockMeds, setLowStockMeds] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    import('../../services/pharmacistService').then(({ getInventory }) => {
+       getInventory().then((inv) => {
+           const lowStock = inv.filter(item => {
+              const qty = item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0;
+              return qty < 50; 
+           }).map((item, idx) => ({
+              id: item.id || idx,
+              name: item.name || 'Unknown',
+              dosage: item.dosage || 'N/A',
+              batch: item.batch || item.sku || `B-${Math.floor(Math.random()*10000)}`,
+              currentStock: Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0),
+              minLevel: Number(item.threshold ?? item.minLevel ?? 50)
+           }));
+           setLowStockMeds(lowStock);
+           setIsLoading(false);
+       }).catch(e => {
+           console.error(e);
+           setIsLoading(false);
+       });
+    }).catch(() => setIsLoading(false));
+  }, []);
 
   const filteredMeds = lowStockMeds.filter(med => 
     med.name.toLowerCase().includes(searchTerm.toLowerCase()) || 

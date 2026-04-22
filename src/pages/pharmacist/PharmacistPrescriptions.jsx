@@ -107,13 +107,77 @@ const PharmacistPrescriptions = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Statuses');
   const [priorityFilter, setPriorityFilter] = useState('Priority: All');
-  const [dynamicTableData, setDynamicTableData] = useState(() => {
-     const saved = localStorage.getItem('medicarex_prescriptions_queue');
-     return saved ? JSON.parse(saved) : mockTableData;
-  });
+  const [dynamicTableData, setDynamicTableData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-     localStorage.setItem('medicarex_prescriptions_queue', JSON.stringify(dynamicTableData));
+    let intervalId;
+    const fetchRx = () => {
+       import('../../services/pharmacistService').then(({ getPrescriptions, addPrescription }) => {
+          getPrescriptions().then(async (rxData) => {
+              if (rxData.length === 0) {
+                 for (const rx of mockTableData) {
+                    await addPrescription(rx);
+                 }
+                 rxData = await getPrescriptions();
+              }
+              setDynamicTableData(rxData.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)));
+              setIsLoading(false);
+          }).catch((e) => {
+              console.error(e);
+              setIsLoading(false);
+          });
+       });
+    };
+
+    fetchRx(); // Initial fetch
+    intervalId = setInterval(fetchRx, 3000); // Poll every 3 seconds
+
+    return () => {
+       if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
+
+  const [onlineHubCount, setOnlineHubCount] = useState(0);
+
+  useEffect(() => {
+     import('../../services/pharmacistService').then(({ getOnlineOrders }) => {
+         getOnlineOrders().then(orders => setOnlineHubCount(orders.length)).catch(console.error);
+     });
+  }, []);
+
+  const [walkinRxCount, setWalkinRxCount] = useState(0);
+
+  useEffect(() => {
+    const fetchWalkinCount = () => {
+      try {
+        const today = new Date().toDateString();
+        const savedDate = localStorage.getItem('medicarex_revenue_date');
+        if (savedDate === today) {
+          const count = parseInt(localStorage.getItem('medicarex_walkin_rx_count') || '0');
+          setWalkinRxCount(count);
+        } else {
+          setWalkinRxCount(0);
+        }
+      } catch(e) {}
+    };
+    
+    fetchWalkinCount();
+    window.addEventListener('revenue_updated', fetchWalkinCount);
+    return () => window.removeEventListener('revenue_updated', fetchWalkinCount);
+  }, []);
+
+  useEffect(() => {
+    if (location.state?.searchTarget) {
+      setSearchTerm(location.state.searchTarget);
+      
+      const StateObj = { ...location.state };
+      delete StateObj.searchTarget;
+      window.history.replaceState(StateObj, document.title);
+    }
+  }, [location]);
+
+  useEffect(() => {
      updateQueueCount();
   }, [dynamicTableData, updateQueueCount]);
 
@@ -157,7 +221,7 @@ const PharmacistPrescriptions = () => {
     }
   }, [location]);
   
-  const totalVerifiedCount = dynamicTableData.filter(rx => rx.status === 'Verified').length;
+  const totalVerifiedCount = dynamicTableData.filter(rx => rx.status === 'Verified' || rx.status === 'Completed' || rx.status === 'COMPLETED').length;
   const verifiedPercentage = Math.round((totalVerifiedCount / dynamicTableData.length) * 100);
   const pendingCount = dynamicTableData.filter(rx => rx.status === 'In Review' || rx.status === 'New').length;
   
@@ -168,7 +232,8 @@ const PharmacistPrescriptions = () => {
                             rxIdDisplay.includes(searchTerm.toLowerCase()) ||
                             rx.id.toLowerCase().includes(searchTerm.toLowerCase());
       const isPendingMatch = statusFilter === 'Pending' && (rx.status === 'In Review' || rx.status === 'New');
-      const matchesStatus = statusFilter === 'All Statuses' || rx.status === statusFilter || isPendingMatch;
+      const isVerifiedMatch = statusFilter === 'Verified/Completed' && (rx.status === 'Verified' || rx.status === 'Completed' || rx.status === 'COMPLETED');
+      const matchesStatus = statusFilter === 'All Statuses' || rx.status === statusFilter || isPendingMatch || isVerifiedMatch;
       const matchesPriority = priorityFilter === 'Priority: All' || 
                              (priorityFilter === 'High Priority' ? rx.isHighPriority : !rx.isHighPriority);
       return matchesSearch && matchesStatus && matchesPriority;
@@ -206,7 +271,11 @@ const PharmacistPrescriptions = () => {
       <div>
         <button 
           className="btn-primary bg-[#084298] hover:bg-[#06357a] text-white flex items-center gap-2 px-6 py-2.5 rounded-full shadow-sm font-medium"
-          onClick={() => navigate('/pharmacist/verification/88291')}
+          onClick={() => {
+            const pendingRx = dynamicTableData.find(r => r.status === 'In Review' || r.status === 'New' || r.status === 'Flagged');
+            const targetId = pendingRx ? (pendingRx.id) : '88291';
+            navigate(`/pharmacist/verification/${targetId}`);
+          }}
         >
           <PlayCircle className="w-5 h-5 text-blue-200" />
           Start Verifying
@@ -235,7 +304,7 @@ const PharmacistPrescriptions = () => {
              </span>
            </div>
            <div className="mt-4 z-10 relative">
-             <p className="text-sm font-medium text-slate-500">Total PharmacistPrescriptions</p>
+             <p className="text-sm font-medium text-slate-500">System & Physical Prescriptions</p>
              <h2 className="text-3xl font-bold text-slate-800 mt-1">{dynamicTableData.length}</h2>
              <p className="text-xs text-slate-400 mt-1">Total received so far</p>
            </div>
@@ -271,14 +340,14 @@ const PharmacistPrescriptions = () => {
            </div>
            <div className="mt-4">
              <p className="text-sm font-medium text-slate-500">Online Hub</p>
-             <h2 className="text-3xl font-bold text-slate-800 mt-1">08</h2>
+             <h2 className="text-3xl font-bold text-slate-800 mt-1">{onlineHubCount.toString().padStart(2, '0')}</h2>
              <p className="text-xs text-slate-600 font-bold mt-1">Total incoming orders</p>
            </div>
         </div>
         <div 
           className="card border-slate-100 shadow-none hover:shadow-md border-l-4 border-l-emerald-500 !py-5 relative overflow-hidden group cursor-pointer hover:bg-slate-50 transition-all"
           onClick={() => {
-            setStatusFilter('Verified');
+            setStatusFilter('Verified/Completed');
             setSearchTerm('');
             setPriorityFilter('Priority: All');
           }}
@@ -299,6 +368,48 @@ const PharmacistPrescriptions = () => {
       <div className="card p-0 overflow-hidden pt-4 mt-6">
         
         {/* Table Controls */}
+        <div className="px-6 pt-2 pb-4 flex justify-between">
+           <button 
+             onClick={async () => {
+               try {
+                 const { addPrescription } = await import('../../services/pharmacistService');
+                 await addPrescription({
+                   id: Math.floor(Math.random() * 90000).toString(),
+                   isHighPriority: true,
+                   patientName: 'Test Patient 1',
+                   dob: '01/01/1990',
+                   isDigital: true,
+                   dateMain: 'Just Now',
+                   dateSub: '',
+                   status: 'New',
+                   statusStyle: 'bg-blue-100 text-blue-700',
+                   actionLabel: 'Review',
+                   rowStyle: 'bg-blue-50/30'
+                 });
+                 await addPrescription({
+                   id: Math.floor(Math.random() * 90000).toString(),
+                   isHighPriority: false,
+                   patientName: 'Test Patient 2',
+                   dob: '05/05/1985',
+                   isDigital: false,
+                   dateMain: 'Just Now',
+                   dateSub: '',
+                   status: 'New',
+                   statusStyle: 'bg-blue-100 text-blue-700',
+                   actionLabel: 'Review',
+                   rowStyle: ''
+                 });
+                 alert("Success! Prescriptions added. Refreshing now...");
+                 window.location.reload();
+               } catch (error) {
+                 alert("Firebase Error: " + error.message);
+               }
+             }}
+             className="bg-purple-600 text-white font-bold px-4 py-2 rounded-lg text-sm mb-4"
+           >
+             Generate Test Prescriptions
+           </button>
+        </div>
         <div className="flex items-center justify-between px-6 pb-4">
            <div className="relative w-80">
              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -391,7 +502,10 @@ const PharmacistPrescriptions = () => {
                   </td>
                   <td className="td-cell text-slate-500">#RX-{rx.id}</td>
                   <td className="td-cell">
-                    <div className="font-bold text-slate-800">{rx.patientName}</div>
+                    <div className="font-bold text-slate-800 flex items-center flex-wrap gap-2">
+                      {rx.patientName}
+                      {(rx.patientId || rx.registerId) && <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded tracking-wider">ID: {rx.patientId || rx.registerId}</span>}
+                    </div>
                     <div className="text-xs text-slate-500 mt-1">DOB: {rx.dob}</div>
                   </td>
                   <td className="td-cell text-emerald-600 flex items-center gap-2 mt-3">

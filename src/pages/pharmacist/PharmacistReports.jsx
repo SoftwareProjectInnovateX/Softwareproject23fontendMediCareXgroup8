@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Calendar, 
@@ -21,21 +21,14 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from 'recharts';
+import { getDispensedHistory, getInventory, getOnlineOrders } from '../../services/pharmacistService';
 
-const chartData30Days = [
-  { name: 'Oct 01', verified: 60 }, { name: 'Oct 02', verified: 100 }, { name: 'Oct 03', verified: 210 },
-  { name: 'Oct 04', verified: 240 }, { name: 'Oct 05', verified: 280 }, { name: 'Oct 06', verified: 320 },
-  { name: 'Oct 07', verified: 290 }, { name: 'Oct 08', verified: 310 }, { name: 'Oct 09', verified: 250 },
-  { name: 'Oct 10', verified: 320 }, { name: 'Oct 11', verified: 290 }, { name: 'Oct 12', verified: 340 },
-  { name: 'Oct 13', verified: 360 }, { name: 'Oct 14', verified: 300 }, { name: 'Oct 15', verified: 330 },
-  { name: 'Oct 16', verified: 250 }, { name: 'Oct 17', verified: 310 }, { name: 'Oct 18', verified: 280 },
-  { name: 'Oct 19', verified: 340 }, { name: 'Oct 20', verified: 370 }, { name: 'Oct 21', verified: 360 },
-  { name: 'Oct 22', verified: 350 }, { name: 'Oct 23', verified: 340 }, { name: 'Oct 24', verified: 330 },
+// Default Fallback Data if Firebase fails or is empty
+const defaultChartData30Days = [
+  { name: 'Oct 01', verified: 0 }, { name: 'Oct 02', verified: 0 }
 ];
 
-const chartData7Days = chartData30Days.slice(-7);
-
-const analyticsData = {
+const defaultAnalyticsData = {
    'Last 7 Days': {
       revenue: '185,400.00',
       avgTime: '12m 45s',
@@ -78,15 +71,161 @@ const analyticsData = {
 };
 
 const PharmacistReports = () => {
-  const [dateRange, setDateRange] = useState('Last 7 Days');
+  const [dateRange, setDateRange] = useState('Today');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [dynamicChart30, setDynamicChart30] = useState([]);
+  const [dynamicChart7, setDynamicChart7] = useState([]);
+  const [dynamicAnalytics, setDynamicAnalytics] = useState(defaultAnalyticsData);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const dispensed = await getDispensedHistory();
+        const inventory = await getInventory();
+        const onlineOrders = await getOnlineOrders();
+
+        // 1. Calculate Inventory Health
+        let lowStock = 0;
+        let expiring = 0;
+        inventory.forEach(item => {
+           const qty = item.stock ?? item.qty ?? item.quantity ?? 0;
+           if (qty < 50) lowStock++;
+           
+           const dateStr = item.expiryDate ?? item.expiry;
+           if (dateStr) {
+              const expDate = new Date(dateStr);
+              const in30Days = new Date();
+              in30Days.setDate(in30Days.getDate() + 30);
+              if (expDate <= in30Days) expiring++;
+           }
+        });
+
+        const invHealth = { lowStock, expiring };
+
+        // 2. Generate Chart Data
+        // Group dispensed records by date
+        const countsByDate = {};
+        const now = new Date();
+        // prefill last 30 days
+        for(let i=29; i>=0; i--) {
+           const d = new Date(now);
+           d.setDate(now.getDate() - i);
+           countsByDate[d.toDateString()] = 0;
+        }
+
+        dispensed.forEach(d => {
+           if (d.dispensedDate && countsByDate[d.dispensedDate] !== undefined) {
+               countsByDate[d.dispensedDate]++;
+           }
+        });
+
+        const newChart30 = Object.keys(countsByDate).map(dateStr => {
+           const d = new Date(dateStr);
+           const shortName = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+           return { name: shortName, verified: countsByDate[dateStr] };
+        });
+
+        const newChart7 = newChart30.slice(-7);
+
+        // 3. Analytics Aggregation (Revenue, Drugs)
+        const filterByDays = (days) => {
+           const cutoff = new Date();
+           if (days === 0) {
+              cutoff.setHours(0,0,0,0); // Today from midnight
+           } else {
+              cutoff.setDate(cutoff.getDate() - days);
+              cutoff.setHours(0,0,0,0);
+           }
+           
+           let rev = 0;
+           const drugCounts = {};
+
+           // Helper to process revenue and drugs
+           const processItem = (d, dateField, isOnlineHub) => {
+              const rDate = new Date(d[dateField] || d.timestamp);
+              
+              if (days === 0) {
+                  // Must exactly match the logic in Dashboard for 'Today'
+                  const todayStr = new Date().toDateString();
+                  const itemDateStr = isOnlineHub 
+                      ? new Date(d.orderDate || d.timestamp).toDateString() 
+                      : d.dispensedDate;
+                      
+                  if (itemDateStr !== todayStr) return;
+              } else {
+                  if (rDate < cutoff) return;
+              }
+
+              // Only sum paid items exactly like the Dashboard
+              const isPaid = isOnlineHub ? (d.paymentStatus === 'Paid' || d.paymentMethod === 'COD') : (d.paymentStatus === 'Paid');
+
+              if (isPaid) {
+                  rev += parseFloat(d.total) || 0;
+              }
+              
+              // Count Drugs
+              if (d.orderItems && Array.isArray(d.orderItems)) {
+                 d.orderItems.forEach(item => {
+                    if (!drugCounts[item.name]) drugCounts[item.name] = { count: 0, form: item.form || 'Units' };
+                    drugCounts[item.name].count += (parseInt(item.qty) || 1);
+                 });
+              }
+           };
+
+           // Process standard dispensed items
+           dispensed.forEach(d => processItem(d, 'dispensedDate', false));
+           
+           // Process online hub orders
+           onlineOrders.filter(o => o.status === 'Dispatched').forEach(o => processItem(o, 'orderDate', true));
+
+           // Sort top 5 drugs
+           const topDrugsList = Object.keys(drugCounts)
+             .map(k => ({ name: k, qty: drugCounts[k].count, unit: drugCounts[k].form }))
+             .sort((a,b) => b.qty - a.qty)
+             .slice(0, 5)
+             .map((drug, idx, arr) => {
+                const max = arr[0].qty || 1;
+                return { ...drug, percent: Math.round((drug.qty / max) * 100) };
+             });
+
+           return {
+              revenue: rev.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+              avgTime: 'N/A', // simplified
+              returnRate: 'N/A', // simplified
+              topDrugs: topDrugsList.length > 0 ? topDrugsList : [{ name: 'No Data', qty: 0, unit: 'Units', percent: 0 }],
+              inventory: invHealth
+           };
+        };
+
+        const newAnalytics = {
+           'Today': filterByDays(0),
+           'Last 7 Days': filterByDays(7),
+           'Last 30 Days': filterByDays(30),
+           'Year to Date': filterByDays(365)
+        };
+
+        setDynamicChart30(newChart30);
+        setDynamicChart7(newChart7);
+        setDynamicAnalytics(newAnalytics);
+
+      } catch (e) {
+        console.error("Failed to load reporting data:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, []);
   
   const chartData = useMemo(() => {
-    if (dateRange === 'Last 7 Days') return chartData7Days;
-    return chartData30Days;
-  }, [dateRange]);
+    if (dateRange === 'Last 7 Days') return dynamicChart7;
+    return dynamicChart30;
+  }, [dateRange, dynamicChart7, dynamicChart30]);
 
-  const currentStats = analyticsData[dateRange];
+  const currentStats = dynamicAnalytics[dateRange] || defaultAnalyticsData['Last 7 Days'];
 
   const exportPDF = () => {
     window.print();
@@ -117,7 +256,7 @@ const PharmacistReports = () => {
              </button>
              {showDropdown && (
                 <div className="absolute top-full mt-1 right-0 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden">
-                   {['Last 7 Days', 'Last 30 Days', 'Year to Date'].map(range => (
+                   {['Today', 'Last 7 Days', 'Last 30 Days', 'Year to Date'].map(range => (
                       <div 
                         key={range}
                         onClick={() => { setDateRange(range); setShowDropdown(false); }}
@@ -142,7 +281,13 @@ const PharmacistReports = () => {
          <p className="text-sm font-bold text-slate-500 mt-1">Generated: {new Date().toLocaleString()} | Period: {dateRange}</p>
       </div>
 
-      {/* Top Value Cards Widget */}
+      {isLoading ? (
+        <div className="py-20 flex justify-center items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b5ed7]"></div>
+        </div>
+      ) : (
+      <>
+        {/* Top Value Cards Widget */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
          {/* Revenue Card */}
          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden group">
@@ -297,6 +442,8 @@ const PharmacistReports = () => {
          </div>
 
       </div>
+      </>
+      )}
 
     </div>
   );

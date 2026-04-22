@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   Search, Pill, CheckCircle, FileText, Plus, Edit2, Save, X, Trash2
 } from 'lucide-react';
@@ -51,6 +52,7 @@ const defaultDrugs = [
 ];
 
 const PharmacistDrugLookup = () => {
+  const location = useLocation();
   const [drugs, setDrugs] = useState(() => {
     const saved = localStorage.getItem('pharmacist_drug_catalog');
     return saved ? JSON.parse(saved) : defaultDrugs;
@@ -58,6 +60,25 @@ const PharmacistDrugLookup = () => {
 
   const [activeDrug, setActiveDrug] = useState(drugs[0] || null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (location.state?.searchTarget) {
+      setSearchTerm(location.state.searchTarget);
+      
+      const matched = drugs.find(d => 
+        d.name.toLowerCase() === location.state.searchTarget.toLowerCase() || 
+        (d.ndc && d.ndc === location.state.searchTarget)
+      );
+      if (matched) {
+        setActiveDrug(matched);
+        setViewState('view');
+      }
+      
+      const StateObj = { ...location.state };
+      delete StateObj.searchTarget;
+      window.history.replaceState(StateObj, document.title);
+    }
+  }, [location, drugs]);
   
   // View states: 'view', 'add', 'edit'
   const [viewState, setViewState] = useState('view');

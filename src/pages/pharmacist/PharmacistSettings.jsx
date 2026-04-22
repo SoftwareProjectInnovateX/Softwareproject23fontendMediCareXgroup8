@@ -8,10 +8,12 @@ import {
   Trash2,
   Plus,
   Lock,
-  Save
+  Save,
+  AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlertContext } from '../../layouts/PharmacistLayout';
+import { getPharmacistProfile, updatePharmacistProfile, resetSystemData } from '../../services/pharmacistService';
 
 const PharmacistSettings = () => {
   const navigate = useNavigate();
@@ -53,6 +55,26 @@ const PharmacistSettings = () => {
     newPass: '',
     confirm: ''
   });
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const data = await getPharmacistProfile();
+        if (data) {
+          if (data.profile) setProfile(data.profile);
+          if (data.goals) setGoals(data.goals);
+          if (data.profileImage) setProfileImage(data.profileImage);
+        }
+      } catch (error) {
+        console.error("Failed to load pharmacist profile settings:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleProfileChange = (e) => {
     setProfile({...profile, [e.target.name]: e.target.value});
@@ -104,7 +126,7 @@ const PharmacistSettings = () => {
     });
   };
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
     // Save updated name/role as well
     setUserProfile(prev => {
        const updated = { ...prev, name: profile.name, role: profile.role, avatarUrl: profileImage };
@@ -112,9 +134,41 @@ const PharmacistSettings = () => {
        return updated;
     });
 
-    // In a real app, this would dispatch an API call
-    alert("Profile and Security settings saved successfully!");
+    try {
+      await updatePharmacistProfile('default_pharmacist', {
+        profile,
+        goals,
+        profileImage
+      });
+      alert("Profile and Security settings saved successfully to Database!");
+    } catch (e) {
+      alert("Failed to save settings to Database.");
+    }
   };
+
+  const handleFactoryReset = async () => {
+    const confirmReset = window.confirm(
+      "WARNING: This will delete ALL verification queue prescriptions and ALL dispensing history.\n\n" +
+      "Revenue charts will be reset to zero.\n" +
+      "The system will then auto-repopulate with the default 24 mock pending prescriptions upon next load.\n\n" +
+      "Are you absolutely sure you want to proceed?"
+    );
+
+    if (confirmReset) {
+      setIsLoading(true);
+      try {
+        await resetSystemData();
+        alert("System successfully reset! Redirecting to dashboard...");
+        navigate('/pharmacist');
+        window.location.reload();
+      } catch (e) {
+        alert("Failed to reset system. Check console for details.");
+        setIsLoading(false);
+      }
+    }
+  };
+
+  if (isLoading) return <div className="p-10 text-center text-slate-500 font-bold">Loading settings...</div>;
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
@@ -326,6 +380,27 @@ const PharmacistSettings = () => {
                         className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono"
                      />
                   </div>
+               </div>
+           </div>
+
+           {/* Section 4: Danger Zone */}
+           <div className="card shadow-sm border border-red-200 p-0 overflow-hidden bg-red-50/30">
+               <div className="bg-red-50 border-b border-red-100 p-6 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                  <h2 className="text-lg font-black text-red-800">System Danger Zone</h2>
+               </div>
+               
+               <div className="p-6">
+                  <h3 className="font-bold text-slate-800">Factory Reset System</h3>
+                  <p className="text-sm text-slate-600 mb-4 mt-1">
+                     Wipe all operational data (dispensing history, daily revenue, and active prescriptions) from the database to start a fresh simulation. The system will automatically inject 24 new mock pending prescriptions once reset.
+                  </p>
+                  <button 
+                     onClick={handleFactoryReset} 
+                     className="bg-red-100 hover:bg-red-600 hover:text-white text-red-600 border border-red-200 font-black text-sm px-6 py-2.5 rounded-xl shadow-sm transition-all"
+                  >
+                     Reset System Now
+                  </button>
                </div>
            </div>
 

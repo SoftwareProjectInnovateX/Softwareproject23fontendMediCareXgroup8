@@ -8,11 +8,12 @@ import {
   Users, 
   Archive, 
   Search, 
-  Bell, 
-  BarChart2, 
+  Bell,
+  BarChart2,
   Settings,
   ShieldPlus,
-  LogOut
+  LogOut,
+  Activity
 } from 'lucide-react';
 
 const PharmacistSidebar = () => {
@@ -30,15 +31,15 @@ const PharmacistSidebar = () => {
     { path: '/pharmacist/patients', name: 'Patients', icon: Users },
     { path: '/pharmacist/inventory', name: 'Inventory', icon: Archive },
     { path: '/pharmacist/lookup', name: 'Drug Lookup', icon: Search },
-    { path: '/pharmacist/alerts', name: 'Alerts', icon: Bell, dot: unreadAlerts > 0 },
+    { path: '/pharmacist/notifications', name: 'Notifications', icon: Bell, dot: unreadAlerts > 0 },
     { path: '/pharmacist/reports', name: 'Reports', icon: BarChart2 },
   ];
 
   return (
     <div className="w-64 bg-[#0b5ed7] text-white flex flex-col h-screen fixed left-0 top-0 transition-all duration-300">
       {/* Logo Area */}
-      <div className="h-[70px] flex items-center justify-center bg-[#084298]">
-        <span className="text-2xl font-black tracking-widest">MediCareX</span>
+      <div className="h-[70px] flex items-center px-6 bg-[#084298] border-b border-indigo-900/30">
+        <span className="text-3xl font-black tracking-wider antialiased text-white drop-shadow-sm">MediCareX</span>
       </div>
 
       {/* Navigation */}

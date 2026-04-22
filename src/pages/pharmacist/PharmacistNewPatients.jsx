@@ -1,14 +1,48 @@
-import React from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   ArrowLeft,
-  Clock,
   UserPlus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const PharmacistNewPatients = () => {
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [initialData, setInitialData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+     import('../../services/pharmacistService').then(({ getPatients }) => {
+        getPatients().then(pts => {
+           setInitialData(pts);
+           setIsLoading(false);
+        }).catch(e => {
+           console.error("Failed to fetch patients:", e);
+           setIsLoading(false);
+        });
+     });
+  }, []);
+
+  // 1. Logic to prevent showing people with the same name (Validation)
+  const uniquePatients = useMemo(() => {
+    const seenNames = new Set();
+    return initialData.filter(patient => {
+      const nameKey = (patient.name || '').toLowerCase();
+      // Checks if the name is already in the list
+      const isDuplicate = seenNames.has(nameKey);
+      seenNames.add(nameKey);
+      return !isDuplicate; // If already exists, do not add to the list
+    });
+  }, [initialData]);
+
+  // 2. Search feature (Search Logic) - Shows instantly when name or ID is typed
+  const filteredPatients = useMemo(() => {
+    return uniquePatients.filter(patient => 
+      (patient.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (patient.id || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [searchTerm, uniquePatients]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -22,80 +56,77 @@ const PharmacistNewPatients = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <UserPlus className="w-6 h-6 text-blue-600" />
-            New PharmacistPatients
+            Total Patient Directory
           </h1>
-          <p className="text-slate-500 mt-1">Showing 24 patients registered in the last 7 days.</p>
+          <p className="text-slate-500 mt-1">Showing {filteredPatients.length} unique registered patients.</p>
         </div>
       </div>
 
-      <div className="card shadow-sm p-0 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div className="relative w-64">
+      <div className="card shadow-sm p-0 overflow-hidden bg-white border border-slate-200 rounded-xl">
+        {/* Search Bar */}
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+          <div className="relative w-full max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input 
               type="text" 
-              placeholder="Search new patients..." 
-              className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+              placeholder="Enter patient name or ID..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
             />
-          </div>
-          <div className="flex gap-2">
-             <button className="bg-white border border-slate-200 text-slate-600 text-sm font-bold px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
-                Export List
-             </button>
           </div>
         </div>
         
-        <div className="table-container shadow-none border-0 rounded-none">
+        <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-white">
                 <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Patient Details</th>
-                <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Contact</th>
-                <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Registered At</th>
+                <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Date of Birth</th>
+                <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
                 <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {[
-                { name: 'Michael Chen', id: '#992104', dob: 'Jan 05, 1965', phone: '(555) 321-4567', time: '4 mins ago', tag: 'New Today' },
-                { name: 'Sarah Jenkins', id: '#849302', dob: 'Oct 12, 1982', phone: '(555) 123-4567', time: '2 hours ago', tag: 'New Today' },
-                { name: 'David Bowman', id: '#774621', dob: 'Jun 22, 1978', phone: '(555) 789-0123', time: 'Yesterday, 4:30 PM', tag: '' },
-                { name: 'Eleanor Rigby', id: '#112933', dob: 'Mar 15, 1948', phone: '(555) 456-7890', time: 'Oct 10, 2023', tag: '' }
-              ].map((patient, idx) => (
-                <tr key={idx} className="hover:bg-slate-50 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
-                        {patient.name.split(' ').map(n => n[0]).join('')}
+              {filteredPatients.length > 0 ? (
+                filteredPatients.map((patient) => (
+                  <tr key={patient.id} className="hover:bg-slate-50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
+                          {patient.name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">{patient.name}</p>
+                          <p className="text-xs text-slate-500 font-medium">ID: {patient.id}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-800">{patient.name}</p>
-                        <p className="text-xs text-slate-500 font-medium">ID: {patient.id} • DOB: {patient.dob}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600 font-medium">{patient.phone}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                       <Clock className="w-3.5 h-3.5 text-slate-400" />
-                       <span className="text-sm text-slate-600 font-medium">{patient.time}</span>
-                       {patient.tag && (
-                         <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ml-1">
-                           {patient.tag}
-                         </span>
-                       )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                     <button 
-                      onClick={() => navigate('/pharmacist/patients')} 
-                      className="text-blue-600 font-bold text-sm hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
-                     >
-                       View Profile
-                     </button>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600 font-medium">
+                      {patient.dob} <span className="text-slate-400 ml-1">({patient.age}y)</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${(patient.activeCount && patient.activeCount > 0) ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                        {(patient.activeCount && patient.activeCount > 0) ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                       <button 
+                        onClick={() => navigate('/pharmacist/patients', { state: { searchTarget: patient.id } })} 
+                        className="text-blue-600 font-bold text-sm hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+                       >
+                         View Profile
+                       </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="px-6 py-12 text-center">
+                    <p className="text-slate-400 italic">No such patient found.</p>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -105,4 +136,3 @@ const PharmacistNewPatients = () => {
 };
 
 export default PharmacistNewPatients;
-
