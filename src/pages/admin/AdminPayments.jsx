@@ -11,6 +11,7 @@ import {
   addDoc,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import Card from '../../components/Card';
 
 const AdminPayments = () => {
   const [payments, setPayments] = useState([]);
@@ -81,14 +82,12 @@ const AdminPayments = () => {
     if (!window.confirm(confirmMsg)) return;
 
     try {
-      // Mark the payment as PAID
       await updateDoc(doc(db, 'payments', paymentId), {
         status: 'PAID',
         paidDate: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
 
-      // Update matching invoice on supplier side
       const invoiceType = payment.paymentType === 'INITIAL' ? 'INITIAL' : 'FINAL';
       const invoicesSnap = await getDocs(
         query(
@@ -108,7 +107,6 @@ const AdminPayments = () => {
         });
       }
 
-      // If this is the INITIAL payment, update the purchaseOrder and notify supplier to deliver
       if (payment.paymentType === 'INITIAL') {
         await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
           initialPaymentStatus: 'PAID',
@@ -131,34 +129,29 @@ const AdminPayments = () => {
         });
       }
 
-      // If this is the FINAL payment, notify supplier all payments are complete
-      // If this is the FINAL payment, complete the order + notify supplier
-if (payment.paymentType === 'FINAL') {
+      if (payment.paymentType === 'FINAL') {
+        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
+          finalPaymentStatus: 'PAID',
+          finalPaymentDate: Timestamp.now(),
+          paymentStatus: 'COMPLETED',
+          orderStatus: 'COMPLETED',
+          updatedAt: Timestamp.now(),
+        });
 
-  
-  await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
-    finalPaymentStatus: 'PAID',
-    finalPaymentDate: Timestamp.now(),
-    paymentStatus: 'COMPLETED',   
-    orderStatus: 'COMPLETED',     
-    updatedAt: Timestamp.now(),
-  });
-
-  // Notify supplier
-  await addDoc(collection(db, 'notifications'), {
-    type: 'FINAL_PAYMENT_PAID',
-    recipientId: payment.supplierId,
-    recipientType: 'supplier',
-    purchaseOrderId: payment.purchaseOrderId,
-    poId: payment.orderId,
-    supplierId: payment.supplierId,
-    supplierName: payment.supplierName,
-    productName: payment.productName,
-    message: `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`,
-    read: false,
-    createdAt: Timestamp.now(),
-  });
-}
+        await addDoc(collection(db, 'notifications'), {
+          type: 'FINAL_PAYMENT_PAID',
+          recipientId: payment.supplierId,
+          recipientType: 'supplier',
+          purchaseOrderId: payment.purchaseOrderId,
+          poId: payment.orderId,
+          supplierId: payment.supplierId,
+          supplierName: payment.supplierName,
+          productName: payment.productName,
+          message: `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`,
+          read: false,
+          createdAt: Timestamp.now(),
+        });
+      }
 
       const successMsg = payment.paymentType === 'INITIAL'
         ? 'Initial payment marked as paid!\n\nSupplier has been notified to proceed with delivery.'
@@ -203,13 +196,13 @@ if (payment.paymentType === 'FINAL') {
   };
 
   const statCards = [
-    { label: 'Total Payments', value: stats.total,                           accent: 'border-slate-400' },
-    { label: 'Pending',        value: stats.pending,                         accent: 'border-amber-400' },
-    { label: 'Paid',           value: stats.paid,                            accent: 'border-emerald-400' },
-    { label: 'Overdue',        value: stats.overdue,                         accent: 'border-red-400' },
-    { label: 'Total Amount',   value: `Rs. ${stats.totalAmount.toFixed(2)}`,  accent: 'border-violet-400' },
-    { label: 'Total Paid',     value: `Rs. ${stats.totalPaid.toFixed(2)}`,    accent: 'border-emerald-400' },
-    { label: 'Total Pending',  value: `Rs. ${stats.totalPending.toFixed(2)}`, accent: 'border-amber-400' },
+    { label: 'Total Payments', value: stats.total },
+    { label: 'Pending',        value: stats.pending },
+    { label: 'Paid',           value: stats.paid },
+    { label: 'Overdue',        value: stats.overdue },
+    { label: 'Total Amount',   value: `Rs. ${stats.totalAmount.toFixed(2)}` },
+    { label: 'Total Paid',     value: `Rs. ${stats.totalPaid.toFixed(2)}` },
+    { label: 'Total Pending',  value: `Rs. ${stats.totalPending.toFixed(2)}` },
   ];
 
   return (
@@ -222,15 +215,9 @@ if (payment.paymentType === 'FINAL') {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
         {statCards.map((card) => (
-          <div
-            key={card.label}
-            className={`bg-white p-6 rounded-xl shadow-sm border-l-4 ${card.accent} transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-md`}
-          >
-            <p className="text-[13px] text-slate-500 font-medium mb-2">{card.label}</p>
-            <p className="text-[26px] font-bold text-slate-800 leading-tight">{card.value}</p>
-          </div>
+          <Card key={card.label} title={card.label} value={card.value} />
         ))}
       </div>
 
