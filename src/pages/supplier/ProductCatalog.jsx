@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   collection, getDocs, updateDoc, deleteDoc,
   doc, query, orderBy, where, Timestamp, getDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { getAuth } from 'firebase/auth';
@@ -10,20 +11,20 @@ import { getAuth } from 'firebase/auth';
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const STATUS_BADGE = {
-  pending:  { cls: 'bg-amber-100 text-amber-700',   label: 'Pending Approval' },
+  pending:  { cls: 'bg-amber-100 text-amber-700',    label: 'Pending Approval' },
   approved: { cls: 'bg-emerald-100 text-emerald-700', label: 'Approved' },
-  rejected: { cls: 'bg-red-100 text-red-700',        label: 'Rejected' },
+  rejected: { cls: 'bg-red-100 text-red-700',         label: 'Rejected' },
 };
 
 const ProductCatalog = () => {
-  const [products, setProducts]             = useState([]);
+  const [products, setProducts]               = useState([]);
   const [pendingProducts, setPendingProducts] = useState([]);
-  const [activeTab, setActiveTab]           = useState('approved'); // 'approved' | 'pending'
-  const [loading, setLoading]               = useState(true);
-  const [showModal, setShowModal]           = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
-  const [searchTerm, setSearchTerm]         = useState('');
-  const [currentUser, setCurrentUser]       = useState(null);
+  const [activeTab, setActiveTab]             = useState('approved');
+  const [loading, setLoading]                 = useState(true);
+  const [showModal, setShowModal]             = useState(false);
+  const [editingProduct, setEditingProduct]   = useState(null);
+  const [searchTerm, setSearchTerm]           = useState('');
+  const [currentUser, setCurrentUser]         = useState(null);
 
   const [formData, setFormData] = useState({
     productName: '', category: '',
@@ -33,6 +34,7 @@ const ProductCatalog = () => {
 
   const categories = ['Medicine', 'Baby Item', 'Skincare', 'Medical Equipment', 'Supplements'];
 
+  // ── Auth listener ──────────────────────────────────────────────────────────
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -69,40 +71,57 @@ const ProductCatalog = () => {
     }
   };
 
+  // ── Fetch APPROVED products (one-shot, these only change via edit/delete) ──
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const auth   = getAuth();
-      const userId = auth.currentUser?.uid;
-      if (!userId) { alert('Please login to view products'); setLoading(false); return; }
+      if (!currentUser?.id) { setLoading(false); return; }
 
-      // Fetch approved products (existing collection)
       const snapshot = await getDocs(query(
         collection(db, 'products'),
-        where('supplierId', '==', userId),
+        where('supplierId', '==', currentUser.id),
         orderBy('createdAt', 'desc'),
       ));
       setProducts(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
-
-      // Fetch pending/rejected products
-      const pendingSnap = await getDocs(query(
-        collection(db, 'pendingProducts'),
-        where('supplierId', '==', userId),
-        orderBy('createdAt', 'desc'),
-      ));
-      setPendingProducts(pendingSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-
-      setLoading(false);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error('Error fetching approved products:', error);
       alert('Failed to load products: ' + error.message);
+    } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { if (currentUser) fetchProducts(); }, [currentUser]);
+  // ── One-shot fetch for approved products whenever currentUser is ready ─────
+  useEffect(() => {
+    if (currentUser) fetchProducts();
+  }, [currentUser]);
 
-  // ── Add product: now submits to backend which saves to pendingProducts ──────
+  // ── Real-time listener for pending/approved/rejected submissions ───────────
+  // Uses onSnapshot so the supplier tab updates instantly when admin approves
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const q = query(
+      collection(db, 'pendingProducts'),
+      where('supplierId', '==', currentUser.id),
+      orderBy('createdAt', 'desc'),
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snap) => {
+        setPendingProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (error) => {
+        console.error('Pending products listener error:', error);
+      },
+    );
+
+    // Cleanup on unmount or user change
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  // ── Add product: submits to backend → saved to pendingProducts ─────────────
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
@@ -111,12 +130,10 @@ const ProductCatalog = () => {
         return;
       }
 
-      const auth = getAuth();
-      const user = auth.currentUser;
-      if (!user) { alert('Please login to add products'); return; }
+      if (!currentUser?.id) { alert('Please login to add products'); return; }
 
-      const userId   = currentUser?.id   || user.uid;
-      const userName = currentUser?.name || user.email || 'Supplier';
+      const userId   = currentUser.id;
+      const userName = currentUser.name;
 
       const response = await fetch(
         `${API_BASE}/supplier/products?supplierId=${userId}&supplierName=${encodeURIComponent(userName)}`,
@@ -140,15 +157,15 @@ const ProductCatalog = () => {
       alert('Product submitted for admin approval.\nYou will be notified once it is reviewed.');
       setShowModal(false);
       resetForm();
-      // Switch to pending tab so supplier can see their submission
+      // Switch to pending tab — onSnapshot will automatically show the new entry
       setActiveTab('pending');
-      fetchProducts();
     } catch (error) {
       console.error('Error adding product:', error);
       alert('Failed to submit product: ' + error.message);
     }
   };
 
+  // ── Update approved product ────────────────────────────────────────────────
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
     try {
@@ -190,6 +207,7 @@ const ProductCatalog = () => {
     }
   };
 
+  // ── Delete approved product ────────────────────────────────────────────────
   const handleDeleteProduct = async (productId, productName) => {
     if (!window.confirm(
       `Are you sure you want to delete "${productName}"?\n\nThis will also remove it from admin inventory.`,
@@ -231,6 +249,7 @@ const ProductCatalog = () => {
     setEditingProduct(null);
   };
 
+  // ── Filtered views ─────────────────────────────────────────────────────────
   const filteredProducts = products.filter((p) =>
     p.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.productCode?.toLowerCase().includes(searchTerm.toLowerCase())  ||
@@ -353,7 +372,7 @@ const ProductCatalog = () => {
                       </td>
                       <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
                       <td className="px-4 py-4 text-sm font-semibold text-slate-800">
-                        Rs.{product.wholesalePrice.toFixed(2)}
+                        Rs.{Number(product.wholesalePrice).toFixed(2)}
                       </td>
                       <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
                       <td className="px-4 py-4">
@@ -405,7 +424,9 @@ const ProductCatalog = () => {
               <div className="m-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
                 <span className="text-amber-500 text-lg leading-none mt-0.5">⏳</span>
                 <p className="text-[13px] text-amber-800">
-                  Products listed here are awaiting admin review. Once approved, they will appear in the <strong>Active Products</strong> tab and be visible in the admin inventory.
+                  Products listed here are awaiting admin review. Once approved, they will appear in the{' '}
+                  <strong>Active Products</strong> tab and be visible in the admin inventory.
+                  This list updates in real-time — no need to refresh.
                 </p>
               </div>
               <div className="overflow-x-auto">
@@ -422,6 +443,16 @@ const ProductCatalog = () => {
                   <tbody>
                     {filteredPending.map((product) => {
                       const badge = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
+
+                      // Handle both Firestore Timestamp objects and plain { _seconds } objects
+                      const formatDate = (val) => {
+                        if (!val) return '—';
+                        if (typeof val.toDate === 'function') return val.toDate().toLocaleDateString();
+                        if (val._seconds) return new Date(val._seconds * 1000).toLocaleDateString();
+                        const d = new Date(val);
+                        return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+                      };
+
                       return (
                         <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
                           <td className="px-4 py-4">
@@ -436,9 +467,7 @@ const ProductCatalog = () => {
                           </td>
                           <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
                           <td className="px-4 py-4 text-xs text-slate-400">
-                            {product.createdAt?.toDate
-                              ? product.createdAt.toDate().toLocaleDateString()
-                              : '—'}
+                            {formatDate(product.createdAt)}
                           </td>
                           <td className="px-4 py-4">
                             <div>
@@ -464,7 +493,7 @@ const ProductCatalog = () => {
         </div>
       )}
 
-      {/* Modal */}
+      {/* ── ADD / EDIT MODAL ──────────────────────────────────────────────────── */}
       {showModal && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
@@ -484,7 +513,8 @@ const ProductCatalog = () => {
               <div className="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
                 <span className="text-amber-500 text-base leading-none mt-0.5">⚠️</span>
                 <p className="text-[13px] text-amber-800">
-                  This product will be submitted for <strong>admin approval</strong> before it appears in the inventory. A unique product code will be assigned upon approval.
+                  This product will be submitted for <strong>admin approval</strong> before it appears in the inventory.
+                  A unique product code will be assigned upon approval.
                 </p>
               </div>
             )}
