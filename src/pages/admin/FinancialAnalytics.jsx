@@ -13,6 +13,15 @@ import {
   Cell,
 } from "recharts";
 
+/* ================= SAFE DATE HELPER ================= */
+const getMonth = (val) => {
+  if (!val) return -1;
+  if (typeof val.toDate === "function") return val.toDate().getMonth(); // Firestore Timestamp
+  if (val instanceof Date) return val.getMonth();                        // JS Date
+  const d = new Date(val);                                               // string / number
+  return isNaN(d) ? -1 : d.getMonth();
+};
+
 export default function FinancialAnalytics() {
   const [orders, setOrders] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -43,21 +52,18 @@ export default function FinancialAnalytics() {
   const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0;
 
   /* ================= MONTHLY TREND ================= */
-
-  
   const months = [
     "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec"
+    "Jul","Aug","Sep","Oct","Nov","Dec",
   ];
-
 
   const trendData = months.map((month, i) => {
     const revenue = orders
-      .filter((o) => o.createdAt?.toDate()?.getMonth() === i)
+      .filter((o) => getMonth(o.createdAt) === i)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
     const cost = purchaseOrders
-      .filter((p) => p.createdAt?.toDate()?.getMonth() === i)
+      .filter((p) => getMonth(p.createdAt) === i)
       .reduce((s, p) => s + (p.amount || 0), 0);
 
     return { month, Revenue: revenue, Cost: cost };
@@ -69,7 +75,7 @@ export default function FinancialAnalytics() {
       ...orders.map((o) => o.category),
       ...purchaseOrders.map((p) => p.category),
     ]),
-  ];
+  ].filter(Boolean); // remove undefined/null categories
 
   const categoryData = categories.map((cat) => {
     const revenue = orders
