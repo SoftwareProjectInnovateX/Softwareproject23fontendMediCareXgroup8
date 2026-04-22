@@ -13,6 +13,14 @@ import {
   Cell,
 } from "recharts";
 
+const toDate = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === "function") return value.toDate();
+  if (value instanceof Date) return value;
+  if (typeof value === "string" || typeof value === "number") return new Date(value);
+  return null;
+};
+
 export default function FinancialAnalytics() {
   const [orders, setOrders] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -30,11 +38,7 @@ export default function FinancialAnalytics() {
   }, []);
 
   if (loading)
-    return (
-      <div className="p-6 bg-slate-50 min-h-screen text-slate-500 text-lg">
-        Loading analytics...
-      </div>
-    );
+    return <div className="p-6 text-gray-500">Loading analytics...</div>;
 
   /* ================= SUMMARY ================= */
   const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
@@ -43,21 +47,18 @@ export default function FinancialAnalytics() {
   const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0;
 
   /* ================= MONTHLY TREND ================= */
-
-  
   const months = [
     "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec"
+    "Jul","Aug","Sep","Oct","Nov","Dec",
   ];
-
 
   const trendData = months.map((month, i) => {
     const revenue = orders
-      .filter((o) => o.createdAt?.toDate()?.getMonth() === i)
+      .filter((o) => toDate(o.createdAt)?.getMonth() === i)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
     const cost = purchaseOrders
-      .filter((p) => p.createdAt?.toDate()?.getMonth() === i)
+      .filter((p) => toDate(p.createdAt)?.getMonth() === i)
       .reduce((s, p) => s + (p.amount || 0), 0);
 
     return { month, Revenue: revenue, Cost: cost };
@@ -91,10 +92,10 @@ export default function FinancialAnalytics() {
     };
   });
 
-  /*  PIE COLORS  */
+  /* ================= PIE COLORS ================= */
   const COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444"];
 
-  /*  SUMMARY CARDS CONFIG */
+  /* ================= SUMMARY CARDS CONFIG ================= */
   const summaryCards = [
     {
       label: "Total Cost",
