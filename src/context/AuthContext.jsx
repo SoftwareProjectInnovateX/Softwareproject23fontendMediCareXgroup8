@@ -12,6 +12,7 @@ import {
   collection,
   getDocs,
   addDoc,
+  setDoc,
   Timestamp,
 } from "firebase/firestore";
 import { auth, db } from "../services/firebase";
@@ -77,8 +78,8 @@ export function AuthProvider({ children }) {
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         };
+        await setDoc(doc(db, "users", user.uid), savedUserData);
 
-       
         return {
           success: true,
           user: { uid: user.uid, email, role: "customer", ...savedUserData },
@@ -99,7 +100,7 @@ export function AuthProvider({ children }) {
         } = userData;
 
         // Save request to pendingRequests collection
-         await addDoc(collection(db, "pendingRequests"), {
+        await addDoc(collection(db, "pendingRequests"), {
           type: "supplier",
           companyName,
           email,
@@ -128,7 +129,6 @@ export function AuthProvider({ children }) {
         });
 
         return { success: true, pending: true };
-
       } else if (role === "pharmacist") {
         //Pharmacist: save as pending request
         const {
@@ -154,7 +154,7 @@ export function AuthProvider({ children }) {
           requestedAt: Timestamp.now(),
         });
 
-         // Notify admin that a new account request has been submitted
+        // Notify admin that a new account request has been submitted
         await addDoc(collection(db, "notifications"), {
           type: "ACCOUNT_REQUEST",
           message: `New pharmacist account request from ${fullName}`,
@@ -165,7 +165,7 @@ export function AuthProvider({ children }) {
           read: false,
           createdAt: Timestamp.now(),
         });
-        
+
         return { success: true, pending: true };
       }
     } catch (error) {
@@ -201,7 +201,7 @@ export function AuthProvider({ children }) {
         admin: "admins",
       };
 
-      for (const [role, collectionName] of Object.entries(roleCollections)) {
+      for (const [, collectionName] of Object.entries(roleCollections)) {
         const userDoc = await getDoc(doc(db, collectionName, user.uid));
         if (userDoc.exists()) {
           userData = userDoc.data();
@@ -226,7 +226,7 @@ export function AuthProvider({ children }) {
         );
       }
       // Update last login time
-      const collectionName = roleCollections[actualRole];
+      const _collectionName = roleCollections[actualRole];
 
       sessionStorage.setItem("userId", user.uid);
       sessionStorage.setItem("userRole", actualRole);
@@ -449,6 +449,7 @@ export function AuthProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
