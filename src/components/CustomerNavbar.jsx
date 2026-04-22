@@ -30,7 +30,7 @@ export default function CustomerNavbar() {
       {/* ── Top Bar ── */}
       <div style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}>
         <div style={{
-          maxWidth: 1200, margin: "0 auto", padding: "0 32px",
+          maxWidth: "100%", margin: "0 auto", padding: "0 40px",
           height: 42, display: "flex", justifyContent: "flex-end",
           alignItems: "center", gap: 28,
         }}>
@@ -71,44 +71,44 @@ export default function CustomerNavbar() {
         borderBottom: "1px solid rgba(26,135,225,0.15)",
         boxShadow: "0 2px 16px rgba(26,135,225,0.09)",
       }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 32px" }}>
-          <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 32 }}>
+        <div style={{ width: "100%", padding: "0 40px", boxSizing: "border-box" }}>
+          <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
-            {/* Logo */}
-            <Link to="/customer" style={{ display: "flex", alignItems: "center", gap: 14, textDecoration: "none", flexShrink: 0 }}>
+            {/* ── LEFT: Logo ── */}
+            <Link to="/customer" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", flexShrink: 0 }}>
               <div style={{
-                width: 52, height: 52, borderRadius: "50%",
+                width: 46, height: 46, borderRadius: "50%",
                 backgroundImage: "url('/logo.png')", backgroundSize: "cover", backgroundPosition: "center",
                 border: "2.5px solid rgba(26,135,225,0.22)",
                 flexShrink: 0,
               }} />
               <div>
-                <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 22, color: "#0f2a5e", lineHeight: 1.2 }}>
+                <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 20, color: "#0f2a5e", lineHeight: 1.2 }}>
                   MediCareX
                 </div>
-                <div style={{ fontSize: 11.5, fontWeight: 500, color: "#64748b", letterSpacing: "0.04em", marginTop: 2 }}>
+                <div style={{ fontSize: 11, fontWeight: 500, color: "#64748b", letterSpacing: "0.04em", marginTop: 1 }}>
                   Your Smart Pharmacy
                 </div>
               </div>
             </Link>
 
-            {/* Nav Links */}
-            <nav style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {/* ── CENTER: Nav Links ── */}
+            <nav style={{ display: "flex", alignItems: "center", gap: 80, position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   to={link.href}
                   style={{
-                    padding: "9px 18px",
+                    padding: "8px 16px",
                     borderRadius: 10,
-                    fontSize: 14,
-                    fontWeight: 600,
+                    fontSize: 17,
+                    fontWeight: 800,
                     fontFamily: FONT.body,
                     textDecoration: "none",
                     letterSpacing: "0.01em",
                     transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
                     ...(isActive(link.href)
-                      ? { background: "#1a87e1", color: "#ffffff", boxShadow: "0 4px 14px rgba(26,135,225,0.28)" }
+                      ? { background: "#1749b5", color: "#ffffff", boxShadow: "20px 20px 20px rgba(26,135,225,0.28)" }
                       : { color: "#334155", background: "transparent" }
                     ),
                   }}
@@ -120,8 +120,8 @@ export default function CustomerNavbar() {
               ))}
             </nav>
 
-            {/* Cart + User */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            {/* ── RIGHT: Cart + Profile ── */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
 
               {/* Cart */}
               <Link
@@ -129,10 +129,10 @@ export default function CustomerNavbar() {
                 style={{
                   position: "relative",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 46, height: 46, borderRadius: 12,
+                  width: 44, height: 44, borderRadius: 12,
                   background: "rgba(26,135,225,0.06)",
                   border: "1.5px solid rgba(26,135,225,0.18)",
-                  fontSize: 20, textDecoration: "none",
+                  fontSize: 19, textDecoration: "none",
                   transition: "background 0.15s, border-color 0.15s",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,135,225,0.13)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.4)"; }}
@@ -158,9 +158,9 @@ export default function CustomerNavbar() {
                 onClick={() => navigate("/customer/profile")}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 46, height: 46, borderRadius: 12,
+                  width: 44, height: 44, borderRadius: 12,
                   background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)",
-                  border: "none", fontSize: 20,
+                  border: "none", fontSize: 19,
                   boxShadow: "0 4px 14px rgba(26,135,225,0.28)",
                   cursor: "pointer",
                   transition: "opacity 0.15s, box-shadow 0.15s",
