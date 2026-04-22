@@ -1,23 +1,29 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
 import {
-  collection, addDoc, serverTimestamp,
-  query, where, getDocs,
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs,
 } from "firebase/firestore";
 import { CATEGORIES } from "../../data/categories";
+import API_BASE_URL from "../../config/api";
+import { auth } from "../../services/firebase";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  bg:          "#f1f5f9",
-  surface:     "#ffffff",
-  border:      "rgba(26,135,225,0.18)",
-  accent:      "#1a87e1",
-  accentMid:   "#0284c7",
+  bg: "#f1f5f9",
+  surface: "#ffffff",
+  border: "rgba(26,135,225,0.18)",
+  accent: "#1a87e1",
+  accentMid: "#0284c7",
   textPrimary: "#1e293b",
-  textMuted:   "#64748b",
-  textSoft:    "#475569",
+  textMuted: "#64748b",
+  textSoft: "#475569",
 };
 
 const FONT = { body: "'DM Sans', sans-serif" };
@@ -37,17 +43,22 @@ function Field({ label, children }) {
 export default function AddProductForm() {
   // Controlled state for all product fields
   const [form, setForm] = useState({
-    name: "", price: "", description: "",
-    imageUrl: "", category: "", supplierId: "", stockId: "",
+    name: "",
+    price: "",
+    description: "",
+    imageUrl: "",
+    category: "",
+    supplierId: "",
+    stockId: "",
   });
 
-  const [tags, setTags]                 = useState({ newArrival: false, bestSelling: false });
+  const [tags, setTags] = useState({ newArrival: false, bestSelling: false });
   const [previewStock, setPreviewStock] = useState(null); // shows supplier stock after productCode lookup
-  const [loading, setLoading]           = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Inject shared input/select styles once; cleaned up on unmount
   useEffect(() => {
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.textContent = `
       .light-input::placeholder { color: #94a3b8 !important; }
       .light-input option        { background: #ffffff; color: #1e293b; }
@@ -57,15 +68,20 @@ export default function AddProductForm() {
     return () => document.head.removeChild(style);
   }, []);
 
-  const handleChange    = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-  const handleTagChange = (e) => setTags({ ...tags, [e.target.name]: e.target.checked });
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleTagChange = (e) =>
+    setTags({ ...tags, [e.target.name]: e.target.checked });
 
   /**
    * Queries the supplier "products" collection by productCode.
    * Returns the first matching document's data, or null if not found.
    */
   const findSupplierProduct = async (productCode) => {
-    const q    = query(collection(db, "products"), where("productCode", "==", productCode));
+    const q = query(
+      collection(db, "products"),
+      where("productCode", "==", productCode),
+    );
     const snap = await getDocs(q);
     return snap.empty ? null : snap.docs[0].data();
   };
@@ -108,8 +124,32 @@ export default function AddProductForm() {
         createdAt: serverTimestamp(),
       });
 
-      alert(`Product added successfully. Starting stock: ${supplierData.stock ?? 0}`);
-      setForm({ name: "", price: "", description: "", imageUrl: "", category: "", supplierId: "", stockId: "" });
+      // Auto-sync new product into Pinecone for SmartSearch
+      try {
+        const token = auth.currentUser
+          ? await auth.currentUser.getIdToken()
+          : null;
+        await fetch(`${API_BASE_URL}/api/admin/search/sync`, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+        });
+      } catch (syncErr) {
+        console.warn("Search sync failed (non-critical):", syncErr);
+      }
+
+      alert(
+        `Product added successfully. Starting stock: ${supplierData.stock ?? 0}`,
+      );
+      setForm({
+        name: "",
+        price: "",
+        description: "",
+        imageUrl: "",
+        category: "",
+        supplierId: "",
+        stockId: "",
+      });
       setTags({ newArrival: false, bestSelling: false });
       setPreviewStock(null);
     } catch (err) {
@@ -124,7 +164,6 @@ export default function AddProductForm() {
       onSubmit={handleSubmit}
       className="flex flex-col gap-[14px] font-['DM_Sans',sans-serif]"
     >
-
       {/* Row 1: Name + Price */}
       <div className="grid grid-cols-2 gap-[14px]">
         <Field label="Product Name">
@@ -160,8 +199,10 @@ export default function AddProductForm() {
           required
         >
           <option value="">Select category</option>
-          {CATEGORIES.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+          {CATEGORIES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
           ))}
         </select>
       </Field>
@@ -213,11 +254,13 @@ export default function AddProductForm() {
 
       {/* Inline stock preview – shown after productCode lookup */}
       {previewStock !== null && (
-        <div className={`text-[13px] font-medium rounded-lg px-[13px] py-[9px] border ${
-          previewStock === "Not found"
-            ? "text-red-500 bg-[rgba(239,68,68,0.06)] border-[rgba(239,68,68,0.2)]"
-            : "text-[#0284c7] bg-[rgba(26,135,225,0.06)] border-[rgba(26,135,225,0.18)]"
-        }`}>
+        <div
+          className={`text-[13px] font-medium rounded-lg px-[13px] py-[9px] border ${
+            previewStock === "Not found"
+              ? "text-red-500 bg-[rgba(239,68,68,0.06)] border-[rgba(239,68,68,0.2)]"
+              : "text-[#0284c7] bg-[rgba(26,135,225,0.06)] border-[rgba(26,135,225,0.18)]"
+          }`}
+        >
           {previewStock === "Not found"
             ? "Supplier product not found for this code."
             : `Supplier stock available: ${previewStock} units`}
@@ -228,12 +271,16 @@ export default function AddProductForm() {
       <Field label="Product Tags">
         <div className="flex gap-[10px]">
           <TagCheckbox
-            name="newArrival" label="New Arrival"
-            checked={tags.newArrival} onChange={handleTagChange}
+            name="newArrival"
+            label="New Arrival"
+            checked={tags.newArrival}
+            onChange={handleTagChange}
           />
           <TagCheckbox
-            name="bestSelling" label="Best Selling"
-            checked={tags.bestSelling} onChange={handleTagChange}
+            name="bestSelling"
+            label="Best Selling"
+            checked={tags.bestSelling}
+            onChange={handleTagChange}
           />
         </div>
       </Field>
@@ -249,7 +296,6 @@ export default function AddProductForm() {
       >
         {loading ? "Adding product..." : "Add Product"}
       </button>
-
     </form>
   );
 }
@@ -260,11 +306,13 @@ export default function AddProductForm() {
  */
 function TagCheckbox({ name, label, checked, onChange }) {
   return (
-    <label className={`flex items-center gap-2 px-[14px] py-2 rounded-[9px] cursor-pointer text-[13px] font-medium select-none border transition-all duration-150 ${
-      checked
-        ? "border-[#1a87e1] bg-[rgba(26,135,225,0.1)] text-[#1a87e1]"
-        : "border-[rgba(26,135,225,0.18)] bg-white text-[#475569]"
-    }`}>
+    <label
+      className={`flex items-center gap-2 px-[14px] py-2 rounded-[9px] cursor-pointer text-[13px] font-medium select-none border transition-all duration-150 ${
+        checked
+          ? "border-[#1a87e1] bg-[rgba(26,135,225,0.1)] text-[#1a87e1]"
+          : "border-[rgba(26,135,225,0.18)] bg-white text-[#475569]"
+      }`}
+    >
       <input
         type="checkbox"
         name={name}
