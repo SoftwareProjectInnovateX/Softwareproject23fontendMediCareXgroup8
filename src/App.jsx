@@ -1,19 +1,19 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-/* ================== AUTH PAGES ================== */
+/* AUTH */
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
-import CustomerDashboard from "./pages/customer/CustomerDashboard"; //to use for testings
 import RegisterSuccess from "./pages/auth/RegisterSuccess";
 
-/* ================== LAYOUTS ================== */
+/* LAYOUTS */
 import SupplierLayout from "./layouts/SupplierLayout";
 import AdminLayout from "./layouts/AdminLayout";
+import CustomerLayout from "./layouts/CustomerLayout";
+import PharmacistLayout from "./layouts/PharmacistLayout";
 
-/* ================== SUPPLIER PAGES ================== */
+/* SUPPLIER */
 import Dashboard from "./pages/supplier/Dashboard";
 import ProductCatalog from "./pages/supplier/ProductCatalog";
 import PurchaseOrders from "./pages/supplier/PurchaseOrders";
@@ -22,7 +22,7 @@ import Settings from "./pages/supplier/Settings";
 import InvoicePayments from "./pages/supplier/InvoicePayments";
 import RestockAlert from "./pages/supplier/RestockAlert";
 
-/* ================== ADMIN PAGES ================== */
+/* ADMIN */
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import Suppliers from "./pages/admin/Suppliers";
 import Products from "./pages/admin/Products";
@@ -36,66 +36,126 @@ import AccountRequests from "./pages/admin/AccountRequests";
 import SearchAnalytics from './pages/admin/SearchAnalytics';
 import AdminProductApproval from './pages/admin/AdminProductApproval';
 
+/* CUSTOMER */
+import HomePage from "./pages/customer/HomePage";
+import ProductsPage from "./pages/customer/ProductsPage";
+import CartPage from "./pages/customer/CartPage";
+import CheckoutPage from "./pages/customer/CheckoutPage";
+import OrdersPage from "./pages/customer/OrdersPage";
+import BrandsPage from "./pages/customer/BrandsPage";
+import ContactPage from "./pages/customer/ContactPage";
+import PrescriptionPage from "./pages/customer/PrescriptionPage";
+import ReturnPage from "./pages/customer/ReturnPage";
+import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
+
+/* PHARMACIST */
+import PharmacistDashboard from "./pages/pharmacist/Dashboard";
+import AddProductForm from "./pages/pharmacist/Addproductform";
+import MyProducts from "./pages/pharmacist/MyProducts";
+import Prescriptions from "./pages/pharmacist/Prescriptions";
+import Orders from "./pages/pharmacist/Orders";
+import Inventory from "./pages/pharmacist/Inventory";
+import Returns from "./pages/pharmacist/Returns";
+import BrandsManagementPage from './pages/pharmacist/BrandsManagementPage';
+import MessagesPage from './pages/pharmacist/MessagesPage';
+
 export default function App() {
   return (
-    <AuthProvider>
-      <Routes>
-        {/* ========== PUBLIC AUTH ROUTES ========== */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/auth" element={<Navigate to="/login" replace />} /> 
-        <Route path="/customer" element={<CustomerDashboard />} /> 
-        <Route path="/register-success" element={<RegisterSuccess />} />
+    <Routes>
 
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* AUTH */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/register-success" element={<RegisterSuccess />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
 
-        {/* ========== SUPPLIER ROUTES (Protected) ========== */}
-        <Route
-          path="/supplier"
-          element={
-            <ProtectedRoute allowedRoles={["supplier"]}>
-              <SupplierLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Dashboard />} />
-          <Route path="product-catalog" element={<ProductCatalog />} />
-          <Route path="purchase-orders" element={<PurchaseOrders />} />
-          <Route path="update-delivery" element={<UpdateDelivery />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="invoices" element={<InvoicePayments />} />
-          <Route path="restock-alert" element={<RestockAlert />} />
-        </Route>
+      {/* SUPPLIER */}
+      <Route
+        path="/supplier"
+        element={
+          <ProtectedRoute allowedRoles={["supplier"]}>
+            <SupplierLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Dashboard />} />
+        <Route path="product-catalog" element={<ProductCatalog />} />
+        <Route path="purchase-orders" element={<PurchaseOrders />} />
+        <Route path="update-delivery" element={<UpdateDelivery />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="invoices" element={<InvoicePayments />} />
+        <Route path="restock-alert" element={<RestockAlert />} />
+      </Route>
 
-        {/* ========== ADMIN ROUTES (Protected) ========== */}
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <AdminLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<AdminDashboard />} />
-          <Route path="suppliers" element={<Suppliers />} />
-          <Route path="products" element={<Products />} />
-          <Route path="financialAnalytics" element={<FinancialAnalytics />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="notifications" element={<Notifications />} />
-          <Route path="usermanagement" element={<UserManagement />} />
-          <Route path="ordermanagement" element={<OrderManagement />} />
-          <Route path="adminPayments" element={<AdminPayments />} />
-          <Route path="account-requests" element={<AccountRequests />} />
-          <Route path="search-analytics" element={<SearchAnalytics />} />
-          <Route path="adminproductapproval" element={<AdminProductApproval />} />
+      {/* ADMIN */}
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute allowedRoles={["admin"]}>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="suppliers" element={<Suppliers />} />
+        <Route path="products" element={<Products />} />
+        <Route path="financialAnalytics" element={<FinancialAnalytics />} />
+        <Route path="analytics" element={<Analytics />} />
+        <Route path="notifications" element={<Notifications />} />
+        <Route path="usermanagement" element={<UserManagement />} />
+        <Route path="ordermanagement" element={<OrderManagement />} />
+        <Route path="adminPayments" element={<AdminPayments />} />
+        <Route path="account-requests" element={<AccountRequests />} />
+        <Route path="search-analytics" element={<SearchAnalytics />} />
+        <Route path="adminproductapproval" element={<AdminProductApproval />} />
+      </Route>
 
-        </Route>
+      {/* CUSTOMER */}
+      <Route
+        path="/customer"
+        element={
+          <ProtectedRoute allowedRoles={["customer"]}>
+            <CustomerLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<HomePage />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="cart" element={<CartPage />} />
+        <Route path="checkout" element={<CheckoutPage />} />
+        <Route path="orders" element={<OrdersPage />} />
+        <Route path="brands" element={<BrandsPage />} />
+        <Route path="contact" element={<ContactPage />} />
+        <Route path="prescription" element={<PrescriptionPage />} />
+        <Route path="returns" element={<ReturnPage />} />
+        <Route path="/customer/profile" element={<CustomerProfilePage />} />
+      </Route>
 
-        {/* ========== 404 - NOT FOUND ========== */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </AuthProvider>
+      {/* PHARMACIST */}
+      <Route
+        path="/pharmacist"
+        element={
+          <ProtectedRoute allowedRoles={["pharmacist"]}>
+            <PharmacistLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<PharmacistDashboard />} />
+        <Route path="add-product" element={<AddProductForm />} />
+        <Route path="my-products" element={<MyProducts />} />
+        <Route path="prescriptions" element={<Prescriptions />} />
+        <Route path="orders" element={<Orders />} />
+        <Route path="inventory" element={<Inventory />} />
+        <Route path="returns" element={<Returns />} />
+        <Route path="/pharmacist/brands" element={<BrandsManagementPage />} />
+        <Route path="/pharmacist/messages" element={<MessagesPage />} />
+      </Route>
+
+      {/* 404 */}
+      <Route path="*" element={<Navigate to="/login" replace />} />
+
+    </Routes>
   );
 }
