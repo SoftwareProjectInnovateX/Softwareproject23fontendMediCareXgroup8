@@ -47,8 +47,6 @@ import ContactPage from "./pages/customer/ContactPage";
 import PrescriptionPage from "./pages/customer/PrescriptionPage";
 import ReturnPage from "./pages/customer/ReturnPage";
 import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
-import Success from "./pages/customer/Success";
-import Cancel from "./pages/customer/Cancel";
 
 /* PHARMACIST */
 import PharmacistDashboard from "./pages/pharmacist/Dashboard";
@@ -126,8 +124,6 @@ export default function App() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="cart" element={<CartPage />} />
         <Route path="checkout" element={<CheckoutPage />} />
-        <Route path="checkout/success" element={<Success />} />
-        <Route path="checkout/cancel" element={<Cancel />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="brands" element={<BrandsPage />} />
         <Route path="contact" element={<ContactPage />} />
