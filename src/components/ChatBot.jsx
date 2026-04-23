@@ -3,18 +3,40 @@ import API_BASE_URL from "../config/api";
 import { auth } from "../services/firebase";
 
 export default function ChatBot({ onClose }) {
-  const [messages, setMessages] = useState([
-    {
-      role: "bot",
-      text: "Hello! I'm the MediCareX Health Assistant. I answer general health questions based on WHO guidelines.\n\nHow can I help you today?\n\n⚕️ General health information only — not a substitute for professional medical advice.",
-    },
-  ]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem("chatMessages");
+      return saved
+        ? JSON.parse(saved)
+        : [
+            {
+              role: "bot",
+              text: "Hello! I'm the MediCareX Health Assistant. I answer general health questions based on WHO guidelines.\n\nHow can I help you today?\n\n⚕️ General health information only — not a substitute for professional medical advice.",
+            },
+          ];
+    } catch {
+      return [
+        {
+          role: "bot",
+          text: "Hello! I'm the MediCareX Health Assistant. I answer general health questions based on WHO guidelines.\n\nHow can I help you today?\n\n⚕️ General health information only — not a substitute for professional medical advice.",
+        },
+      ];
+    }
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("chatMessages", JSON.stringify(messages));
+    } catch {
+      // localStorage full or unavailable — fail silently
+    }
   }, [messages]);
 
   const getFirebaseToken = async () => {
@@ -83,7 +105,11 @@ export default function ChatBot({ onClose }) {
       {/* Header */}
       <div className="bg-[#0b5ed7] px-4 py-3 flex items-center gap-3">
         <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center overflow-hidden">
-           <img src="/src/assets/logo.png" alt="MediCareX" className="w-6 h-6 object-contain" />
+          <img
+            src="/src/assets/logo.png"
+            alt="MediCareX"
+            className="w-6 h-6 object-contain"
+          />
         </div>
         <div>
           <p className="text-white font-semibold text-sm">Health Assistant</p>
@@ -94,6 +120,34 @@ export default function ChatBot({ onClose }) {
             <div className="w-2 h-2 bg-green-400 rounded-full"></div>
             <span className="text-blue-200 text-xs">Online</span>
           </div>
+
+          {/* Clear chat button */}
+          <button
+            onClick={() => {
+              localStorage.removeItem("chatMessages");
+              setMessages([
+                {
+                  role: "bot",
+                  text: "Hello! I'm the MediCareX Health Assistant. I answer general health questions based on WHO guidelines.\n\nHow can I help you today?\n\n⚕️ General health information only — not a substitute for professional medical advice.",
+                },
+              ]);
+            }}
+            className="text-white hover:text-blue-200 bg-transparent border-none cursor-pointer text-xs"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
           {/* Close button */}
           {onClose && (
             <button
