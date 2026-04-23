@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
@@ -6,6 +6,8 @@ import {
   collection, getDocs, doc, updateDoc, addDoc, serverTimestamp, query, where,
 } from "firebase/firestore";
 import { CATEGORIES } from "../../data/categories";
+import API_BASE_URL from "../../config/api";
+import { auth } from "../../services/firebase";
 
 function Field({ label, children }) {
   return (
@@ -43,8 +45,13 @@ export default function AddProductForm() {
   const [loadingPending, setLoadingPending]   = useState(true);
 
   const [form, setForm] = useState({
-    name: "", price: "", description: "",
-    imageUrl: "", category: "", supplierId: "", stockId: "",
+    name: "",
+    price: "",
+    description: "",
+    imageUrl: "",
+    category: "",
+    supplierId: "",
+    stockId: "",
   });
   const [tags, setTags]       = useState({ newArrival: false, bestSelling: false });
   const [loading, setLoading] = useState(false);
@@ -150,8 +157,32 @@ export default function AddProductForm() {
         createdAt:   serverTimestamp(),
       });
 
-      alert("Product added successfully.");
-      setForm({ name: "", price: "", description: "", imageUrl: "", category: "", supplierId: "", stockId: "" });
+      // Auto-sync new product into Pinecone for SmartSearch
+      try {
+        const token = auth.currentUser
+          ? await auth.currentUser.getIdToken()
+          : null;
+        await fetch(`${API_BASE_URL}/api/admin/search/sync`, {
+          headers: {
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+        });
+      } catch (syncErr) {
+        console.warn("Search sync failed (non-critical):", syncErr);
+      }
+
+      alert(
+        `Product added successfully. Starting stock: ${supplierData.stock ?? 0}`,
+      );
+      setForm({
+        name: "",
+        price: "",
+        description: "",
+        imageUrl: "",
+        category: "",
+        supplierId: "",
+        stockId: "",
+      });
       setTags({ newArrival: false, bestSelling: false });
     } catch (err) {
       alert(`Error: ${err.message}`);

@@ -2,12 +2,6 @@ import { useState, useCallback, useRef } from "react";
 import API_BASE_URL from "../config/api";
 import { auth } from "../services/firebase";
 
-/**
- * SmartSearch component
- * Props:
- *   onResults(results) — called with the search results array
- *   onLoading(bool)    — called with true/false during search
- */
 export default function SmartSearch({ onResults, onLoading }) {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +23,7 @@ export default function SmartSearch({ onResults, onLoading }) {
   const performSearch = useCallback(
     async (searchQuery) => {
       if (!searchQuery.trim()) {
-        onResults([]);
+        onResults(null);
         return;
       }
 
@@ -82,7 +76,7 @@ export default function SmartSearch({ onResults, onLoading }) {
   const handleClear = () => {
     setQuery("");
     setError(null);
-    onResults([]);
+    onResults(null);
   };
 
   return (
@@ -111,7 +105,7 @@ export default function SmartSearch({ onResults, onLoading }) {
           value={query}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder='Smart Search — try "pain relief" or "baby care"'
+          placeholder='Smart Search: try "pain relief" or "skin care"'
           className="w-full pl-10 pr-36 py-3 border-2 border-[#cbd6ee] rounded-lg text-[15px] transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
         />
 
