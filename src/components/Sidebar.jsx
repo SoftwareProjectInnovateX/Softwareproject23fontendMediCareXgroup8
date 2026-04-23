@@ -15,6 +15,7 @@ import {
   MdChevronRight,
   MdAssignmentInd,
   MdSearch,
+  MdFactCheck,
 } from "react-icons/md";
 
 export default function Sidebar() {
@@ -25,7 +26,7 @@ export default function Sidebar() {
     { id: 1, icon: <MdDashboard size={22} />, text: "Dashboard", path: "/admin" },
     { id: 2, icon: <MdPeople size={22} />, text: "Users", path: "/admin/usermanagement" },
     { id: 3, icon: <MdLocalShipping size={22} />, text: "Suppliers", path: "/admin/suppliers" },
-    { id: 4, icon: <MdLocalShipping size={22} />, text: "Product Approval", path: "/admin/adminproductapproval" },
+    { id: 4, icon: <MdFactCheck size={22} />, text: "Product Approval", path: "/admin/adminproductapproval" },
     { id: 5, icon: <MdInventory size={22} />, text: "Inventory", path: "/admin/products" },
     { id: 6, icon: <MdShoppingCart size={22} />, text: "Order Management", path: "/admin/ordermanagement" },
     { id: 7, icon: <MdAttachMoney size={22} />, text: "Financials", path: "/admin/financialAnalytics" },
@@ -37,7 +38,6 @@ export default function Sidebar() {
   ];
 
   const handleLogout = () => {
-    // Clear auth state here if needed
     navigate("/login");
   };
 
@@ -49,15 +49,19 @@ export default function Sidebar() {
     >
       {/* Header */}
       <div className="flex justify-between items-center px-4 py-4 bg-[#084298]">
-        {!isCollapsed && (
-          <span className="text-xl font-bold tracking-wide">MediCareX</span>
-        )}
-        {isCollapsed && (
-          <span className="text-xl font-bold mx-auto">M</span>
-        )}
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Logo */}
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img src="/logo.png" alt="MediCareX Logo" className="w-full h-full object-contain" />
+          </div>
+          {!isCollapsed && (
+            <span className="text-xl font-bold tracking-wide whitespace-nowrap">MediCareX</span>
+          )}
+        </div>
+
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-white bg-transparent border-none cursor-pointer hover:bg-white/20 rounded-full p-1 transition-colors ml-auto"
+          className="text-white bg-transparent border-none cursor-pointer hover:bg-white/20 rounded-full p-1 transition-colors flex-shrink-0"
         >
           {isCollapsed ? <MdChevronRight size={22} /> : <MdChevronLeft size={22} />}
         </button>

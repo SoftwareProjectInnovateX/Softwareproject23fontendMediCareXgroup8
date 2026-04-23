@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { useAuth } from "../../context/AuthContext";
 import { MdWarning, MdInventory, MdCheckCircle } from "react-icons/md";
@@ -32,6 +32,23 @@ export default function RestockAlert() {
   }, [supplierId]);
 
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+
+  // Dispatch unread count to Header via custom event whenever alerts change
+  useEffect(() => {
+    const unread = alerts.filter((a) => !a.read).length;
+    window.dispatchEvent(new CustomEvent("restock-unread-count", { detail: { count: unread } }));
+  }, [alerts]);
+
+  const markAsRead = async (alertId) => {
+    try {
+      await updateDoc(doc(db, "notifications", alertId), { read: true });
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === alertId ? { ...a, read: true } : a))
+      );
+    } catch (error) {
+      console.error("Failed to mark as read:", error);
+    }
+  };
 
   const unreadCount = alerts.filter((a) => !a.read).length;
 
@@ -162,6 +179,16 @@ export default function RestockAlert() {
                     </span>
                   )}
                 </div>
+
+                {/* Mark as Read button — only shown for unread alerts */}
+                {!alert.read && (
+                  <button
+                    onClick={() => markAsRead(alert.id)}
+                    className="mt-4 px-4 py-1.5 text-xs font-semibold text-indigo-600 border border-indigo-300 rounded-full bg-white hover:bg-indigo-50 hover:border-indigo-500 transition-all duration-200 cursor-pointer"
+                  >
+                    Mark as Read
+                  </button>
+                )}
               </div>
 
               {/* Unread pulse dot */}

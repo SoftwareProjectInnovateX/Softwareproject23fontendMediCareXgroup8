@@ -197,7 +197,7 @@ export default function UserManagement() {
     <div className="p-6 bg-[#f5f8ff] min-h-screen">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-blue-800 mb-1">User Management</h1>
+        <h1 className="text-3xl font-bold  text-slate-800">User Management</h1>
         <p className="text-slate-500 text-[15px]">
           Manage registered users and loyalty points
         </p>

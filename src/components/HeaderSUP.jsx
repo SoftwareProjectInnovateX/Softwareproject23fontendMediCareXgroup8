@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiBell, FiUser } from "react-icons/fi";
 import { MdLogout } from "react-icons/md";
@@ -5,6 +6,14 @@ import { MdLogout } from "react-icons/md";
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Listen for unread count updates dispatched by RestockAlert
+  useEffect(() => {
+    const handler = (e) => setUnreadCount(e.detail.count);
+    window.addEventListener("restock-unread-count", handler);
+    return () => window.removeEventListener("restock-unread-count", handler);
+  }, []);
 
   const getPageTitle = () => {
     switch (location.pathname) {
@@ -57,15 +66,17 @@ export default function Header() {
         {/* RIGHT — Bell + Profile */}
         <div className="flex items-center gap-5 flex-shrink-0">
 
-          {/* Notification Bell  */}
+          {/* Notification Bell */}
           <button
             onClick={goToRestock}
             className="relative w-11 h-11 bg-white/15 border-none rounded-xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:bg-white/25 hover:-translate-y-0.5"
           >
             <FiBell size={20} className="text-white" />
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center border-2 border-[#1e40af]">
-              3
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center border-2 border-[#1e40af]">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </button>
 
           {/*  Profile */}

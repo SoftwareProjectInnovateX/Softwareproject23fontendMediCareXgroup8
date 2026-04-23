@@ -28,7 +28,6 @@ export default function Sidebar() {
   ];
 
   const handleLogout = () => {
-    // Clear auth state here if needed (e.g. Firebase signOut())
     navigate("/login");
   };
 
@@ -41,10 +40,12 @@ export default function Sidebar() {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-3 min-w-0">
+
           {/* Logo icon */}
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-2xl font-extrabold text-[#1e40af]">M</span>
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img src="/logo.png" alt="MediCareX Logo" className="w-full h-full object-contain" />
           </div>
+
           {!isCollapsed && (
             <span className="text-xl font-bold text-white whitespace-nowrap">
               MediCareX
@@ -81,7 +82,6 @@ export default function Sidebar() {
               }`
             }
           >
-            {/* Active left accent bar */}
             {({ isActive }) =>
               isActive ? (
                 <>
