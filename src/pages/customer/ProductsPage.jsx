@@ -459,7 +459,7 @@ export default function ProductsPage() {
 
       {/* Sticky search and category filter bar */}
       <div
-        className="sticky top-[72px] z-40"
+        className="sticky top-[122px] z-40"
         style={{
           background: C.surface,
           borderBottom: `1px solid ${C.border}`,
