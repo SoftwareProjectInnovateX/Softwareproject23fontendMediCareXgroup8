@@ -1,27 +1,43 @@
 import { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
-import { collection, addDoc, serverTimestamp, getDocs } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  getDocs,
+} from "firebase/firestore";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
-  ArrowLeft, CheckCircle, RotateCcw, Package,
-  ChevronDown, DollarSign, FileText, Send,
+  ArrowLeft,
+  CheckCircle,
+  RotateCcw,
+  Package,
+  ChevronDown,
+  DollarSign,
+  FileText,
+  Send
 } from "lucide-react";
+import { useDarkMode } from "../../context/DarkModeContext";
+import { DARK } from "../../constants/theme";
 
 // Shared color tokens
 const C = {
-  bg:          "#f1f5f9",
-  surface:     "#ffffff",
-  border:      "rgba(26,135,225,0.18)",
-  accent:      "#1a87e1",
-  accentDark:  "#0f2a5e",
-  textPrimary: "#1e293b",
-  textMuted:   "#64748b",
-  textSoft:    "#475569",
-  error:       "#ef4444",
-  success:     "#10b981",
+  bg: "#f1f5f9",
+  surface: "#ffffff",
+  border: "rgba(26,135,225,0.18)",
+  accent: "#1a87e1",
+  accentDark: "#0f2a5e",
+  textPrimary: DARK.surface,
+  textMuted: "#64748b",
+  textSoft: "#475569",
+  error: "#ef4444",
+  success: "#10b981",
 };
 
-const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
+const FONT = {
+  display: "'Playfair Display', serif",
+  body: "'DM Sans', sans-serif",
+};
 
 // Reasons the customer can choose when returning a product
 const RETURN_REASONS = [
@@ -33,12 +49,18 @@ const RETURN_REASONS = [
 ];
 
 // Reusable input style for all form fields
-const inputStyle = {
-  background: C.surface, border: `1px solid ${C.border}`,
-  borderRadius: 10, padding: "10px 14px",
-  fontSize: 13, color: C.textPrimary, fontFamily: FONT.body,
-  outline: "none", width: "100%", boxSizing: "border-box",
-};
+const inputStyle = (isDark) => ({
+  background: isDark ? DARK.bg : C.surface,
+  border: `1px solid ${C.border}`,
+  borderRadius: 10,
+  padding: "10px 14px",
+  fontSize: 13,
+  color: isDark ? DARK.textPrimary : C.textPrimary,
+  fontFamily: FONT.body,
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+});
 
 // Labeled form field wrapper
 function Field({ label, children, required, icon: Icon }) {
@@ -57,20 +79,21 @@ function Field({ label, children, required, icon: Icon }) {
 }
 
 export default function ReturnPage() {
-  const location      = useLocation();
-  const navigate      = useNavigate();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isDark } = useDarkMode();
 
   // If coming from the Orders page, the order is pre-filled via router state
-  const passedOrder   = location.state?.order || null;
+  const passedOrder = location.state?.order || null;
   const passedOrderId = location.state?.orderId || "";
 
-  const [orders, setOrders]               = useState([]);
-  const [orderId, setOrderId]             = useState(passedOrderId);
+  const [orders, setOrders] = useState([]);
+  const [orderId, setOrderId] = useState(passedOrderId);
   const [selectedOrder, setSelectedOrder] = useState(passedOrder);
-  const [items, setItems]                 = useState([]);
-  const [note, setNote]                   = useState("");
-  const [loading, setLoading]             = useState(false);
-  const [submitted, setSubmitted]         = useState(false);
+  const [items, setItems] = useState([]);
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [fetchingOrders, setFetchingOrders] = useState(!passedOrder);
 
   // On mount — if no order was passed, load delivered orders so the customer can pick one
@@ -83,8 +106,8 @@ export default function ReturnPage() {
       try {
         const snap = await getDocs(collection(db, "CustomerOrders"));
         const data = snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter(o => o.orderStatus === "delivered");
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((o) => o.orderStatus === "delivered");
         setOrders(data);
       } catch (err) {
         console.error(err);
@@ -98,20 +121,22 @@ export default function ReturnPage() {
   // Build the item selection list from an order's product array
   function initItems(order) {
     if (order?.types) {
-      setItems(order.types.map(item => ({
-        ...item,
-        returnQuantity: 1,
-        reason: RETURN_REASONS[0],
-        selected: false,
-      })));
+      setItems(
+        order.types.map((item) => ({
+          ...item,
+          returnQuantity: 1,
+          reason: RETURN_REASONS[0],
+          selected: false,
+        })),
+      );
     }
   }
 
   // Called when the customer picks an order from the dropdown
   const handleOrderSelect = (e) => {
-    const id    = e.target.value;
+    const id = e.target.value;
     setOrderId(id);
-    const order = orders.find(o => o.id === id);
+    const order = orders.find((o) => o.id === id);
     setSelectedOrder(order || null);
     if (order) initItems(order);
     else setItems([]);
@@ -119,45 +144,55 @@ export default function ReturnPage() {
 
   // Toggle whether an item is selected for return
   const toggleItem = (i) =>
-    setItems(prev => prev.map((item, idx) =>
-      idx === i ? { ...item, selected: !item.selected } : item
-    ));
+    setItems((prev) =>
+      prev.map((item, idx) =>
+        idx === i ? { ...item, selected: !item.selected } : item,
+      ),
+    );
 
   // Update a field (quantity or reason) for a specific item
   const updateItem = (i, field, value) =>
-    setItems(prev => prev.map((item, idx) =>
-      idx === i ? { ...item, [field]: value } : item
-    ));
+    setItems((prev) =>
+      prev.map((item, idx) => (idx === i ? { ...item, [field]: value } : item)),
+    );
 
   // Only the items the customer ticked
-  const selectedItems = items.filter(item => item.selected);
+  const selectedItems = items.filter((item) => item.selected);
 
   // Estimated refund = sum of (price × return quantity) for selected items
-  const refundAmount = selectedItems.reduce((sum, item) =>
-    sum + ((item.price || 0) * (item.returnQuantity || 1)), 0
+  const refundAmount = selectedItems.reduce(
+    (sum, item) => sum + (item.price || 0) * (item.returnQuantity || 1),
+    0,
   );
 
   // Submit the return request to Firestore
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!orderId)                   return alert("Please select an order.");
-    if (selectedItems.length === 0) return alert("Please select at least one item to return.");
+    if (!orderId) return alert("Please select an order.");
+    if (selectedItems.length === 0)
+      return alert("Please select at least one item to return.");
     setLoading(true);
     try {
       await addDoc(collection(db, "CustomerReturns"), {
         orderId,
-        customerName:   selectedOrder?.customerName || "",
-        phone:          selectedOrder?.phone || "",
-        address:        selectedOrder?.address || "",
-        items: selectedItems.map(({ id, name, price, returnQuantity, reason }) => ({
-          id, name, price: price || 0, quantity: returnQuantity, reason,
-        })),
+        customerName: selectedOrder?.customerName || "",
+        phone: selectedOrder?.phone || "",
+        address: selectedOrder?.address || "",
+        items: selectedItems.map(
+          ({ id, name, price, returnQuantity, reason }) => ({
+            id,
+            name,
+            price: price || 0,
+            quantity: returnQuantity,
+            reason,
+          }),
+        ),
         refundAmount,
         adjustmentNote: note,
-        returnStatus:   "pending",
-        refundStatus:   "pending",
-        createdAt:      serverTimestamp(),
-        processedAt:    null,
+        returnStatus: "pending",
+        refundStatus: "pending",
+        createdAt: serverTimestamp(),
+        processedAt: null,
       });
       setSubmitted(true);
     } catch (err) {
@@ -168,68 +203,82 @@ export default function ReturnPage() {
   };
 
   // Success screen after submission
-  if (submitted) return (
-    <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
-      <div className="flex items-center justify-center flex-col gap-3.5 min-h-[70vh] px-6">
-        <div
-          className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
-          style={{
-            background: "rgba(16,185,129,0.1)",
-            border: "2px solid rgba(16,185,129,0.3)",
-          }}
-        >
-          <CheckCircle size={36} color="#10b981" />
-        </div>
-        <h2 className="text-[22px] font-bold" style={{ color: C.textPrimary }}>
-          Return Submitted!
-        </h2>
-        <p
-          className="text-sm text-center max-w-[340px] leading-relaxed"
-          style={{ color: C.textMuted }}
-        >
-          Your return request has been submitted. The pharmacist will review it shortly.
-        </p>
-        <div className="flex gap-2.5 mt-2">
-          <button
-            onClick={() => navigate("/customer/orders")}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer"
+  if (submitted)
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: isDark ? DARK.bg : C.bg, fontFamily: FONT.body }}
+      >
+        <div className="flex items-center justify-center flex-col gap-3.5 min-h-[70vh] px-6">
+          <div
+            className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
             style={{
-              background: C.surface,
-              color: C.textPrimary,
-              border: `1px solid ${C.border}`,
-              fontFamily: FONT.body,
-              boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
+              background: "rgba(16,185,129,0.1)",
+              border: "2px solid rgba(16,185,129,0.3)",
             }}
           >
-            <ArrowLeft size={14} /> Back to Orders
-          </button>
-          <button
-            onClick={() => {
-              setSubmitted(false);
-              setItems(prev => prev.map(i => ({ ...i, selected: false })));
-              setNote("");
-            }}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer border-none text-white"
-            style={{
-              background: C.accent,
-              fontFamily: FONT.body,
-              boxShadow: "0 4px 12px rgba(26,135,225,0.25)",
-            }}
+            <CheckCircle size={36} color="#10b981" />
+          </div>
+          <h2
+            className="text-[22px] font-bold"
+            style={{ color: C.textPrimary }}
           >
-            <RotateCcw size={14} /> Submit Another
-          </button>
+            Return Submitted!
+          </h2>
+          <p
+            className="text-sm text-center max-w-[340px] leading-relaxed"
+            style={{ color: C.textMuted }}
+          >
+            Your return request has been submitted. The pharmacist will review
+            it shortly.
+          </p>
+          <div className="flex gap-2.5 mt-2">
+            <button
+              onClick={() => navigate("/customer/orders")}
+              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer"
+              style={{
+                background: isDark ? DARK.surface : C.surface,
+                color: isDark ? DARK.textPrimary : C.textPrimary,
+                border: `1px solid ${C.border}`,
+                fontFamily: FONT.body,
+                boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
+              }}
+            >
+              <ArrowLeft size={14} /> Back to Orders
+            </button>
+            <button
+              onClick={() => {
+                setSubmitted(false);
+                setItems((prev) =>
+                  prev.map((i) => ({ ...i, selected: false })),
+                );
+                setNote("");
+              }}
+              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer border-none text-white"
+              style={{
+                background: C.accent,
+                fontFamily: FONT.body,
+                boxShadow: "0 4px 12px rgba(26,135,225,0.25)",
+              }}
+            >
+              <RotateCcw size={14} /> Submit Another
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
 
   return (
-    <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
-
+    <div
+      className="min-h-screen"
+      style={{ background: isDark ? DARK.bg : C.bg, fontFamily: FONT.body }}
+    >
       {/* Page header banner */}
       <div
         className="px-6 pt-12 pb-10 text-center"
-        style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}
+        style={{
+          background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)",
+        }}
       >
         <h1
           className="text-[34px] font-bold text-white mb-2.5"
@@ -243,14 +292,13 @@ export default function ReturnPage() {
       </div>
 
       <div className="max-w-[700px] mx-auto px-6 py-8">
-
         {/* Back navigation */}
         <button
           onClick={() => navigate("/customer/orders")}
           className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-[7px] rounded-lg cursor-pointer mb-6"
           style={{
             color: C.textMuted,
-            background: C.surface,
+            background: isDark ? DARK.surface : C.surface,
             border: `1px solid ${C.border}`,
             fontFamily: FONT.body,
             boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
@@ -264,11 +312,16 @@ export default function ReturnPage() {
           <div
             className="rounded-xl px-[18px] py-3.5 mb-6"
             style={{
-              background: "rgba(26,135,225,0.06)",
+              background: isDark
+                ? "rgba(255,255,255,0.04)"
+                : "rgba(26,135,225,0.06)",
               border: `1px solid ${C.border}`,
             }}
           >
-            <p className="text-[13px] font-bold" style={{ color: C.accentDark }}>
+            <p
+              className="text-[13px] font-bold"
+              style={{ color: isDark ? DARK.textPrimary : C.accentDark }}
+            >
               Order #{orderId.slice(0, 8)}&hellip;
             </p>
             <p className="text-xs mt-0.5" style={{ color: C.textMuted }}>
@@ -278,34 +331,42 @@ export default function ReturnPage() {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-[22px]">
-
           {/* Order selector — only shown when no order was passed via router */}
           {!passedOrder && (
             <div
               className="rounded-2xl p-5"
               style={{
-                background: C.surface,
+                background: isDark ? DARK.surface : C.surface,
                 border: `1px solid ${C.border}`,
                 boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
               }}
             >
               <Field label="Select Order" required icon={Package}>
                 {fetchingOrders ? (
-                  <p className="text-[13px]" style={{ color: C.textMuted }}>Loading your orders…</p>
+                  <p className="text-[13px]" style={{ color: C.textMuted }}>
+                    Loading your orders…
+                  </p>
                 ) : orders.length === 0 ? (
-                  <p className="text-[13px]" style={{ color: C.error }}>No delivered orders found.</p>
+                  <p className="text-[13px]" style={{ color: C.error }}>
+                    No delivered orders found.
+                  </p>
                 ) : (
                   <div className="relative">
                     <select
                       value={orderId}
                       onChange={handleOrderSelect}
-                      style={{ ...inputStyle, appearance: "none", paddingRight: 36 }}
+                      style={{
+                        ...inputStyle(isDark),
+                        appearance: "none",
+                        paddingRight: 36,
+                      }}
                       required
                     >
                       <option value="">Choose a delivered order…</option>
-                      {orders.map(o => (
+                      {orders.map((o) => (
                         <option key={o.id} value={o.id}>
-                          Order #{o.id.slice(0, 8)}… — {o.types?.length ?? 0} item(s)
+                          Order #{o.id.slice(0, 8)}… — {o.types?.length ?? 0}{" "}
+                          item(s)
                         </option>
                       ))}
                     </select>
@@ -325,7 +386,7 @@ export default function ReturnPage() {
             <div
               className="rounded-2xl overflow-hidden"
               style={{
-                background: C.surface,
+                background: isDark ? DARK.surface : C.surface,
                 border: `1px solid ${C.border}`,
                 boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
               }}
@@ -354,7 +415,11 @@ export default function ReturnPage() {
                     className="rounded-xl p-3.5 transition-all duration-150"
                     style={{
                       border: `1px solid ${item.selected ? C.accent : C.border}`,
-                      background: item.selected ? "rgba(26,135,225,0.04)" : C.bg,
+                      background: item.selected
+                        ? "rgba(26,135,225,0.04)"
+                        : isDark
+                          ? DARK.bg
+                          : C.bg,
                     }}
                   >
                     <div className="flex items-center gap-3">
@@ -388,10 +453,16 @@ export default function ReturnPage() {
                       )}
 
                       <div className="flex-1">
-                        <p className="text-[13px] font-bold" style={{ color: C.textPrimary }}>
+                        <p
+                          className="text-[13px] font-bold"
+                          style={{ color: C.textPrimary }}
+                        >
                           {item.name}
                         </p>
-                        <p className="text-[11px] mt-0.5" style={{ color: C.textMuted }}>
+                        <p
+                          className="text-[11px] mt-0.5"
+                          style={{ color: C.textMuted }}
+                        >
                           Rs. {item.price || 0} &middot; Code: {item.id}
                         </p>
                       </div>
@@ -406,19 +477,33 @@ export default function ReturnPage() {
                             min={1}
                             max={item.quantity || 99}
                             value={item.returnQuantity}
-                            onChange={e => updateItem(i, "returnQuantity", Number(e.target.value))}
-                            style={inputStyle}
+                            onChange={(e) =>
+                              updateItem(
+                                i,
+                                "returnQuantity",
+                                Number(e.target.value),
+                              )
+                            }
+                            style={inputStyle(isDark)}
                           />
                         </Field>
                         <Field label="Reason">
                           <div className="relative">
                             <select
                               value={item.reason}
-                              onChange={e => updateItem(i, "reason", e.target.value)}
-                              style={{ ...inputStyle, appearance: "none", paddingRight: 36 }}
+                              onChange={(e) =>
+                                updateItem(i, "reason", e.target.value)
+                              }
+                              style={{
+                                ...inputStyle(isDark),
+                                appearance: "none",
+                                paddingRight: 36,
+                              }}
                             >
-                              {RETURN_REASONS.map(r => (
-                                <option key={r} value={r}>{r}</option>
+                              {RETURN_REASONS.map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
                               ))}
                             </select>
                             <ChevronDown
@@ -441,14 +526,22 @@ export default function ReturnPage() {
             <div
               className="flex justify-between items-center rounded-xl px-[18px] py-3.5"
               style={{
-                background: "rgba(16,185,129,0.06)",
+                background: isDark
+                  ? "rgba(255,255,255,0.04)"
+                  : "rgba(16,185,129,0.06)",
                 border: "1px solid rgba(16,185,129,0.22)",
               }}
             >
-              <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: "#059669" }}>
+              <span
+                className="flex items-center gap-1.5 text-[13px] font-semibold"
+                style={{ color: "#059669" }}
+              >
                 <DollarSign size={14} color="#059669" /> Estimated Refund
               </span>
-              <span className="text-[17px] font-bold" style={{ color: "#059669" }}>
+              <span
+                className="text-[17px] font-bold"
+                style={{ color: "#059669" }}
+              >
                 Rs. {refundAmount.toFixed(2)}
               </span>
             </div>
@@ -458,7 +551,7 @@ export default function ReturnPage() {
           <div
             className="rounded-2xl p-5"
             style={{
-              background: C.surface,
+              background: isDark ? DARK.surface : C.surface,
               border: `1px solid ${C.border}`,
               boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
             }}
@@ -466,10 +559,14 @@ export default function ReturnPage() {
             <Field label="Additional Note" icon={FileText}>
               <textarea
                 value={note}
-                onChange={e => setNote(e.target.value)}
+                onChange={(e) => setNote(e.target.value)}
                 placeholder="Any additional details about your return…"
                 rows={3}
-                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+                style={{
+                  ...inputStyle(isDark),
+                  resize: "vertical",
+                  lineHeight: 1.6,
+                }}
               />
             </Field>
           </div>
@@ -489,10 +586,8 @@ export default function ReturnPage() {
             <Send size={15} />
             {loading ? "Submitting…" : "Submit Return Request"}
           </button>
-
         </form>
       </div>
-
     </div>
   );
 }

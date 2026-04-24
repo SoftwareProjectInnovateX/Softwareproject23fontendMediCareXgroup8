@@ -3,13 +3,15 @@
 import { useCartStore } from '../../stores/cartStore';
 import { Link } from 'react-router-dom';
 import { ShoppingCart, Package, X, ArrowLeft, Trash2 } from 'lucide-react';
+import { useDarkMode } from "../../context/DarkModeContext";
+import { DARK } from "../../constants/theme";
 
 const C = {
   bg:          "#f1f5f9",
   surface:     "#ffffff",
   border:      "rgba(26,135,225,0.18)",
   accent:      "#1a87e1",
-  textPrimary: "#1e293b",
+  textPrimary: DARK.surface,
   textMuted:   "#64748b",
   textSoft:    "#475569",
   danger:      "#dc2626",
@@ -22,14 +24,14 @@ const C = {
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
 
 // ── Single cart item row ─────────────────────────────────────────────────────
-function CartItem({ item, onRemove }) {
+function CartItem({ item, onRemove, isDark }) {
   const lineTotal = (item.price * item.qty).toFixed(2);
 
   return (
     <div
       className="flex items-center gap-[14px] rounded-xl px-[18px] py-[14px] mb-[10px]"
       style={{
-        background: C.surface,
+        background: isDark ? DARK.surface : C.surface,
         border: `1px solid ${C.border}`,
         boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
       }}
@@ -37,7 +39,7 @@ function CartItem({ item, onRemove }) {
       {/* Product icon placeholder */}
       <div
         className="w-12 h-12 shrink-0 rounded-[10px] flex items-center justify-center"
-        style={{ background: C.bg, border: `1px solid ${C.border}` }}
+        style={{ background: isDark ? DARK.bg : C.bg, border: `1px solid ${C.border}` }}
       >
         <Package size={20} color={C.textMuted} />
       </div>
@@ -46,7 +48,7 @@ function CartItem({ item, onRemove }) {
       <div className="flex-1 min-w-0">
         <p
           className="text-[14px] font-semibold mb-[3px] whitespace-nowrap overflow-hidden text-ellipsis"
-          style={{ color: C.textPrimary }}
+          style={{ color: isDark ? DARK.textPrimary : C.textPrimary, }}
         >
           {item.name}
         </p>
@@ -61,7 +63,7 @@ function CartItem({ item, onRemove }) {
       {/* Line total */}
       <p
         className="text-[14px] font-semibold min-w-[96px] text-right shrink-0"
-        style={{ color: C.textPrimary }}
+        style={{ color: isDark ? DARK.textPrimary : C.textPrimary, }}
       >
         Rs. {lineTotal}
       </p>
@@ -70,7 +72,7 @@ function CartItem({ item, onRemove }) {
       <button
         onClick={() => onRemove(item.id)}
         className="bg-transparent border-none cursor-pointer p-1 flex items-center shrink-0"
-        style={{ color: C.textMuted }}
+        style={{ color: isDark ? DARK.textMuted : C.textMuted }}
         onMouseEnter={e => (e.currentTarget.style.color = C.danger)}
         onMouseLeave={e => (e.currentTarget.style.color = C.textMuted)}
         aria-label="Remove item"
@@ -82,10 +84,10 @@ function CartItem({ item, onRemove }) {
 }
 
 // ── One row inside the order summary box ────────────────────────────────────
-function SummaryRow({ label, value, freeTag }) {
+function SummaryRow({ label, value, freeTag, isDark }) {
   return (
     <div className="flex justify-between items-center py-[6px]">
-      <span className="text-[13px]" style={{ color: C.textSoft }}>{label}</span>
+      <span className="text-[13px]" style={{ color: isDark ? DARK.textMuted : C.textSoft }}>{label}</span>
       {freeTag ? (
         <span
           className="text-[11px] font-semibold px-[10px] py-[2px] rounded-lg"
@@ -94,7 +96,7 @@ function SummaryRow({ label, value, freeTag }) {
           Free
         </span>
       ) : (
-        <span className="text-[13px] font-semibold" style={{ color: C.textPrimary }}>
+        <span className="text-[13px] font-semibold" style={{ color: isDark ? DARK.textPrimary : C.textPrimary, }}>
           {value}
         </span>
       )}
@@ -103,23 +105,23 @@ function SummaryRow({ label, value, freeTag }) {
 }
 
 // ── Summary card ────────────────────────────────────────────────────────────
-function OrderSummary({ total }) {
+function OrderSummary({ total, isDark }) {
   return (
     <div
       className="rounded-xl px-5 py-[18px] mt-3"
       style={{
-        background: C.surface,
+        background: isDark ? DARK.surface : C.surface,
         border: `1px solid ${C.border}`,
         boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
       }}
     >
-      <SummaryRow label="Subtotal" value={`Rs. ${total.toFixed(2)}`} />
-      <SummaryRow label="Shipping" freeTag />
-      <SummaryRow label="Tax (0%)" value="Rs. 0.00" />
+      <SummaryRow label="Subtotal" value={`Rs. ${total.toFixed(2)}`} isDark={isDark} />
+      <SummaryRow label="Shipping" freeTag isDark={isDark} />
+      <SummaryRow label="Tax (0%)" value="Rs. 0.00" isDark={isDark} />
       <div className="my-3" style={{ borderTop: `1px solid ${C.border}` }} />
       <div className="flex justify-between items-center">
-        <span className="text-[15px] font-semibold" style={{ color: C.textPrimary }}>Total</span>
-        <span className="text-[18px] font-bold" style={{ color: C.textPrimary }}>
+        <span className="text-[15px] font-semibold" style={{ color: isDark ? DARK.textPrimary : C.textPrimary, }}>Total</span>
+        <span className="text-[18px] font-bold" style={{ color: isDark ? DARK.textPrimary : C.textPrimary, }}>
           Rs. {total.toFixed(2)}
         </span>
       </div>
@@ -128,38 +130,38 @@ function OrderSummary({ total }) {
 }
 
 // ── Empty cart state ─────────────────────────────────────────────────────────
-function EmptyCart() {
+function EmptyCart({ isDark = false }) {
   return (
     <div
       className="min-h-screen flex items-center justify-center"
-      style={{ background: C.bg, fontFamily: FONT.body }}
+      style={{ background: isDark ? DARK.bg : C.bg, fontFamily: FONT.body }}
     >
       <div
         className="text-center rounded-2xl px-16 py-12"
         style={{
-          background: C.surface,
+          background: isDark ? DARK.surface : C.surface,
           border: `1px solid ${C.border}`,
           boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
         }}
       >
         <div
           className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5"
-          style={{ background: C.bg, border: `1px solid ${C.border}` }}
+          style={{ background: isDark ? DARK.surfaceDeep : C.bg, border: `1px solid ${C.border}` }}
         >
           <ShoppingCart size={24} color={C.textMuted} />
         </div>
-        <h1 className="text-[18px] font-bold mb-2" style={{ color: C.textPrimary }}>
+        <h1 className="text-[18px] font-bold mb-2" style={{ color: isDark ? DARK.textPrimary : C.textPrimary, }}>
           Your cart is empty
         </h1>
-        <p className="text-[13px] mb-6" style={{ color: C.textMuted }}>
+        <p className="text-[13px] mb-6" style={{ color: isDark ? DARK.textMuted : C.textMuted }}>
           Looks like you haven't added anything yet.
         </p>
         <Link
           to="/customer/products"
           className="inline-flex items-center gap-[6px] text-[13px] font-semibold rounded-lg px-[18px] py-2 no-underline"
           style={{
-            color: C.accent,
-            background: "rgba(26,135,225,0.08)",
+            color: isDark ? "#3b82f6" : C.accent,
+            background: isDark ? "rgba(59,130,246,0.1)" : "rgba(26,135,225,0.08)",
             border: `1px solid ${C.border}`,
           }}
         >
@@ -172,14 +174,15 @@ function EmptyCart() {
 
 // ── Main cart page ───────────────────────────────────────────────────────────
 export default function CartPage() {
+  const { isDark } = useDarkMode();   
   const { items, removeItem, clearCart, getTotal } = useCartStore();
 
-  if (items.length === 0) return <EmptyCart />;
+  if (items.length === 0) return <EmptyCart isDark={isDark} />;
 
   return (
     <div
       className="min-h-screen px-4 py-10"
-      style={{ background: C.bg, fontFamily: FONT.body }}
+      style={{ background: isDark ? DARK.bg : C.bg, fontFamily: FONT.body }}
     >
       <div className="max-w-[760px] mx-auto">
 
@@ -191,7 +194,7 @@ export default function CartPage() {
           <div>
             <h1
               className="text-[26px] font-semibold"
-              style={{ fontFamily: FONT.display, color: C.textPrimary }}
+              style={{ fontFamily: FONT.display, color: isDark ? DARK.textPrimary : C.textPrimary, }}
             >
               Shopping Cart
             </h1>
@@ -203,11 +206,11 @@ export default function CartPage() {
 
         {/* Cart items */}
         {items.map(item => (
-          <CartItem key={item.id} item={item} onRemove={removeItem} />
+          <CartItem key={item.id} item={item} onRemove={removeItem} isDark={isDark}/>
         ))}
 
         {/* Price breakdown */}
-        <OrderSummary total={getTotal()} />
+        <OrderSummary total={getTotal()} isDark={isDark} />
 
         {/* Bottom action bar */}
         <div className="flex items-center justify-between mt-5">
@@ -228,7 +231,7 @@ export default function CartPage() {
             <Link
               to="/customer/products"
               className="inline-flex items-center gap-[5px] text-[13px] font-medium no-underline"
-              style={{ color: C.textSoft }}
+              style={{ color: isDark ? DARK.textMuted :C.textSoft }}
             >
               <ArrowLeft size={13} /> Continue Shopping
             </Link>

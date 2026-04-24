@@ -1,31 +1,34 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useCartStore } from '../../stores/cartStore';
+import { useState } from "react";
+import { useCartStore } from "../../stores/cartStore";
+import { useDarkMode } from "../../context/DarkModeContext";
+import { DARK } from "../../constants/theme";
 
 export default function CheckoutPage() {
+  const { isDark } = useDarkMode();
   const { items, getTotal, clearCart } = useCartStore();
 
-  const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
-  const [phone, setPhone] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cod");
 
   const placeOrder = async () => {
     if (!name || !address || !phone) {
-      alert('Please fill all fields');
+      alert("Please fill all fields");
       return;
     }
 
     if (items.length === 0) {
-      alert('Cart is empty');
+      alert("Cart is empty");
       return;
     }
 
     try {
-      const res = await fetch('/api/orders/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/orders/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerName: name,
           address,
@@ -42,20 +45,27 @@ export default function CheckoutPage() {
         clearCart();
         alert(data.message);
       } else {
-        alert(data.error || 'Failed to place order');
+        alert(data.error || "Failed to place order");
       }
     } catch (err) {
-      console.error('Fetch error:', err);
-      alert('Failed to place order');
+      console.error("Fetch error:", err);
+      alert("Failed to place order");
     }
   };
 
   return (
-    <div className="max-w-lg mx-auto py-8">
+    <div
+      className="max-w-lg mx-auto py-8 px-4 min-h-screen"
+      style={{
+        background: isDark ? DARK.bg : "#ffffff",
+        color: isDark ? DARK.textPrimary : DARK.surface,
+      }}
+    >
       <h1 className="text-2xl font-bold mb-4">Checkout</h1>
 
       <input
         className="border p-2 w-full mb-2"
+        style={{ background: isDark ? DARK.surface : "#ffffff", color: isDark ? DARK.textPrimary : DARK.surface }}
         placeholder="Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -63,6 +73,7 @@ export default function CheckoutPage() {
 
       <input
         className="border p-2 w-full mb-2"
+        style={{ background: isDark ? DARK.surface : "#ffffff", color: isDark ? DARK.textPrimary : DARK.surface }}
         placeholder="Address"
         value={address}
         onChange={(e) => setAddress(e.target.value)}
@@ -70,6 +81,7 @@ export default function CheckoutPage() {
 
       <input
         className="border p-2 w-full mb-4"
+        style={{ background: isDark ? DARK.surface : "#ffffff", color: isDark ? DARK.textPrimary : DARK.surface }}
         placeholder="Phone"
         value={phone}
         onChange={(e) => setPhone(e.target.value)}

@@ -7,6 +7,8 @@ import {
   query, where, onSnapshot
 } from 'firebase/firestore';
 import { Send, Mail, CheckCircle, MailOpen, Clock, Pill, MessageSquare } from 'lucide-react';
+import { useDarkMode } from "../../context/DarkModeContext";
+import { DARK } from "../../constants/theme";
 
 const C = {
   bg:          "#f1f5f9",
@@ -14,7 +16,7 @@ const C = {
   border:      "rgba(26,135,225,0.18)",
   accent:      "#1a87e1",
   accentMid:   "#0284c7",
-  textPrimary: "#1e293b",
+  textPrimary: DARK.surface,
   textMuted:   "#64748b",
   textSoft:    "#475569",
 };
@@ -28,6 +30,7 @@ function statusStyle(status) {
 }
 
 export default function ContactPage() {
+  const { isDark } = useDarkMode();
   const [name, setName]       = useState('');
   const [email, setEmail]     = useState('');
   const [message, setMessage] = useState('');
@@ -76,7 +79,7 @@ export default function ContactPage() {
   return (
     <div
       className="min-h-screen px-4 py-10"
-      style={{ background: C.bg, fontFamily: FONT.body }}
+      style={{ background: isDark ? DARK.bg : C.bg, fontFamily: FONT.body }}
     >
       <div className="max-w-[560px] mx-auto flex flex-col gap-5">
 
@@ -84,7 +87,7 @@ export default function ContactPage() {
         <div
           className="rounded-2xl px-7 py-7"
           style={{
-            background: C.surface,
+            background: isDark ? DARK.surface : C.surface,
             border: `1px solid ${C.border}`,
             boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
           }}
@@ -136,9 +139,9 @@ export default function ContactPage() {
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border"
               style={{
-                background: C.bg,
+                background: isDark ? DARK.bg : C.bg,
                 border: `1px solid ${C.border}`,
-                color: C.textPrimary,
+                color: isDark ? "#e2e8f0" : C.textPrimary,
                 fontFamily: FONT.body,
               }}
               required
@@ -150,9 +153,9 @@ export default function ContactPage() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border"
               style={{
-                background: C.bg,
+                background: isDark ? DARK.bg : C.bg,
                 border: `1px solid ${C.border}`,
-                color: C.textPrimary,
+                color: isDark ? "#e2e8f0" : C.textPrimary,
                 fontFamily: FONT.body,
               }}
               required
@@ -163,7 +166,7 @@ export default function ContactPage() {
               onChange={(e) => setMessage(e.target.value)}
               className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border h-[120px] resize-none"
               style={{
-                background: C.bg,
+                background: isDark ? DARK.bg : C.bg,
                 border: `1px solid ${C.border}`,
                 color: C.textPrimary,
                 fontFamily: FONT.body,
@@ -192,7 +195,7 @@ export default function ContactPage() {
           <div
             className="rounded-2xl px-7 py-6"
             style={{
-              background: C.surface,
+              background: isDark ? DARK.surface : C.surface,
               border: `1px solid ${C.border}`,
               boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
             }}
@@ -215,7 +218,7 @@ export default function ContactPage() {
                     style={{ border: `1px solid ${C.border}` }}
                   >
                     {/* Customer's original message */}
-                    <div className="px-4 py-[14px]" style={{ background: C.bg }}>
+                    <div className="px-4 py-[14px]" style={{ background:isDark ? DARK.bg : C.bg }}>
                       <div className="flex justify-between items-center mb-2">
                         <p
                           className="text-[10px] font-bold uppercase tracking-[0.08em]"

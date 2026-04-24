@@ -7,6 +7,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { CATEGORIES } from "../../data/categories";
 import SmartSearch from "../../components/SmartSearch";
 import { useDarkMode } from "../../context/DarkModeContext";
+import { DARK } from "../../constants/theme";
 import {
   ShoppingCart,
   X,
@@ -124,7 +125,7 @@ const FONT = {
 // ========================================
 // PRODUCT CARD
 // ========================================
-function ProductCard({ product }) {
+function ProductCard({ product, isDark = false }) {
   const addItem = useCartStore((state) => state.addItem);
   const cartItems = useCartStore((state) => state.items);
   const [showDetails, setShowDetails] = useState(false);
@@ -147,7 +148,7 @@ function ProductCard({ product }) {
         onClick={() => setShowDetails(true)}
         className="rounded-2xl overflow-hidden cursor-pointer transition-shadow duration-200"
         style={{
-          background: C.surface,
+          background:isDark ? DARK.surface : C.surface,
           border: `1px solid ${C.border}`,
           boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
           fontFamily: FONT.body,
@@ -178,7 +179,7 @@ function ProductCard({ product }) {
         <div className="px-[18px] py-4">
           <h3
             className="text-[15px] font-bold mb-1.5"
-            style={{ color: C.textPrimary }}
+            style={{ color: isDark ? DARK.textPrimary : C.textPrimary }}
           >
             {product.name}
           </h3>
@@ -186,12 +187,12 @@ function ProductCard({ product }) {
           {/* Description clamped to 2 lines */}
           <p
             className="text-xs leading-relaxed mb-2.5 line-clamp-2"
-            style={{ color: C.textMuted }}
+            style={{ color: isDark ? DARK.textMuted : C.textMuted }}
           >
             {product.description}
           </p>
 
-          <p className="text-base font-bold mb-1.5" style={{ color: C.accent }}>
+          <p className="text-base font-bold mb-1.5" style={{ color: isDark ? DARK.textPrimary : C.accent }}>
             Rs. {product.price}
           </p>
 
@@ -220,7 +221,7 @@ function ProductCard({ product }) {
             style={{
               fontFamily: FONT.body,
               cursor: availableStock > 0 ? "pointer" : "not-allowed",
-              background: availableStock > 0 ? C.accent : "#e2e8f0",
+              background: availableStock > 0 ? C.accent : DARK.textPrimary,
               color: availableStock > 0 ? "#ffffff" : C.textMuted,
               boxShadow:
                 availableStock > 0
@@ -243,7 +244,7 @@ function ProductCard({ product }) {
           <div
             className="rounded-[20px] w-full max-w-[540px] overflow-hidden"
             style={{
-              background: C.surface,
+              background:isDark ? DARK.surface : C.surface,
               border: `1px solid ${C.border}`,
               boxShadow: "0 24px 48px rgba(15,42,94,0.2)",
               fontFamily: FONT.body,
@@ -288,13 +289,13 @@ function ProductCard({ product }) {
             <div className="px-6 pt-5 pb-6">
               <h2
                 className="text-[22px] font-bold mb-2"
-                style={{ color: C.textPrimary }}
+                style={{ color: isDark ? DARK.textPrimary : C.textPrimary }}
               >
                 {product.name}
               </h2>
               <p
                 className="text-[13px] leading-[1.7] mb-3.5"
-                style={{ color: C.textMuted }}
+                style={{ color: isDark ? DARK.textPrimary : C.textPtimary }}
               >
                 {product.description}
               </p>
@@ -438,7 +439,7 @@ export default function ProductsPage() {
   return (
     <div
       className="min-h-screen"
-      style={{ background: isDark ? "#0f172a" : C.bg, fontFamily: FONT.body }}
+      style={{ background: isDark ? DARK.bg : C.bg, fontFamily: FONT.body }}
     >
       {/* Page header banner */}
       <div
@@ -463,7 +464,7 @@ export default function ProductsPage() {
       <div
         className="sticky top-[122px] z-40"
         style={{
-          background: isDark ? "#1e293b" : C.surface,
+          background: isDark ? DARK.surface : C.surface,
           borderBottom: `1px solid ${C.border}`,
           boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
         }}
@@ -493,12 +494,12 @@ export default function ProductsPage() {
               className="flex items-center gap-2 px-3.5 py-[9px] rounded-xl text-[13px] font-semibold outline-none cursor-pointer min-w-[180px] transition-all duration-150"
               style={{
                 border: `1px solid ${selectedCategory !== "all" ? C.accent : C.border}`,
-                color: selectedCategory !== "all" ? C.accent : C.textSoft,
+                color: selectedCategory !== "all" ? C.accent :isDark ? DARK.textPrimary : C.textSoft,
                 fontFamily: FONT.body,
                 background:
                   selectedCategory !== "all"
                     ? "rgba(26,135,225,0.06)"
-                    : C.surface,
+                    :isDark ? DARK.surface : C.surface,
                 boxShadow:
                   selectedCategory !== "all"
                     ? "0 2px 8px rgba(26,135,225,0.12)"
@@ -531,7 +532,7 @@ export default function ProductsPage() {
               <div
                 className="absolute top-[calc(100%+6px)] left-0 min-w-full z-[100] rounded-xl overflow-hidden"
                 style={{
-                  background: C.surface,
+                  background:isDark ? DARK.surface : C.surface,
                   border: `1px solid ${C.border}`,
                   boxShadow: "0 8px 24px rgba(15,42,94,0.13)",
                 }}
@@ -549,7 +550,7 @@ export default function ProductsPage() {
                       style={{
                         fontWeight: active ? 700 : 500,
                         fontFamily: FONT.body,
-                        color: active ? C.accent : C.textPrimary,
+                        color: active ? C.accent : isDark ? DARK.textPrimary : C.textPrimary,
                         background: active
                           ? "rgba(26,135,225,0.07)"
                           : "transparent",
@@ -589,7 +590,7 @@ export default function ProductsPage() {
           <div
             className="rounded-2xl py-[72px] text-center"
             style={{
-              background: C.surface,
+              background:isDark ? DARK.surface : C.surface,
               border: `1px solid ${C.border}`,
               boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
             }}
@@ -605,7 +606,7 @@ export default function ProductsPage() {
         ) : (
           <div className="grid grid-cols-3 gap-5">
             {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} isDark={isDark} />
             ))}
           </div>
         )}

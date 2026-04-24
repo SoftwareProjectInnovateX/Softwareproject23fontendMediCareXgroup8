@@ -5,6 +5,8 @@ import {
   Upload, FileText, User, Phone, MapPin,
   CheckCircle, Clock, ExternalLink, AlertCircle, FileX,
 } from 'lucide-react';
+import { useDarkMode } from "../../context/DarkModeContext";
+import { DARK } from "../../constants/theme";
 
 // Shared color tokens
 const C = {
@@ -14,7 +16,7 @@ const C = {
   accent:      "#1a87e1",
   accentDark:  "#0f2a5e",
   accentMid:   "#0284c7",
-  textPrimary: "#1e293b",
+  textPrimary: DARK.surface,
   textMuted:   "#64748b",
   textSoft:    "#475569",
 };
@@ -22,11 +24,13 @@ const C = {
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
 
 // Reusable input style for all form fields (kept as-is for consistency)
-const inputStyle = {
-  width: "100%", padding: "10px 14px",
-  border: `1px solid ${C.border}`, borderRadius: 10,
-  fontSize: 13, color: C.textPrimary, fontFamily: FONT.body,
-  background: C.surface, outline: "none", boxSizing: "border-box",
+const inputStyle = (isDark) => {
+  return {
+    width: "100%", padding: "10px 14px",
+    border: `1px solid ${C.border}`, borderRadius: 10,
+    fontSize: 13, color: isDark ? DARK.textPrimary : C.textPrimary, fontFamily: FONT.body,
+    background: isDark ? DARK.bg : C.surface, outline: "none", boxSizing: "border-box",
+  };
 };
 
 // Returns badge colors based on prescription approval status
@@ -83,6 +87,7 @@ export default function PrescriptionsPage() {
 
   // Ref to the hidden file input so we can trigger it on drop-zone click
   const fileInputRef = useRef(null);
+  const { isDark } = useDarkMode();
 
   // Drag-and-drop handlers
   const handleDragOver  = (e) => { e.preventDefault(); setIsDragging(true); };
@@ -142,7 +147,7 @@ export default function PrescriptionsPage() {
   if (loading) return (
     <div
       className="flex justify-center items-center min-h-[60vh] text-sm"
-      style={{ color: C.textMuted, fontFamily: FONT.body, background: C.bg }}
+      style={{ color: C.textMuted, fontFamily: FONT.body, background:isDark ? DARK.bg :  C.bg }}
     >
       Loading prescriptions…
     </div>
@@ -151,14 +156,14 @@ export default function PrescriptionsPage() {
   if (error) return (
     <div
       className="flex justify-center items-center min-h-[60vh] text-sm text-red-600"
-      style={{ fontFamily: FONT.body, background: C.bg }}
+      style={{ fontFamily: FONT.body, background:isDark ? DARK.bg : C.bg }}
     >
       {error}
     </div>
   );
 
   return (
-    <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
+    <div className="min-h-screen" style={{ background: isDark ? DARK.bg : C.bg, fontFamily: FONT.body }}>
 
       {/* Page header banner */}
       <div
@@ -182,7 +187,7 @@ export default function PrescriptionsPage() {
         <div
           className="rounded-2xl overflow-hidden"
           style={{
-            background: C.surface,
+            background:isDark ? DARK.surface : C.surface,
             border: `1px solid ${C.border}`,
             boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
           }}
@@ -191,7 +196,7 @@ export default function PrescriptionsPage() {
           <div
             className="flex items-center gap-2.5 px-[22px] py-4"
             style={{
-              background: "rgba(26,135,225,0.04)",
+              background:isDark ? "rgba(255,255,255,0.04)" : "rgba(26,135,225,0.04)",
               borderBottom: `1px solid ${C.border}`,
             }}
           >
@@ -202,7 +207,7 @@ export default function PrescriptionsPage() {
               <Upload size={16} color={C.accent} />
             </div>
             <div>
-              <p className="text-sm font-bold" style={{ color: C.textPrimary }}>Upload Prescription</p>
+              <p className="text-sm font-bold" style={{ color: C.textMuted }}>Upload Prescription</p>
               <p className="text-[11px]" style={{ color: C.textMuted }}>Fill in your details and attach your prescription file</p>
             </div>
           </div>
@@ -218,7 +223,7 @@ export default function PrescriptionsPage() {
                 <User size={11} color={C.accent} /> Name
               </label>
               <input
-                style={inputStyle}
+                style={inputStyle(isDark)}
                 placeholder="Your full name"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
@@ -234,7 +239,7 @@ export default function PrescriptionsPage() {
                 <Phone size={11} color={C.accent} /> Phone
               </label>
               <input
-                style={inputStyle}
+                style={inputStyle(isDark)}
                 placeholder="Your phone number"
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
@@ -250,7 +255,7 @@ export default function PrescriptionsPage() {
                 <MapPin size={11} color={C.accent} /> Address
               </label>
               <textarea
-                style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+                style={{ ...inputStyle(isDark), resize: "vertical", lineHeight: 1.6 }}
                 placeholder="Your delivery address"
                 rows={3}
                 value={customerAddress}
@@ -274,7 +279,7 @@ export default function PrescriptionsPage() {
                 className="rounded-xl px-5 py-7 text-center cursor-pointer transition-all duration-150"
                 style={{
                   border: `2px dashed ${isDragging ? C.accent : C.border}`,
-                  background: isDragging ? "rgba(26,135,225,0.04)" : C.bg,
+                  background: isDragging ? "rgba(26,135,225,0.04)" : isDark ? DARK.bg : C.bg,
                 }}
               >
                 <Upload
@@ -314,7 +319,7 @@ export default function PrescriptionsPage() {
               style={{
                 fontFamily: FONT.body,
                 cursor: (!selectedFile || isUploading) ? "not-allowed" : "pointer",
-                background: (!selectedFile || isUploading) ? "#e2e8f0" : C.accent,
+                background: (!selectedFile || isUploading) ? DARK.textPrimary : C.accent,
                 color: (!selectedFile || isUploading) ? C.textMuted : "#ffffff",
                 boxShadow: (!selectedFile || isUploading) ? "none" : "0 4px 12px rgba(26,135,225,0.25)",
               }}
@@ -355,7 +360,7 @@ export default function PrescriptionsPage() {
             <div
               className="rounded-2xl py-[60px] text-center"
               style={{
-                background: C.surface,
+                background: isDark ? DARK.surface : C.surface,
                 border: `1px solid ${C.border}`,
                 boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
               }}
@@ -373,7 +378,7 @@ export default function PrescriptionsPage() {
                     key={p.id}
                     className="rounded-2xl overflow-hidden"
                     style={{
-                      background: C.surface,
+                      background: isDark ? DARK.surface : C.surface,
                       border: `1px solid ${C.border}`,
                       boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
                     }}
@@ -382,11 +387,11 @@ export default function PrescriptionsPage() {
                     <div
                       className="flex justify-between items-center px-[18px] py-3"
                       style={{
-                        background: "rgba(26,135,225,0.04)",
+                        background:isDark ? "rgba(255,255,255,0.04)" : "rgba(26,135,225,0.04)",
                         borderBottom: `1px solid ${C.border}`,
                       }}
                     >
-                      <p className="text-xs font-bold" style={{ color: C.textPrimary }}>
+                      <p className="text-xs font-bold" style={{ color:isDark ? DARK.textPrimary : C.textPrimary }}>
                         #{p.id.slice(0, 8)}&hellip;
                       </p>
                       <span
@@ -407,7 +412,7 @@ export default function PrescriptionsPage() {
                       <div className="flex gap-5 flex-wrap">
                         <span
                           className="flex items-center gap-1.5 text-[13px] font-semibold"
-                          style={{ color: C.textPrimary }}
+                          style={{ color: isDark ? DARK.textPrimary : C.textPrimary }}
                         >
                           <User size={12} color={C.accent} /> {p.customerName}
                         </span>
@@ -437,7 +442,7 @@ export default function PrescriptionsPage() {
                             className="inline-flex items-center gap-1.5 text-xs font-semibold no-underline px-3 py-1.5 rounded-lg"
                             style={{
                               color: C.accent,
-                              background: "rgba(26,135,225,0.08)",
+                              background: isDark ? "rgba(255,255,255,0.08)" : "rgba(26,135,225,0.08)",
                               border: `1px solid ${C.border}`,
                             }}
                           >

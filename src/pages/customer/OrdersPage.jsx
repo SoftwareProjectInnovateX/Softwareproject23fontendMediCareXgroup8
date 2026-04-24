@@ -7,6 +7,8 @@ import {
   RotateCcw, CheckCircle, FileText, Upload, ClipboardList,
   AlertCircle, Clock, XCircle, ChevronRight,
 } from 'lucide-react';
+import { useDarkMode } from "../../context/DarkModeContext";
+import { DARK } from "../../constants/theme";
 
 const C = {
   bg:          "#f1f5f9",
@@ -14,7 +16,7 @@ const C = {
   border:      "rgba(26,135,225,0.18)",
   accent:      "#1a87e1",
   accentMid:   "#0284c7",
-  textPrimary: "#1e293b",
+  textPrimary: DARK.surface,
   textMuted:   "#64748b",
   textSoft:    "#475569",
 };
@@ -26,7 +28,7 @@ export default function OrdersPage() {
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate              = useNavigate();
-
+  const { isDark } = useDarkMode();
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -89,14 +91,14 @@ export default function OrdersPage() {
   if (loading) return (
     <div
       className="flex justify-center items-center min-h-[60vh] text-[14px]"
-      style={{ color: C.textMuted, fontFamily: FONT.body, background: C.bg }}
+      style={{ color: isDark ? DARK.textMuted : C.textMuted, fontFamily: FONT.body, background: isDark ? DARK.bg : C.bg }}
     >
       Loading orders…
     </div>
   );
 
   return (
-    <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
+    <div className="min-h-screen" style={{ background: isDark ? DARK.bg : C.bg, fontFamily: FONT.body }}>
 
       {/* Page header banner */}
       <div
@@ -152,7 +154,7 @@ export default function OrdersPage() {
           <div
             className="rounded-2xl py-[72px] text-center"
             style={{
-              background: C.surface,
+              background: isDark ? DARK.surface : C.surface,
               border: `1px solid ${C.border}`,
               boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
             }}
@@ -181,7 +183,7 @@ export default function OrdersPage() {
                   key={order.id}
                   className="rounded-2xl overflow-hidden"
                   style={{
-                    background: C.surface,
+                    background: isDark ? DARK.surface : C.surface,
                     border: `1px solid ${C.border}`,
                     boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
                   }}
@@ -190,13 +192,13 @@ export default function OrdersPage() {
                   <div
                     className="flex justify-between items-center px-5 py-[14px] flex-wrap gap-2"
                     style={{
-                      background: 'rgba(26,135,225,0.04)',
+                      background: isDark ? 'rgba(255,255,255,0.04)' :  'rgba(26,135,225,0.04)',
                       borderBottom: `1px solid ${C.border}`,
                     }}
                   >
                     <div>
                       <p className="text-[13px] mb-[2px]" style={{ color: C.textMuted }}>
-                        Order <span className="font-bold" style={{ color: C.textPrimary }}>#{order.id.slice(0, 8)}&hellip;</span>
+                        Order <span className="font-bold" style={{ color: isDark ?DARK.textPrimary : C.textPrimary }}>#{order.id.slice(0, 8)}&hellip;</span>
                       </p>
                       <p className="text-[11px]" style={{ color: C.textMuted }}>{createdAt}</p>
                     </div>
@@ -214,7 +216,7 @@ export default function OrdersPage() {
                     className="px-5 py-[14px] flex flex-col gap-[6px]"
                     style={{ borderBottom: `1px solid ${C.border}` }}
                   >
-                    <p className="text-[14px] font-bold" style={{ color: C.textPrimary }}>
+                    <p className="text-[14px] font-bold" style={{ color: isDark ?DARK.textPrimary : C.textPrimary }}>
                       {order.customerName}
                     </p>
                     <div className="flex gap-[18px] flex-wrap">
@@ -265,7 +267,7 @@ export default function OrdersPage() {
                               </div>
                             )}
                             <div className="flex-1">
-                              <p className="text-[13px] font-bold" style={{ color: C.textPrimary }}>
+                              <p className="text-[13px] font-bold" style={{ color: isDark ?DARK.textPrimary : C.textPrimary }}>
                                 {item.name}
                               </p>
                               <p className="text-[11px] mt-[2px]" style={{ color: C.textMuted }}>

@@ -1,6 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDarkMode } from "../context/DarkModeContext";
 import { useCartStore } from "../stores/cartStore";
+import { Sun, Moon, ShoppingCart, User } from "lucide-react";
+import { DARK } from "../constants/theme";
 
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
 
@@ -69,7 +71,7 @@ export default function CustomerNavbar() {
 
       {/* ── Main Navbar ── */}
       <div style={{
-        background: isDark ? "#1e293b" : "#ffffff",
+        background: isDark ? DARK.surface : "#ffffff",
         borderBottom: "1px solid rgba(26,135,225,0.15)",
         boxShadow: "0 2px 16px rgba(26,135,225,0.09)",
       }}>
@@ -85,10 +87,10 @@ export default function CustomerNavbar() {
                 flexShrink: 0,
               }} />
               <div>
-                <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 22, color: "#0f2a5e", lineHeight: 1.2 }}>
+                <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 22, color:isDark ? "#e2e8f0" : "#0f2a5e", lineHeight: 1.2 }}>
                   MediCareX
                 </div>
-                <div style={{ fontSize: 11.5, fontWeight: 500, color: "#64748b", letterSpacing: "0.04em", marginTop: 2 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 500, color:isDark ? "#94a3b8" : "#64748b", letterSpacing: "0.04em", marginTop: 2 }}>
                   Your Smart Pharmacy
                 </div>
               </div>
@@ -111,11 +113,11 @@ export default function CustomerNavbar() {
                     transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
                     ...(isActive(link.href)
                       ? { background: "#1a87e1", color: "#ffffff", boxShadow: "0 4px 14px rgba(26,135,225,0.28)" }
-                      : { color: isDark ? "#e2e8f0" : "#334155", background: "transparent" }
+                      : { color: isDark ? DARK.textPrimary : DARK.surfaceDeep, background: "transparent" }
                     ),
                   }}
                   onMouseEnter={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "rgba(26,135,225,0.08)"; e.currentTarget.style.color = "#1a87e1"; } }}
-                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = isDark ? "#e2e8f0" : "#334155"; } }}
+                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = isDark ? DARK.textPrimary : DARK.surfaceDeep; } }}
                 >
                   {link.name}
                 </Link>
@@ -130,16 +132,16 @@ export default function CustomerNavbar() {
                 title={isDark ? "Switch to light mode" : "Switch to dark mode"}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 46, height: 46, borderRadius: 12,
+                  width: 38, height: 38, borderRadius: 10,
                   background: isDark ? "rgba(255,255,255,0.1)" : "rgba(26,135,225,0.06)",
                   border: isDark ? "1.5px solid rgba(255,255,255,0.2)" : "1.5px solid rgba(26,135,225,0.18)",
-                  fontSize: 20, cursor: "pointer",
+                  cursor: "pointer",
                   transition: "background 0.15s, border-color 0.15s",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.18)" : "rgba(26,135,225,0.13)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(26,135,225,0.06)"; }}
               >
-                {isDark ? "☀️" : "🌙"}
+                {isDark ? <Sun size={18} color="#f59e0b" /> : <Moon size={18} color="#6366f1" />}
               </button>
 
               {/* Cart */}
@@ -148,7 +150,7 @@ export default function CustomerNavbar() {
                 style={{
                   position: "relative",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 46, height: 46, borderRadius: 12,
+                  width: 38, height: 38, borderRadius: 10,
                   background: "rgba(26,135,225,0.06)",
                   border: "1.5px solid rgba(26,135,225,0.18)",
                   fontSize: 20, textDecoration: "none",
@@ -157,7 +159,7 @@ export default function CustomerNavbar() {
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,135,225,0.13)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.4)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(26,135,225,0.06)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.18)"; }}
               >
-                🛒
+                <ShoppingCart size={18} color="#1a87e1" />
                 {cartCount > 0 && (
                   <span style={{
                     position: "absolute", top: -7, right: -7,
@@ -177,7 +179,7 @@ export default function CustomerNavbar() {
                 onClick={() => navigate("/customer/profile")}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 46, height: 46, borderRadius: 12,
+                  width: 38, height: 38, borderRadius: 10,
                   background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)",
                   border: "none", fontSize: 20,
                   boxShadow: "0 4px 14px rgba(26,135,225,0.28)",
@@ -187,7 +189,7 @@ export default function CustomerNavbar() {
                 onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(26,135,225,0.38)"; }}
                 onMouseLeave={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(26,135,225,0.28)"; }}
               >
-                👤
+                <User size={18} color="#ffffff" />
               </button>
 
             </div>
