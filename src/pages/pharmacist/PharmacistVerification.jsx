@@ -318,15 +318,7 @@ const PharmacistVerification = () => {
                 <FileSignature className="w-6 h-6 text-emerald-300" />
              </div>
              
-             <button 
-                onClick={() => {
-                   window.open(`/payment-gateway/${dispenseRecordId}`, '_blank');
-                   // Still let the timeout navigate them forward
-                }}
-                className="mt-6 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
-             >
-                Demo: Open Payment Gateway
-             </button>
+
           </div>
         </div>
       )}

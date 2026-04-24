@@ -1,35 +1,36 @@
-import { db } from './firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, deleteDoc, query, where, setDoc } from 'firebase/firestore';
+const API_BASE_URL = 'http://localhost:5000/pharmacist';
 
-const INVENTORY_COLLECTION = 'adminProducts';
-const PATIENTS_COLLECTION = 'pharmacistPatients';
-const PRESCRIPTIONS_COLLECTION = 'pharmacistPrescriptions';
-const DISPENSED_COLLECTION = 'pharmacistDispensed';
-const ONLINE_ORDERS_COLLECTION = 'CustomerOrders';
-const PHARMACIST_PROFILES_COLLECTION = 'pharmacistProfiles';
+const handleResponse = async (response) => {
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorBody}`);
+  }
+  return response.json();
+};
 
 /**
  * PHARMACIST PROFILE SERVICE
  */
-export const getPharmacistProfile = async (pharmacistId = 'default_pharmacist') => {
+export const getPharmacistProfile = async (pharmacistId = sessionStorage.getItem('userId') || 'default_pharmacist') => {
   try {
-    const querySnapshot = await getDocs(collection(db, PHARMACIST_PROFILES_COLLECTION));
-    const profileDoc = querySnapshot.docs.find(d => d.id === pharmacistId);
-    if (profileDoc) {
-      return { id: profileDoc.id, ...profileDoc.data() };
-    }
-    return null;
+    const response = await fetch(`${API_BASE_URL}/profile/${pharmacistId}`);
+    return handleResponse(response);
   } catch (error) {
     console.error("Error fetching pharmacist profile:", error);
+    // Return null if not found, preserving the original behavior
+    if (error.message.includes('404')) return null;
     throw error;
   }
 };
 
-export const updatePharmacistProfile = async (pharmacistId = 'default_pharmacist', updateData) => {
+export const updatePharmacistProfile = async (pharmacistId = sessionStorage.getItem('userId') || 'default_pharmacist', updateData) => {
   try {
-    const docRef = doc(db, PHARMACIST_PROFILES_COLLECTION, pharmacistId);
-    await setDoc(docRef, updateData, { merge: true }); // setDoc with merge creates if it doesn't exist
-    return { id: pharmacistId, ...updateData };
+    const response = await fetch(`${API_BASE_URL}/profile/${pharmacistId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error updating pharmacist profile:", error);
     throw error;
@@ -42,12 +43,8 @@ export const updatePharmacistProfile = async (pharmacistId = 'default_pharmacist
 
 export const getInventory = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, INVENTORY_COLLECTION));
-    return querySnapshot.docs.map(doc => ({
-      firebaseId: doc.id,
-      id: doc.id,
-      ...doc.data()
-    }));
+    const response = await fetch(`${API_BASE_URL}/inventory`);
+    return handleResponse(response);
   } catch (error) {
     console.error("Error fetching inventory:", error);
     throw error;
@@ -56,8 +53,12 @@ export const getInventory = async () => {
 
 export const addInventoryItem = async (itemData) => {
   try {
-    const docRef = await addDoc(collection(db, INVENTORY_COLLECTION), itemData);
-    return { id: docRef.id, ...itemData };
+    const response = await fetch(`${API_BASE_URL}/inventory`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(itemData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error adding inventory item:", error);
     throw error;
@@ -66,9 +67,12 @@ export const addInventoryItem = async (itemData) => {
 
 export const updateInventoryItem = async (id, updateData) => {
   try {
-    const docRef = doc(db, INVENTORY_COLLECTION, id);
-    await updateDoc(docRef, updateData);
-    return { id, ...updateData };
+    const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error updating inventory item:", error);
     throw error;
@@ -77,9 +81,10 @@ export const updateInventoryItem = async (id, updateData) => {
 
 export const deleteInventoryItem = async (id) => {
   try {
-    const docRef = doc(db, INVENTORY_COLLECTION, id);
-    await deleteDoc(docRef);
-    return id;
+    const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+      method: 'DELETE',
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error deleting inventory item:", error);
     throw error;
@@ -92,12 +97,8 @@ export const deleteInventoryItem = async (id) => {
 
 export const getPatients = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, PATIENTS_COLLECTION));
-    return querySnapshot.docs.map(doc => ({
-      firebaseId: doc.id,
-      id: doc.id,
-      ...doc.data()
-    }));
+    const response = await fetch(`${API_BASE_URL}/patients`);
+    return handleResponse(response);
   } catch (error) {
     console.error("Error fetching patients:", error);
     throw error;
@@ -106,8 +107,12 @@ export const getPatients = async () => {
 
 export const addPatient = async (patientData) => {
   try {
-    const docRef = await addDoc(collection(db, PATIENTS_COLLECTION), patientData);
-    return { id: docRef.id, ...patientData };
+    const response = await fetch(`${API_BASE_URL}/patients`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patientData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error adding patient:", error);
     throw error;
@@ -116,9 +121,12 @@ export const addPatient = async (patientData) => {
 
 export const updatePatient = async (id, updateData) => {
   try {
-    const docRef = doc(db, PATIENTS_COLLECTION, id);
-    await updateDoc(docRef, updateData);
-    return { id, ...updateData };
+    const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error updating patient:", error);
     throw error;
@@ -131,12 +139,8 @@ export const updatePatient = async (id, updateData) => {
 
 export const getPrescriptions = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, PRESCRIPTIONS_COLLECTION));
-    return querySnapshot.docs.map(doc => ({
-      firebaseId: doc.id,
-      id: doc.id,
-      ...doc.data()
-    }));
+    const response = await fetch(`${API_BASE_URL}/prescriptions`);
+    return handleResponse(response);
   } catch (error) {
     console.error("Error fetching prescriptions:", error);
     throw error;
@@ -145,8 +149,12 @@ export const getPrescriptions = async () => {
 
 export const addPrescription = async (prescriptionData) => {
   try {
-    const docRef = await addDoc(collection(db, PRESCRIPTIONS_COLLECTION), prescriptionData);
-    return { id: docRef.id, ...prescriptionData };
+    const response = await fetch(`${API_BASE_URL}/prescriptions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prescriptionData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error adding prescription:", error);
     throw error;
@@ -155,9 +163,12 @@ export const addPrescription = async (prescriptionData) => {
 
 export const updatePrescription = async (id, updateData) => {
   try {
-    const docRef = doc(db, PRESCRIPTIONS_COLLECTION, id);
-    await updateDoc(docRef, updateData);
-    return { id, ...updateData };
+    const response = await fetch(`${API_BASE_URL}/prescriptions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error updating prescription:", error);
     throw error;
@@ -170,12 +181,8 @@ export const updatePrescription = async (id, updateData) => {
 
 export const getDispensedHistory = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, DISPENSED_COLLECTION));
-    return querySnapshot.docs.map(doc => ({
-      firebaseId: doc.id,
-      id: doc.id,
-      ...doc.data()
-    }));
+    const response = await fetch(`${API_BASE_URL}/dispensed`);
+    return handleResponse(response);
   } catch (error) {
     console.error("Error fetching dispends history:", error);
     throw error;
@@ -184,8 +191,12 @@ export const getDispensedHistory = async () => {
 
 export const addDispensedRecord = async (dispenseData) => {
   try {
-    const docRef = await addDoc(collection(db, DISPENSED_COLLECTION), dispenseData);
-    return { id: docRef.id, ...dispenseData };
+    const response = await fetch(`${API_BASE_URL}/dispensed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dispenseData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error adding dispensed record:", error);
     throw error;
@@ -194,9 +205,12 @@ export const addDispensedRecord = async (dispenseData) => {
 
 export const updateDispensedRecord = async (id, updateData) => {
   try {
-    const docRef = doc(db, DISPENSED_COLLECTION, id);
-    await updateDoc(docRef, updateData);
-    return { id, ...updateData };
+    const response = await fetch(`${API_BASE_URL}/dispensed/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error updating dispensed record:", error);
     throw error;
@@ -209,12 +223,8 @@ export const updateDispensedRecord = async (id, updateData) => {
 
 export const getOnlineOrders = async () => {
   try {
-    const querySnapshot = await getDocs(collection(db, ONLINE_ORDERS_COLLECTION));
-    return querySnapshot.docs.map(doc => ({
-      firebaseId: doc.id,
-      id: doc.id,
-      ...doc.data()
-    }));
+    const response = await fetch(`${API_BASE_URL}/orders`);
+    return handleResponse(response);
   } catch (error) {
     console.error("Error fetching online orders:", error);
     throw error;
@@ -223,8 +233,12 @@ export const getOnlineOrders = async () => {
 
 export const addOnlineOrder = async (orderData) => {
   try {
-    const docRef = await addDoc(collection(db, ONLINE_ORDERS_COLLECTION), orderData);
-    return { id: docRef.id, ...orderData };
+    const response = await fetch(`${API_BASE_URL}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error adding online order:", error);
     throw error;
@@ -233,11 +247,56 @@ export const addOnlineOrder = async (orderData) => {
 
 export const updateOnlineOrder = async (id, updateData) => {
   try {
-    const docRef = doc(db, ONLINE_ORDERS_COLLECTION, id);
-    await updateDoc(docRef, updateData);
-    return { id, ...updateData };
+    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateData),
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error updating online order:", error);
+    throw error;
+  }
+};
+
+/**
+ * RETURN REQUESTS SERVICE
+ */
+
+export const getReturnRequests = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/returns`);
+    return handleResponse(response);
+  } catch (error) {
+    console.error("Error fetching return requests:", error);
+    throw error;
+  }
+};
+
+export const addReturnRequest = async (returnData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/returns`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(returnData),
+    });
+    return handleResponse(response);
+  } catch (error) {
+    console.error("Error adding return request:", error);
+    throw error;
+  }
+};
+
+export const updateReturnRequest = async (id, updateData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/returns/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateData),
+    });
+    return handleResponse(response);
+  } catch (error) {
+    console.error("Error updating return request:", error);
     throw error;
   }
 };
@@ -247,25 +306,12 @@ export const updateOnlineOrder = async (id, updateData) => {
  */
 export const resetSystemData = async () => {
   try {
-    // 1. Clear all prescriptions
-    const rxSnapshot = await getDocs(collection(db, PRESCRIPTIONS_COLLECTION));
-    for (const d of rxSnapshot.docs) {
-       await deleteDoc(doc(db, PRESCRIPTIONS_COLLECTION, d.id));
-    }
-    
-    // 2. Clear all dispensed history
-    const dispSnapshot = await getDocs(collection(db, DISPENSED_COLLECTION));
-    for (const d of dispSnapshot.docs) {
-       await deleteDoc(doc(db, DISPENSED_COLLECTION, d.id));
-    }
-    
-    // We intentionally leave Patients and Inventory intact, 
-    // and let PharmacistPrescriptions auto-seed the mock queue on next load.
-    
-    return true;
+    const response = await fetch(`${API_BASE_URL}/system/reset`, {
+      method: 'POST',
+    });
+    return handleResponse(response);
   } catch (error) {
     console.error("Error resetting system data:", error);
     throw error;
   }
 };
-

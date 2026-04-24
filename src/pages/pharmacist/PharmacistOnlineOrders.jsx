@@ -16,49 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { getOnlineOrders, updateOnlineOrder, addOnlineOrder } from '../../services/pharmacistService';
 
-const initialVerifiedOrders = [
-  { 
-    id: 'ORD-9921', 
-    patient: 'Sarah Jenkins', 
-    address: '423 Maple Ave, Springfield, IL',
-    phone: '(555) 123-4567',
-    paymentStatus: 'Paid', 
-    date: 'Today, 09:12 AM', 
-    status: 'Reviewing', 
-    items: [
-       { name: 'Paracetamol 500mg', type: 'OTC Drug', qty: 2, price: 150.00 },
-       { name: 'Anti-Dandruff Shampoo 200ml', type: 'General', qty: 1, price: 950.00 }
-    ], 
-    total: 1250.00
-  },
-  { 
-    id: 'ORD-9922', 
-    patient: 'Michael Chen', 
-    address: '12 Oak St, Chicago, IL',
-    phone: '(555) 987-6543',
-    paymentStatus: 'Cash on Delivery', 
-    date: 'Today, 10:45 AM', 
-    status: 'Confirmed', 
-    items: [
-       { name: 'Vitamin C 1000mg', type: 'OTC Drug', qty: 1, price: 650.00 },
-       { name: 'First Aid Bandages Pack', type: 'General', qty: 2, price: 100.00 }
-    ], 
-    total: 850.00
-  },
-  { 
-    id: 'ORD-9925', 
-    patient: 'Alisha Smith', 
-    address: '88 Tech Blvd, Austin, TX',
-    phone: '(555) 654-3210',
-    paymentStatus: 'Paid', 
-    date: 'Yesterday, 04:20 PM', 
-    status: 'Packed', 
-    items: [
-       { name: 'Cough Syrup 150ml', type: 'OTC Drug', qty: 1, price: 450.00 }
-    ], 
-    total: 450.00
-  }
-];
+// initialVerifiedOrders removed to ensure pure Firebase data
 
 const PharmacistOnlineOrders = () => {
   const navigate = useNavigate();
@@ -73,12 +31,6 @@ const PharmacistOnlineOrders = () => {
      const fetchOrders = async () => {
          try {
              let fetched = await getOnlineOrders();
-             if (fetched.length === 0) {
-                 for (const o of initialVerifiedOrders) {
-                     await addOnlineOrder(o);
-                 }
-                 fetched = await getOnlineOrders();
-             }
              setOrders(fetched);
              setIsLoading(false);
          } catch(e) {
@@ -236,8 +188,8 @@ const PharmacistOnlineOrders = () => {
                      )}
                   </td>
                   <td className="px-6 py-4">
-                     <p className="text-sm font-bold text-slate-700">{order.items.length} Items</p>
-                     <p className="text-xs font-medium text-slate-500 truncate max-w-[150px]">{order.items.map(i=>i.name).join(', ')}</p>
+                     <p className="text-sm font-bold text-slate-700">{order.items?.length || 0} Items</p>
+                     <p className="text-xs font-medium text-slate-500 truncate max-w-[150px]">{(order.items || []).map(i=>i.name).join(', ')}</p>
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-slate-600">
                     <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-slate-400" /> {order.date}</span>
@@ -329,7 +281,7 @@ const PharmacistOnlineOrders = () => {
                   </div>
 
                   {/* Items validation List */}
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">Ordered Items ({selectedOrder.items.length})</h3>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 ml-1">Ordered Items ({selectedOrder.items?.length || 0})</h3>
                   <div className="border border-slate-200 rounded-xl overflow-hidden mb-6">
                      <table className="w-full text-left text-sm">
                        <thead className="bg-slate-50 border-b border-slate-200">
@@ -341,21 +293,21 @@ const PharmacistOnlineOrders = () => {
                           </tr>
                        </thead>
                        <tbody className="divide-y divide-slate-100">
-                          {selectedOrder.items.map((item, idx) => (
+                          {(selectedOrder.items || []).map((item, idx) => (
                              <tr key={idx} className="bg-white">
                                 <td className="px-4 py-3 font-bold text-slate-800">{item.name}</td>
                                 <td className="px-4 py-3">
                                   <span className="bg-slate-100 text-slate-500 text-[10px] font-black uppercase px-2 py-0.5 rounded tracking-wide">{item.type}</span>
                                 </td>
                                 <td className="px-4 py-3 font-black text-slate-700 text-center">{item.qty}</td>
-                                <td className="px-4 py-3 font-bold text-slate-700 text-right">Rs. {item.price.toFixed(2)}</td>
+                                <td className="px-4 py-3 font-bold text-slate-700 text-right">Rs. {(item.price || 0).toFixed(2)}</td>
                              </tr>
                           ))}
                        </tbody>
                        <tfoot className="bg-slate-50 border-t border-slate-200">
                           <tr>
                             <td colSpan="3" className="px-4 py-3 font-black text-slate-600 text-right uppercase tracking-widest text-[10px]">Total {selectedOrder.paymentStatus === 'Paid' ? 'Paid' : 'Due'} Amount</td>
-                            <td className={`px-4 py-3 font-black text-right text-base ${selectedOrder.paymentStatus === 'Paid' ? 'text-emerald-700' : 'text-amber-700'}`}>Rs. {selectedOrder.total.toFixed(2)}</td>
+                            <td className={`px-4 py-3 font-black text-right text-base ${selectedOrder.paymentStatus === 'Paid' ? 'text-emerald-700' : 'text-amber-700'}`}>Rs. {(selectedOrder.total || 0).toFixed(2)}</td>
                           </tr>
                        </tfoot>
                      </table>

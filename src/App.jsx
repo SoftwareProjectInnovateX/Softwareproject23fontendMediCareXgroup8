@@ -6,9 +6,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
-import CustomerDashboard from "./pages/customer/CustomerDashboard"; //to use for testings
 import RegisterSuccess from "./pages/auth/RegisterSuccess";
-import PaymentGateway from "./pages/shared/PaymentGateway";
 
 /* ================== LAYOUTS ================== */
 import SupplierLayout from "./layouts/SupplierLayout";
@@ -54,6 +52,7 @@ import PharmacistExpiringInventory from "./pages/pharmacist/PharmacistExpiringIn
 import PharmacistNewPatients from "./pages/pharmacist/PharmacistNewPatients";
 import PharmacistOnlineOrders from "./pages/pharmacist/PharmacistOnlineOrders";
 import PharmacistLowStock from "./pages/pharmacist/PharmacistLowStock";
+import PharmacistReturns from "./pages/pharmacist/PharmacistReturns";
 
 export default function App() {
   return (
@@ -64,9 +63,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} /> 
-        <Route path="/customer" element={<CustomerDashboard />} /> 
         <Route path="/register-success" element={<RegisterSuccess />} />
-        <Route path="/payment-gateway/:id" element={<PaymentGateway />} />
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -139,6 +136,7 @@ export default function App() {
           <Route path="new-patients" element={<PharmacistNewPatients />} />
           <Route path="online-orders" element={<PharmacistOnlineOrders />} />
           <Route path="low-stock" element={<PharmacistLowStock />} />
+          <Route path="returns" element={<PharmacistReturns />} />
         </Route>
 
         {/* ========== 404 - NOT FOUND ========== */}

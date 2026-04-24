@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { getInventory } from '../../services/pharmacistService';
+import { getInventory, getReturnRequests } from '../../services/pharmacistService';
 import { 
   FileText, 
   Calendar,
@@ -28,6 +28,7 @@ const PharmacistDashboard = () => {
   const [lowStockItems, setLowStockItems] = useState([]);
   const [expiringItems, setExpiringItems] = useState([]);
   const [totalInventoryCount, setTotalInventoryCount] = useState(0);
+  const [pendingReturns, setPendingReturns] = useState(0);
 
   const fetchRevenues = async () => {
     try {
@@ -149,12 +150,24 @@ const PharmacistDashboard = () => {
      }
   };
 
+  const fetchReturnsData = async () => {
+     try {
+         const returns = await getReturnRequests();
+         const pending = returns.filter(r => r.status === 'Pending').length;
+         setPendingReturns(pending);
+     } catch (e) {
+         console.error(e);
+     }
+  };
+
   useEffect(() => {
     fetchRevenues();
     fetchInventoryData();
+    fetchReturnsData();
     const handleUpdate = () => {
        fetchRevenues();
        fetchInventoryData();
+       fetchReturnsData();
     };
     window.addEventListener('revenue_updated', handleUpdate);
     window.addEventListener('dispensed_updated', handleUpdate);
@@ -213,9 +226,6 @@ const PharmacistDashboard = () => {
             <div>
               <p className="text-sm font-medium text-slate-500">Dispensed Today</p>
               <h2 className="text-3xl font-bold text-slate-800 mt-1">{dispensedTodayCount}</h2>
-            </div>
-            <div className="bg-emerald-50 text-emerald-600 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-              +12%
             </div>
           </div>
           <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-110 transition-transform z-0">
@@ -435,8 +445,25 @@ const PharmacistDashboard = () => {
           </div>
         </div>
 
-        {/* Right Column (Recent Activity) */}
+        {/* Right Column (Recent Activity & Alerts) */}
         <div className="space-y-6">
+          
+          {pendingReturns > 0 && (
+            <div 
+               className="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm cursor-pointer hover:bg-amber-100 transition-colors"
+               onClick={() => navigate('/pharmacist/returns')}
+            >
+               <div className="flex items-center gap-3 mb-2">
+                 <div className="bg-amber-500 text-white p-1.5 rounded-lg">
+                    <Inbox className="w-5 h-5" />
+                 </div>
+                 <h3 className="font-bold text-amber-900">Return Requests</h3>
+               </div>
+               <p className="text-sm text-amber-700 font-medium">You have <span className="font-black text-amber-900">{pendingReturns}</span> pending return requests that need your attention.</p>
+               <button className="mt-3 text-xs font-bold text-amber-600 uppercase tracking-wider hover:text-amber-800">Review Now &rarr;</button>
+            </div>
+          )}
+
           <div className="card pt-5 pb-2">
             <h3 className="text-base font-bold text-slate-800 mb-6">Recent Activity</h3>
             

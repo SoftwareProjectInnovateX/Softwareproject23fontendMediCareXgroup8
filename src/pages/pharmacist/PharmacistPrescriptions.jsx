@@ -18,86 +18,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AlertContext } from '../../layouts/PharmacistLayout';
 import { useContext } from 'react';
 
-const extendedNames = [
-  "Taylor, Michael", "Moore, Sarah", "Jackson, David", "Martin, Emma", "Lee, Christopher",
-  "Perez, Olivia", "Thompson, Daniel", "White, Sophia", "Harris, Matthew", "Sanchez, Isabella",
-  "Clark, Andrew", "Ramirez, Mia", "Lewis, Joshua", "Robinson, Amelia", "Walker, Joseph",
-  "Young, Harper", "Allen, Samuel", "King, Evelyn", "Wright, David", "Scott, Abigail"
-];
-
-const generatedTableData = extendedNames.map((name, index) => {
-    const statusVal = index % 4 === 0 ? 'In Review' : (index % 3 === 0 ? 'Verified' : 'New');
-    return {
-      id: `${88316 + index}`,
-      isHighPriority: false,
-      patientName: name,
-      dob: `0${(index % 9) + 1}/${(index % 28) + 1}/19${60 + (index % 35)}`,
-      isDigital: index % 2 === 0,
-      dateMain: `Today, 12:${(10 + index).toString().padStart(2, '0')}`,
-      dateSub: 'PM',
-      status: statusVal,
-      statusStyle: index % 4 === 0 ? 'bg-amber-100 text-amber-700' : (index % 3 === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'),
-      actionLabel: index % 4 === 0 ? 'Resume' : (index % 3 === 0 ? 'View Details' : 'Review'),
-      rowStyle: ''
-    };
-});
-
-const mockTableData = [
-  {
-    id: '88291',
-    isHighPriority: true,
-    patientName: 'Jameson, Robert',
-    dob: '05/12/1972',
-    isDigital: true,
-    dateMain: 'Today, 09:12',
-    dateSub: 'AM',
-    status: 'Flagged',
-    statusStyle: 'bg-amber-100 text-amber-700',
-    actionLabel: 'Review',
-    rowStyle: ''
-  },
-  {
-    id: '88304',
-    isHighPriority: false,
-    patientName: 'Chen, Elena',
-    dob: '11/24/1990',
-    isDigital: false,
-    dateMain: 'Today, 10:45',
-    dateSub: 'AM',
-    status: 'In Review',
-    statusStyle: 'bg-emerald-100 text-emerald-700',
-    actionLabel: 'Resume',
-    rowStyle: ''
-  },
-  {
-    id: '88312',
-    isHighPriority: false,
-    patientName: 'Smith, Alisha',
-    dob: '02/03/1985',
-    isDigital: true,
-    dateMain: 'Today, 11:05',
-    dateSub: 'AM',
-    status: 'New',
-    statusStyle: 'bg-blue-100 text-blue-700',
-    actionLabel: 'Review',
-    rowStyle: 'bg-blue-50/30'
-  },
-  {
-    id: '88315',
-    isHighPriority: false,
-    patientName: 'Williams, Marcus',
-    dob: '09/30/1958',
-    isDigital: false,
-    dateMain: 'Today, 11:20',
-    dateSub: 'AM',
-    status: 'New',
-    statusStyle: 'bg-blue-100 text-blue-700',
-    actionLabel: 'Review',
-    rowStyle: ''
-  },
-  ...generatedTableData
-];
-
+// mockTableData and generatedTableData removed to ensure pure Firebase data
 
 const PharmacistPrescriptions = () => {
   const navigate = useNavigate();
@@ -115,12 +36,6 @@ const PharmacistPrescriptions = () => {
     const fetchRx = () => {
        import('../../services/pharmacistService').then(({ getPrescriptions, addPrescription }) => {
           getPrescriptions().then(async (rxData) => {
-              if (rxData.length === 0) {
-                 for (const rx of mockTableData) {
-                    await addPrescription(rx);
-                 }
-                 rxData = await getPrescriptions();
-              }
               setDynamicTableData(rxData.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)));
               setIsLoading(false);
           }).catch((e) => {
@@ -131,7 +46,8 @@ const PharmacistPrescriptions = () => {
     };
 
     fetchRx(); // Initial fetch
-    intervalId = setInterval(fetchRx, 3000); // Poll every 3 seconds
+    // Changed polling to 30 seconds to prevent Firebase quota exhaustion
+    intervalId = setInterval(fetchRx, 30000); 
 
     return () => {
        if (intervalId) clearInterval(intervalId);
@@ -268,21 +184,6 @@ const PharmacistPrescriptions = () => {
         </div>
       </div>
 
-      <div>
-        <button 
-          className="btn-primary bg-[#084298] hover:bg-[#06357a] text-white flex items-center gap-2 px-6 py-2.5 rounded-full shadow-sm font-medium"
-          onClick={() => {
-            const pendingRx = dynamicTableData.find(r => r.status === 'In Review' || r.status === 'New' || r.status === 'Flagged');
-            const targetId = pendingRx ? (pendingRx.id) : '88291';
-            navigate(`/pharmacist/verification/${targetId}`);
-          }}
-        >
-          <PlayCircle className="w-5 h-5 text-blue-200" />
-          Start Verifying
-        </button>
-      </div>
-
-
       {/* Summary Cards */}
       <div className="grid grid-cols-4 gap-4 mt-8">
         <div 
@@ -299,8 +200,6 @@ const PharmacistPrescriptions = () => {
                <Inbox className="w-5 h-5" />
              </div>
              <span className="bg-emerald-50 text-emerald-600 text-xs font-bold px-2.5 py-1 rounded-full z-10 flex items-center gap-1 mr-4">
-               <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>
-               12%
              </span>
            </div>
            <div className="mt-4 z-10 relative">
@@ -368,48 +267,6 @@ const PharmacistPrescriptions = () => {
       <div className="card p-0 overflow-hidden pt-4 mt-6">
         
         {/* Table Controls */}
-        <div className="px-6 pt-2 pb-4 flex justify-between">
-           <button 
-             onClick={async () => {
-               try {
-                 const { addPrescription } = await import('../../services/pharmacistService');
-                 await addPrescription({
-                   id: Math.floor(Math.random() * 90000).toString(),
-                   isHighPriority: true,
-                   patientName: 'Test Patient 1',
-                   dob: '01/01/1990',
-                   isDigital: true,
-                   dateMain: 'Just Now',
-                   dateSub: '',
-                   status: 'New',
-                   statusStyle: 'bg-blue-100 text-blue-700',
-                   actionLabel: 'Review',
-                   rowStyle: 'bg-blue-50/30'
-                 });
-                 await addPrescription({
-                   id: Math.floor(Math.random() * 90000).toString(),
-                   isHighPriority: false,
-                   patientName: 'Test Patient 2',
-                   dob: '05/05/1985',
-                   isDigital: false,
-                   dateMain: 'Just Now',
-                   dateSub: '',
-                   status: 'New',
-                   statusStyle: 'bg-blue-100 text-blue-700',
-                   actionLabel: 'Review',
-                   rowStyle: ''
-                 });
-                 alert("Success! Prescriptions added. Refreshing now...");
-                 window.location.reload();
-               } catch (error) {
-                 alert("Firebase Error: " + error.message);
-               }
-             }}
-             className="bg-purple-600 text-white font-bold px-4 py-2 rounded-lg text-sm mb-4"
-           >
-             Generate Test Prescriptions
-           </button>
-        </div>
         <div className="flex items-center justify-between px-6 pb-4">
            <div className="relative w-80">
              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -442,6 +299,7 @@ const PharmacistPrescriptions = () => {
                 <option>In Review</option>
                 <option>Flagged</option>
                 <option>Verified</option>
+                <option>Verified/Completed</option>
               </select>
               <select 
                 className="bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm text-slate-600 outline-none"

@@ -13,7 +13,8 @@ import {
   Settings,
   ShieldPlus,
   LogOut,
-  Activity
+  Activity,
+  RotateCcw
 } from 'lucide-react';
 
 const PharmacistSidebar = () => {
@@ -31,6 +32,7 @@ const PharmacistSidebar = () => {
     { path: '/pharmacist/patients', name: 'Patients', icon: Users },
     { path: '/pharmacist/inventory', name: 'Inventory', icon: Archive },
     { path: '/pharmacist/lookup', name: 'Drug Lookup', icon: Search },
+    { path: '/pharmacist/returns', name: 'Returns', icon: RotateCcw },
     { path: '/pharmacist/notifications', name: 'Notifications', icon: Bell, dot: unreadAlerts > 0 },
     { path: '/pharmacist/reports', name: 'Reports', icon: BarChart2 },
   ];

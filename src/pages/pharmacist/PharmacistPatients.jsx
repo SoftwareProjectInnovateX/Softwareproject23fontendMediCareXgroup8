@@ -10,51 +10,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 
-export const initialPatients = [
-  { 
-    id: '#849302', name: 'Sarah Jenkins', dob: 'Oct 12, 1982', age: 41, gender: 'Female', phone: '(555) 123-4567', address: '423 Maple Ave, Springfield, IL', insurance: 'BlueCross PPO', insuranceId: '#XA99302', physician: 'Dr. Emily Thorne (Internal Medicine)', activeCount: 3, fading: false, avatarColor: 'ea580c', avatarBg: 'ffedd5', timestamp: 1712950000000,
-    medications: [
-      { name: 'Lisinopril 10mg', form: 'Tab', sig: '1 tab PO QD (Daily)', date: 'Oct 12, 2023', prescriber: 'Dr. Thorne', status: 'Active' },
-      { name: 'Metformin 500mg', form: 'Tab ER', sig: '1 tab PO BID w/ meals', date: 'Sep 28, 2023', prescriber: 'Dr. Thorne', status: 'Active' },
-      { name: 'Atorvastatin 20mg', form: 'Tab', sig: '1 tab PO QHS (Bedtime)', date: 'Sep 28, 2023', prescriber: 'Dr. Thorne', status: 'Active' },
-      { name: 'Amoxicillin 500mg', form: 'Cap', sig: '1 cap PO TID x 7 days', date: 'Feb 10, 2023', prescriber: 'Dr. Smith', status: 'Past' },
-      { name: 'Azithromycin 250mg', form: 'Tab', sig: '2 tabs stat, then 1 tab daily x 4 days', date: 'Nov 15, 2022', prescriber: 'Dr. Thorne', status: 'Past' },
-      { name: 'Ibuprofen 400mg', form: 'Tab', sig: '1 tab PO Q6H PRN pain', date: 'Aug 03, 2022', prescriber: 'Dr. Smith', status: 'Past' },
-      { name: 'Prednisone 20mg', form: 'Tab', sig: 'Take as directed for 5 days', date: 'Jan 12, 2022', prescriber: 'Dr. Thorne', status: 'Past' }
-    ],
-    notes: [
-      { type: 'Counseling', date: '10/12/23', content: 'Patient reported dry cough with Lisinopril. Discussed potential side effects. Advised to monitor for 1 week and report back if it persists.', author: 'Pharm. D. Evans', authorInitials: 'DE' },
-      { type: 'PharmacistVerification', date: '09/28/23', content: 'Confirmed dosage increase for Metformin with Dr. Thorne\'s office via phone.', author: 'Tech S. Jones', authorInitials: 'SJ' }
-    ]
-  },
-  { 
-    id: '#992104', name: 'Michael Chen', dob: 'Jan 05, 1965', age: 59, gender: 'Male', phone: '(555) 987-6543', address: '12 Oak St, Chicago, IL', insurance: 'Aetna HMO', insuranceId: '#BQ88421', physician: 'Dr. Alan Smith (Family Medicine)', activeCount: 1, fading: false, avatarColor: '2563eb', avatarBg: 'dbeafe', timestamp: 1712940000000,
-    medications: [
-      { name: 'Amlodipine 5mg', form: 'Tab', sig: '1 tab PO QD', date: 'Nov 02, 2023', prescriber: 'Dr. Smith', status: 'Active' },
-      { name: 'Omeprazole 20mg', form: 'Cap', sig: '1 cap PO QD 30 min before breakfast', date: 'Oct 15, 2022', prescriber: 'Dr. Smith', status: 'Past' }
-    ],
-    notes: [
-      { type: 'General Note', date: '11/02/23', content: 'Patient prefers easy-open caps. Updated file preference.', author: 'Tech A. Williams', authorInitials: 'AW' }
-    ]
-  },
-  { 
-    id: '#112933', name: 'Eleanor Rigby', dob: 'Mar 15, 1948', age: 76, gender: 'Female', phone: '(555) 456-7890', address: '99 Church Rd, Liverpool, IL', insurance: 'Medicare Part D', insuranceId: '#MD112233', physician: 'Dr. Emily Thorne (Internal Medicine)', activeCount: 0, fading: true, avatarColor: '9333ea', avatarBg: 'f3e8ff', timestamp: 1712930000000,
-    medications: [
-      { name: 'Levothyroxine 50mcg', form: 'Tab', sig: '1 tab PO QD in morning', date: 'Jul 20, 2023', prescriber: 'Dr. Thorne', status: 'Past' }
-    ],
-    notes: []
-  },
-  { 
-    id: '#774621', name: 'David Bowman', dob: 'Jun 22, 1978', age: 45, gender: 'Male', phone: '(555) 234-5678', address: '2001 Space Ave, Discovery, IL', insurance: 'Cigna PPO', insuranceId: '#CG55443', physician: 'Dr. Heywood Floyd (Cardiology)', activeCount: 2, fading: false, avatarColor: '059669', avatarBg: 'd1fae5', timestamp: 1712920000000,
-    medications: [
-      { name: 'Losartan 50mg', form: 'Tab', sig: '1 tab PO QD', date: 'Aug 14, 2023', prescriber: 'Dr. Floyd', status: 'Active' },
-      { name: 'Rosuvastatin 10mg', form: 'Tab', sig: '1 tab PO QHS', date: 'Aug 14, 2023', prescriber: 'Dr. Floyd', status: 'Active' }
-    ],
-    notes: [
-      { type: 'Counseling', date: '08/14/23', content: 'Counseled on new statin therapy and lifestyle modifications.', author: 'Pharm. R. Dane', authorInitials: 'RD' }
-    ]
-  }
-];
+// initialPatients removed to ensure pure Firebase data
 
 const PharmacistPatients = () => {
   const location = useLocation();
@@ -68,13 +24,6 @@ const PharmacistPatients = () => {
      const initData = async () => {
          try {
              let pts = await getPatients();
-             if (pts.length === 0) {
-                 // Seed initial
-                 for (const p of initialPatients) {
-                     await addPatient(p);
-                 }
-                 pts = await getPatients();
-             }
 
              // Auto-delete medications older than 6 months locally or just filter them visually
              const sixMonthsAgo = new Date();

@@ -21,53 +21,14 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from 'recharts';
-import { getDispensedHistory, getInventory, getOnlineOrders } from '../../services/pharmacistService';
+import { getDispensedHistory, getInventory, getOnlineOrders, getReturnRequests, addDispensedRecord } from '../../services/pharmacistService';
 
-// Default Fallback Data if Firebase fails or is empty
-const defaultChartData30Days = [
-  { name: 'Oct 01', verified: 0 }, { name: 'Oct 02', verified: 0 }
-];
-
-const defaultAnalyticsData = {
-   'Last 7 Days': {
-      revenue: '185,400.00',
-      avgTime: '12m 45s',
-      returnRate: '68%',
-      topDrugs: [
-         { name: 'Amoxicillin 500mg', qty: 245, unit: 'Capsules', percent: 85 },
-         { name: 'Lisinopril 10mg', qty: 180, unit: 'Tablets', percent: 65 },
-         { name: 'Metformin 500mg', qty: 156, unit: 'Tablets', percent: 55 },
-         { name: 'Atorvastatin 20mg', qty: 142, unit: 'Tablets', percent: 45 },
-         { name: 'Salbutamol Inhaler', qty: 94, unit: 'Inhalers', percent: 30 }
-      ],
-      inventory: { lowStock: 14, expiring: 3 }
-   },
-   'Last 30 Days': {
-      revenue: '842,500.00',
-      avgTime: '14m 10s',
-      returnRate: '72%',
-      topDrugs: [
-         { name: 'Lisinopril 10mg', qty: 980, unit: 'Tablets', percent: 95 },
-         { name: 'Amoxicillin 500mg', qty: 850, unit: 'Capsules', percent: 80 },
-         { name: 'Metformin 500mg', qty: 720, unit: 'Tablets', percent: 70 },
-         { name: 'Atorvastatin 20mg', qty: 650, unit: 'Tablets', percent: 60 },
-         { name: 'Omeprazole 20mg', qty: 410, unit: 'Capsules', percent: 40 }
-      ],
-      inventory: { lowStock: 14, expiring: 8 }
-   },
-   'Year to Date': {
-      revenue: '8,450,200.00',
-      avgTime: '13m 30s',
-      returnRate: '75%',
-      topDrugs: [
-         { name: 'Metformin 500mg', qty: '12.4k', unit: 'Tablets', percent: 95 },
-         { name: 'Lisinopril 10mg', qty: '11.8k', unit: 'Tablets', percent: 90 },
-         { name: 'Atorvastatin 20mg', qty: '9.5k', unit: 'Tablets', percent: 75 },
-         { name: 'Amoxicillin 500mg', qty: '7.8k', unit: 'Capsules', percent: 60 },
-         { name: 'Losartan 50mg', qty: '5.4k', unit: 'Tablets', percent: 45 }
-      ],
-      inventory: { lowStock: 14, expiring: 52 }
-   }
+const blankAnalytics = {
+  revenue: '0.00',
+  avgTime: '0m 0s',
+  returnRate: '0%',
+  topDrugs: [],
+  inventory: { lowStock: 0, expiring: 0 }
 };
 
 const PharmacistReports = () => {
@@ -77,7 +38,7 @@ const PharmacistReports = () => {
   
   const [dynamicChart30, setDynamicChart30] = useState([]);
   const [dynamicChart7, setDynamicChart7] = useState([]);
-  const [dynamicAnalytics, setDynamicAnalytics] = useState(defaultAnalyticsData);
+  const [dynamicAnalytics, setDynamicAnalytics] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -85,6 +46,7 @@ const PharmacistReports = () => {
         const dispensed = await getDispensedHistory();
         const inventory = await getInventory();
         const onlineOrders = await getOnlineOrders();
+        const returns = await getReturnRequests();
 
         // 1. Calculate Inventory Health
         let lowStock = 0;
@@ -190,11 +152,46 @@ const PharmacistReports = () => {
                 return { ...drug, percent: Math.round((drug.qty / max) * 100) };
              });
 
+           // Calculate Return Rate
+           let totalOrdersPeriod = 0;
+           let returnsPeriod = 0;
+           
+           const processReturnRate = () => {
+              returns.forEach(r => {
+                 const rDate = new Date(r.timestamp);
+                 if (days === 0) {
+                     if (rDate.toDateString() === new Date().toDateString()) returnsPeriod++;
+                 } else {
+                     if (rDate >= cutoff) returnsPeriod++;
+                 }
+              });
+              
+              dispensed.forEach(d => {
+                 const dDate = new Date(d.dispensedDate || d.timestamp);
+                 if (days === 0) {
+                     if (dDate.toDateString() === new Date().toDateString()) totalOrdersPeriod++;
+                 } else {
+                     if (dDate >= cutoff) totalOrdersPeriod++;
+                 }
+              });
+              onlineOrders.forEach(o => {
+                 const oDate = new Date(o.orderDate || o.timestamp);
+                 if (days === 0) {
+                     if (oDate.toDateString() === new Date().toDateString()) totalOrdersPeriod++;
+                 } else {
+                     if (oDate >= cutoff) totalOrdersPeriod++;
+                 }
+              });
+           };
+           processReturnRate();
+
+           const rRate = totalOrdersPeriod > 0 ? ((returnsPeriod / totalOrdersPeriod) * 100).toFixed(1) + '%' : '0%';
+
            return {
               revenue: rev.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-              avgTime: 'N/A', // simplified
-              returnRate: 'N/A', // simplified
-              topDrugs: topDrugsList.length > 0 ? topDrugsList : [{ name: 'No Data', qty: 0, unit: 'Units', percent: 0 }],
+              avgTime: '0m 0s', // No tracking mechanism for this yet
+              returnRate: rRate,
+              topDrugs: topDrugsList,
               inventory: invHealth
            };
         };
@@ -225,7 +222,7 @@ const PharmacistReports = () => {
     return dynamicChart30;
   }, [dateRange, dynamicChart7, dynamicChart30]);
 
-  const currentStats = dynamicAnalytics[dateRange] || defaultAnalyticsData['Last 7 Days'];
+  const currentStats = dynamicAnalytics[dateRange] || blankAnalytics;
 
   const exportPDF = () => {
     window.print();
@@ -296,9 +293,6 @@ const PharmacistReports = () => {
             </div>
             <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Dispensing Revenue</p>
             <h2 className="text-4xl font-black text-slate-800">Rs. {currentStats.revenue}</h2>
-            <p className="text-xs font-bold text-emerald-600 mt-3 flex items-center gap-1 bg-emerald-50 w-max px-2 py-1 rounded">
-               <TrendingUp className="w-3 h-3" /> +12.5% vs previous period
-            </p>
          </div>
 
          {/* Efficiency Card */}
@@ -320,9 +314,6 @@ const PharmacistReports = () => {
             </div>
             <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Patient Return Rate</p>
             <h2 className="text-4xl font-black text-slate-800">{currentStats.returnRate}</h2>
-            <p className="text-xs font-bold text-purple-600 mt-3 flex items-center gap-1 bg-purple-50 w-max px-2 py-1 rounded">
-               <TrendingUp className="w-3 h-3" /> Recurring chronic refills
-            </p>
          </div>
       </div>
 
@@ -416,7 +407,11 @@ const PharmacistReports = () => {
                <p className="text-xs font-bold text-slate-400 mb-6 uppercase tracking-wider border-b border-slate-100 pb-3">By Output Volume</p>
 
                <div className="space-y-5 flex-1 overflow-y-auto pr-2">
-                  {currentStats.topDrugs.map((drug, idx) => (
+                  {currentStats.topDrugs.length === 0 ? (
+                     <div className="text-center py-6">
+                       <p className="text-slate-400 font-bold text-sm">No data available for this period.</p>
+                     </div>
+                  ) : currentStats.topDrugs.map((drug, idx) => (
                      <div key={idx}>
                         <div className="flex justify-between items-end mb-1">
                            <div className="flex items-center gap-2">

@@ -1,14 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Printer, ArrowLeft, CheckCircle2, User, Search, FileText, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getPatients, updatePatient, addPatient, addPrescription } from '../../services/pharmacistService';
+import { getPatients, updatePatient, addPatient, addPrescription, getInventory, updateInventoryItem, addDispensedRecord } from '../../services/pharmacistService';
 
 const PharmacistNewRxEntry = () => {
   const navigate = useNavigate();
   
   const [patientsDb, setPatientsDb] = useState([]);
+  const [inventoryDb, setInventoryDb] = useState([]);
   useEffect(() => {
      getPatients().then(setPatientsDb).catch(console.error);
+
+     getInventory().then(data => {
+       if (data) {
+         setInventoryDb(data);
+       } else {
+         setInventoryDb([]);
+       }
+     }).catch((err) => {
+       console.error("Inventory API failed", err);
+       setInventoryDb([]);
+     });
   }, []);
 
   // Form State
@@ -24,7 +36,11 @@ const PharmacistNewRxEntry = () => {
   const [currentMed, setCurrentMed] = useState('');
   const [currentQty, setCurrentQty] = useState('');
   const [currentPrice, setCurrentPrice] = useState('');
+  const [showItemSuggest, setShowItemSuggest] = useState(false);
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
   const [activeTab, setActiveTab] = useState('rx'); // 'rx' or 'otc'
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' or 'card'
+  const [discountPercent, setDiscountPercent] = useState(0);
   
   const [isBillGenerated, setIsBillGenerated] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
@@ -45,32 +61,103 @@ const PharmacistNewRxEntry = () => {
 
   const filteredPatients = patientsDb.filter(p => p.name.toLowerCase().includes(patientName.toLowerCase()) && patientName.length > 0);
 
-  const handleAddMedicine = (e) => {
+  const filteredItems = inventoryDb.filter(item => {
+    const itemName = item.name || item.productName || item.itemName || '';
+    if (currentMed.length > 0 && !itemName.toLowerCase().startsWith(currentMed.toLowerCase()) && !itemName.toLowerCase().includes(currentMed.toLowerCase())) return false;
+    
+    const cat = (item.category || '').toLowerCase();
+    const isOtc = cat.includes('otc') || cat.includes('general') || cat.includes('cosmetic') || cat.includes('supply');
+    
+    if (activeTab === 'rx') {
+      return !isOtc; // If Rx tab, show everything that is NOT strictly OTC/General
+    } else {
+      return isOtc; // If OTC tab, show only OTC/General items
+    }
+  }).slice(0, 50);
+
+  const handleSelectItem = (item) => {
+    const itemName = item.name || item.productName || item.itemName || '';
+    setCurrentMed(itemName);
+    const price = item.price || item.unitPrice || item.sellingPrice || item.cost || item.amount || 0;
+    if (price !== undefined && price !== null) setCurrentPrice(price.toString());
+    setSelectedInventoryItem(item);
+    setShowItemSuggest(false);
+  };
+
+  const handleAddMedicine = async (e) => {
     e.preventDefault();
     if (currentMed && currentQty && currentPrice) {
+      const qty = parseInt(currentQty);
+      
+      let invItem = selectedInventoryItem;
+      if (!invItem) {
+          invItem = inventoryDb.find(i => i.name.toLowerCase() === currentMed.toLowerCase());
+      }
+      
       setMedicines([...medicines, {
         id: Date.now(),
+        inventoryId: invItem ? invItem.id : null,
         name: currentMed,
         category: activeTab,
-        qty: parseInt(currentQty),
+        qty: qty,
         price: parseFloat(currentPrice),
-        total: parseInt(currentQty) * parseFloat(currentPrice)
+        total: qty * parseFloat(currentPrice)
       }]);
+      
+      // Deduct from inventory
+      if (invItem && invItem.id) {
+          const currentStock = invItem.stock ?? invItem.qty ?? invItem.quantity ?? invItem.totalStock ?? invItem.currentStock ?? 0;
+          const newStock = Math.max(0, currentStock - qty);
+          
+          // Update local state
+          const updatedDb = inventoryDb.map(i => i.id === invItem.id ? { ...i, stock: newStock, qty: newStock, quantity: newStock } : i);
+          setInventoryDb(updatedDb);
+          
+          // Update backend
+          try {
+             await updateInventoryItem(invItem.id, { stock: newStock, qty: newStock, quantity: newStock });
+          } catch(err) {
+             console.error("Failed to update inventory", err);
+          }
+      }
+
       setCurrentMed('');
       setCurrentQty('');
       setCurrentPrice('');
+      setSelectedInventoryItem(null);
     }
   };
 
-  const removeMedicine = (id) => {
+  const removeMedicine = async (id) => {
+    const medToRemove = medicines.find(m => m.id === id);
+    if (medToRemove && medToRemove.inventoryId) {
+        const invItem = inventoryDb.find(i => i.id === medToRemove.inventoryId);
+        if (invItem) {
+            const currentStock = invItem.stock ?? invItem.qty ?? invItem.quantity ?? invItem.totalStock ?? invItem.currentStock ?? 0;
+            const newStock = currentStock + medToRemove.qty;
+            
+            // Update local state
+            const updatedDb = inventoryDb.map(i => i.id === invItem.id ? { ...i, stock: newStock, qty: newStock, quantity: newStock } : i);
+            setInventoryDb(updatedDb);
+            
+            // Update backend
+            try {
+               await updateInventoryItem(invItem.id, { stock: newStock, qty: newStock, quantity: newStock });
+            } catch(err) {
+               console.error("Failed to restore inventory", err);
+            }
+        }
+    }
     setMedicines(medicines.filter(m => m.id !== id));
   };
 
-  const grandTotal = medicines.reduce((sum, item) => sum + item.total, 0);
+  const subTotal = medicines.reduce((sum, item) => sum + item.total, 0);
+  const discountAmount = (subTotal * (parseFloat(discountPercent) || 0)) / 100;
+  const grandTotal = subTotal - discountAmount;
 
-  const handlePayment = () => {
-    if (!patientName || !phone || !age || medicines.length === 0) {
-      alert("Please enter patient details (Name, Phone, Age) and at least one medicine.");
+  const handlePayment = async () => {
+    if (medicines.length === 0) {
+      alert("Please add at least one medicine.");
       return;
     }
 
@@ -89,8 +176,13 @@ const PharmacistNewRxEntry = () => {
        const currentRxSum = medicines.filter(m => m.category === 'rx').reduce((sum, item) => sum + item.total, 0);
        const currentOtcSum = medicines.filter(m => m.category === 'otc').reduce((sum, item) => sum + item.total, 0);
        
-       rxRev += currentRxSum;
-       otcRev += currentOtcSum;
+       const totalBeforeDiscount = currentRxSum + currentOtcSum;
+       const rxRatio = totalBeforeDiscount > 0 ? currentRxSum / totalBeforeDiscount : 0;
+       const rxDiscount = discountAmount * rxRatio;
+       const otcDiscount = discountAmount * (1 - rxRatio);
+       
+       rxRev += (currentRxSum - rxDiscount);
+       otcRev += (currentOtcSum - otcDiscount);
        
        localStorage.setItem('medicarex_walkin_rx_revenue', rxRev.toString());
        localStorage.setItem('medicarex_walkin_otc_revenue', otcRev.toString());
@@ -131,16 +223,16 @@ const PharmacistNewRxEntry = () => {
         const dbId = updatedPatients[pIdx].firebaseId || updatedPatients[pIdx].id;
         if (dbId) updatePatient(dbId, { medications: updatedPatients[pIdx].medications, activeCount: updatedPatients[pIdx].activeCount }).catch(console.error);
         
-      } else {
-        // Register new patient automatically
+      } else if (patientName || phone) {
+        // Register new patient automatically only if at least name or phone is provided
         const newId = '#' + Math.floor(Math.random() * 900000 + 100000);
         const newPatient = {
           id: newId,
-          name: patientName,
+          name: patientName || 'Walk-in Guest',
           dob: 'Unknown',
           age: parseInt(age) || 0,
           gender: 'Unknown',
-          phone: phone,
+          phone: phone || 'N/A',
           address: 'Walk-in Patient',
           insurance: 'Cash',
           insuranceId: 'N/A',
@@ -172,7 +264,7 @@ const PharmacistNewRxEntry = () => {
         const newQueueItem = {
           queueId: `${Math.floor(88000 + Math.random() * 999)}`,
           isHighPriority: false,
-          patientName: patientName,
+          patientName: patientName || 'Walk-in Guest',
           dob: 'Unknown',
           isDigital: false, // forces "Handwritten" / Physical UI
           dateMain: `Today, ${time}`,
@@ -185,13 +277,66 @@ const PharmacistNewRxEntry = () => {
           timestamp: Date.now()
         };
         
-        addPrescription(newQueueItem).catch(console.error);
+        await addPrescription(newQueueItem).catch(console.error);
       } catch(e) {}
+    }
+
+    // 2.8 Add to Dispensed History so Dashboard revenue updates correctly
+    try {
+        const rxMeds = medicines.filter(m => m.category === 'rx');
+        const otcMeds = medicines.filter(m => m.category === 'otc');
+        
+        if (rxMeds.length > 0) {
+            const rxTotal = rxMeds.reduce((sum, item) => sum + item.total, 0);
+            const totalBeforeDiscount = rxTotal + otcMeds.reduce((sum, item) => sum + item.total, 0);
+            const rxRatio = totalBeforeDiscount > 0 ? rxTotal / totalBeforeDiscount : 0;
+            const finalRxTotal = rxTotal - (discountAmount * rxRatio);
+            
+            await addDispensedRecord({
+               id: `WALKIN-RX-${Math.floor(Date.now() / 1000)}`,
+               dispensedDate: new Date().toDateString(),
+               paymentStatus: 'Paid',
+               paymentMethod: paymentMethod === 'card' ? 'Card Payment' : 'Cash',
+               total: finalRxTotal.toFixed(2),
+               type: 'prescription',
+               medicines: rxMeds,
+               patientName: patientName || 'Walk-in Guest',
+               timestamp: Date.now()
+            });
+        }
+        
+        if (otcMeds.length > 0) {
+            const otcTotal = otcMeds.reduce((sum, item) => sum + item.total, 0);
+            const totalBeforeDiscount = otcTotal + rxMeds.reduce((sum, item) => sum + item.total, 0);
+            const otcRatio = totalBeforeDiscount > 0 ? otcTotal / totalBeforeDiscount : 0;
+            const finalOtcTotal = otcTotal - (discountAmount * otcRatio);
+            
+            await addDispensedRecord({
+               id: `WALKIN-OTC-${Math.floor(Date.now() / 1000)}`,
+               dispensedDate: new Date().toDateString(),
+               paymentStatus: 'Paid',
+               paymentMethod: paymentMethod === 'card' ? 'Card Payment' : 'Cash',
+               total: finalOtcTotal.toFixed(2),
+               type: 'otc',
+               medicines: otcMeds,
+               patientName: patientName || 'Walk-in Guest',
+               timestamp: Date.now()
+            });
+        }
+        
+        window.dispatchEvent(new Event('dispensed_updated'));
+    } catch(err) {
+        console.error("Failed to add dispensed record", err);
     }
 
     // 3. Mark as paid
     setIsBillGenerated(true);
     setIsPaid(true);
+
+    // Auto-trigger print
+    setTimeout(() => {
+      window.print();
+    }, 500);
   };
 
   const startNewEntry = () => {
@@ -202,10 +347,12 @@ const PharmacistNewRxEntry = () => {
     setPhone('');
     setAge('');
     setSelectedPatientId(null);
+    setDiscountPercent(0);
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <>
+    <div className="max-w-6xl mx-auto space-y-6 pb-12 print:hidden">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -295,20 +442,30 @@ const PharmacistNewRxEntry = () => {
 
           {/* Add Item Form */}
           <div className="card ">
-            <div className="flex border-b border-slate-200 mb-6 gap-6">
+            <div className="flex border-b border-slate-200 mb-6 gap-6 w-full justify-between items-center">
+               <div className="flex gap-6">
+                 <button 
+                   type="button"
+                   className={`pb-3 font-bold text-sm transition-colors border-b-2 outline-none ${activeTab === 'rx' ? 'text-blue-600 border-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                   onClick={() => { setActiveTab('rx'); setCurrentMed(''); setCurrentQty(''); setCurrentPrice(''); setShowItemSuggest(false); setSelectedInventoryItem(null); }}
+                 >
+                   Prescribed Medicines
+                 </button>
+                 <button 
+                   type="button"
+                   className={`pb-3 font-bold text-sm transition-colors border-b-2 outline-none ${activeTab === 'otc' ? 'text-emerald-600 border-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                   onClick={() => { setActiveTab('otc'); setCurrentMed(''); setCurrentQty(''); setCurrentPrice(''); setShowItemSuggest(false); setSelectedInventoryItem(null); }}
+                 >
+                   OTC & General Items
+                 </button>
+               </div>
+               
                <button 
                  type="button"
-                 className={`pb-3 font-bold text-sm transition-colors border-b-2 outline-none ${activeTab === 'rx' ? 'text-blue-600 border-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                 onClick={() => setActiveTab('rx')}
+                 onClick={() => navigate('/pharmacist/returns?tab=physical')}
+                 className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg transition-colors border border-slate-300 shadow-sm"
                >
-                 Prescribed Medicines
-               </button>
-               <button 
-                 type="button"
-                 className={`pb-3 font-bold text-sm transition-colors border-b-2 outline-none ${activeTab === 'otc' ? 'text-emerald-600 border-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                 onClick={() => setActiveTab('otc')}
-               >
-                 OTC & General Items
+                 Process Physical Return
                </button>
             </div>
             
@@ -323,11 +480,37 @@ const PharmacistNewRxEntry = () => {
                     <input 
                       type="text" 
                       value={currentMed}
-                      onChange={(e) => setCurrentMed(e.target.value)}
-                      placeholder="Search and type..."
+                      onChange={(e) => {
+                        setCurrentMed(e.target.value);
+                        setSelectedInventoryItem(null);
+                        setShowItemSuggest(true);
+                      }}
+                      onFocus={() => setShowItemSuggest(true)}
+                      onBlur={() => setTimeout(() => setShowItemSuggest(false), 200)}
+                      placeholder="Search from inventory..."
                       className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500 "
                       required
                     />
+                    {showItemSuggest && filteredItems.length > 0 && (
+                      <ul className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto left-0">
+                        {filteredItems.map(item => {
+                          const itemName = item.name || item.productName || item.itemName || 'Unknown Item';
+                          const itemPrice = item.price || item.unitPrice || item.sellingPrice || item.cost || item.amount;
+                          return (
+                          <li 
+                            key={item.id || itemName} 
+                            onMouseDown={(e) => { e.preventDefault(); handleSelectItem(item); }}
+                            className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 flex justify-between items-center"
+                          >
+                            <div>
+                              <span className="font-semibold text-sm text-slate-800">{itemName}</span>
+                              {item.category && <span className="ml-2 text-[10px] uppercase font-bold text-slate-400">{item.category}</span>}
+                            </div>
+                            {itemPrice !== undefined && itemPrice !== null && <span className="text-xs font-bold text-blue-600">Rs. {parseFloat(itemPrice).toFixed(2)}</span>}
+                          </li>
+                        )})}
+                      </ul>
+                    )}
                   </div>
                 </div>
                 <div className="w-24">
@@ -343,7 +526,7 @@ const PharmacistNewRxEntry = () => {
                   />
                 </div>
                 <div className="w-32">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Unit Price ($)</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Unit Price (Rs.)</label>
                   <input 
                     type="number" 
                     step="0.01"
@@ -351,13 +534,20 @@ const PharmacistNewRxEntry = () => {
                     onChange={(e) => setCurrentPrice(e.target.value)}
                     placeholder="0.00"
                     min="0"
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500 "
+                    className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500 ${selectedInventoryItem ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                     required
+                    readOnly={!!selectedInventoryItem}
                   />
                 </div>
-                <button type="submit" className={`${activeTab === 'rx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 h-[38px] transition-colors`}>
-                  <Plus className="w-4 h-4" /> Add
-                </button>
+                <div className="flex items-end gap-3 ml-2">
+                  <div className="text-right pb-2">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase">Item Total</div>
+                    <div className="font-bold text-blue-600">Rs. {((parseFloat(currentQty) || 0) * (parseFloat(currentPrice) || 0)).toFixed(2)}</div>
+                  </div>
+                  <button type="submit" className={`${activeTab === 'rx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 h-[38px] transition-colors`}>
+                    <Plus className="w-4 h-4" /> Add
+                  </button>
+                </div>
               </form>
             )}
 
@@ -390,8 +580,8 @@ const PharmacistNewRxEntry = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-600 text-center bg-slate-50/50 ">{med.qty}</td>
-                        <td className="px-4 py-3 text-sm text-slate-600 text-right">${med.price.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-slate-800 text-right">${med.total.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600 text-right">Rs. {med.price.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-slate-800 text-right">Rs. {med.total.toFixed(2)}</td>
                         {!isBillGenerated && (
                           <td className="px-4 py-3 text-right">
                             <button 
@@ -418,37 +608,73 @@ const PharmacistNewRxEntry = () => {
             <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-4 mb-4">Billing Summary</h3>
             
             <div className="space-y-3 mb-6">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-sm items-center">
                 <span className="text-slate-500">Subtotal ({medicines.length} items)</span>
-                <span className="font-medium ">${grandTotal.toFixed(2)}</span>
+                <span className="font-medium ">Rs. {subTotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Tax / Fee (0%)</span>
-                <span className="font-medium text-slate-400">$0.00</span>
+              <div className="flex justify-between text-sm items-center">
+                <span className="text-slate-500">Discount (%)</span>
+                <input 
+                  type="number" 
+                  min="0" max="100"
+                  value={discountPercent}
+                  onChange={(e) => setDiscountPercent(e.target.value)}
+                  disabled={isBillGenerated}
+                  className="w-16 px-2 py-1 text-right border border-slate-200 rounded text-sm focus:border-blue-500 outline-none"
+                />
               </div>
+              {parseFloat(discountPercent) > 0 && (
+                <div className="flex justify-between text-sm text-emerald-600">
+                  <span>Discount Amount</span>
+                  <span>- Rs. {discountAmount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="pt-4 border-t border-dashed border-slate-200 flex justify-between items-center">
                 <span className="text-base font-bold text-slate-800 ">Grand Total</span>
-                <span className="text-2xl font-bold text-blue-600 ">${grandTotal.toFixed(2)}</span>
+                <span className="text-2xl font-bold text-blue-600 ">Rs. {grandTotal.toFixed(2)}</span>
               </div>
             </div>
 
             {!isPaid ? (
-              <button 
-                onClick={handlePayment}
-                className={`w-full py-3.5 rounded-xl font-bold text-base flex justify-center items-center gap-2 transition-all shadow-md active:scale-[0.98] ${
-                  medicines.length > 0 && patientName && phone && age
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20' 
-                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                <CreditCard className="w-5 h-5" />
-                Payment
-              </button>
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPaymentMethod('cash')}
+                      className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-colors border ${paymentMethod === 'cash' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      Cash
+                    </button>
+                    <button
+                      onClick={() => setPaymentMethod('card')}
+                      className={`flex-1 py-2 rounded-lg font-semibold text-sm transition-colors border ${paymentMethod === 'card' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      Card
+                    </button>
+                  </div>
+                </div>
+                <button 
+                  onClick={handlePayment}
+                  className={`w-full py-3.5 rounded-xl font-bold text-base flex justify-center items-center gap-2 transition-all shadow-md active:scale-[0.98] ${
+                    medicines.length > 0
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20' 
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  }`}
+                  disabled={medicines.length === 0}
+                >
+                  <CreditCard className="w-5 h-5" />
+                  Process {paymentMethod === 'card' ? 'Card' : 'Cash'} Payment
+                </button>
+              </>
             ) : (
-              <div className="space-y-3">
-                <button className="w-full py-3 bg-white border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50 rounded-xl font-bold flex justify-center items-center gap-2 transition-colors">
+              <div className="space-y-3 print:hidden">
+                <button 
+                  onClick={() => window.print()}
+                  className="w-full py-3 bg-white border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50 rounded-xl font-bold flex justify-center items-center gap-2 transition-colors"
+                >
                   <Printer className="w-5 h-5" />
-                  Print Receipt
+                  Print Bill
                 </button>
                 <button 
                   onClick={startNewEntry}
@@ -464,6 +690,144 @@ const PharmacistNewRxEntry = () => {
 
       </div>
     </div>
+
+    {/* Printable Receipt - Centered POS Style on A4 */}
+    {isPaid && (
+      <>
+      <style>
+        {`
+          @media print {
+            @page {
+              margin: 0;
+            }
+            body {
+              margin: 0;
+              background-color: white;
+            }
+            body * {
+              visibility: hidden;
+            }
+            #printable-receipt, #printable-receipt * {
+              visibility: visible;
+            }
+            #printable-receipt {
+              position: absolute;
+              left: 50%;
+              top: 0;
+              transform: translateX(-50%);
+              width: 380px;
+              padding: 40px 20px;
+              background-color: white;
+            }
+          }
+        `}
+      </style>
+      <div id="printable-receipt" className="hidden print:block w-[380px] mx-auto text-slate-800 text-[12px] font-sans mt-8">
+        
+        <div className="border-2 border-slate-500 rounded-2xl overflow-hidden bg-white shadow-sm">
+          {/* Colorful Header */}
+          <div className="bg-gradient-to-br from-blue-700 to-blue-900 text-white p-6 text-center print:bg-blue-800 print:text-black">
+            <h1 className="text-2xl font-black tracking-wider uppercase mb-1 drop-shadow-sm">MediCareX</h1>
+            <p className="text-[10px] text-blue-100 opacity-90 tracking-widest uppercase font-semibold">Premium Pharmacy</p>
+          </div>
+          
+          <div className="p-6 bg-white">
+            <div className="text-center mb-6">
+              <p className="text-slate-500 text-[11px] font-medium">123 Health Avenue, Medical City</p>
+              <p className="text-slate-500 text-[11px] font-medium">Tel: 011-2345678 | Web: medicarex.lk</p>
+              <div className="w-16 h-1 bg-blue-100 mx-auto my-4 rounded-full"></div>
+              <p className="font-bold text-blue-800 text-sm uppercase tracking-widest">Cash Receipt</p>
+            </div>
+
+            {/* Info Section */}
+            <div className="mb-6 bg-slate-50 p-4 rounded-lg text-[11px] space-y-2 border border-slate-100">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Bill No:</span>
+                <span className="font-bold text-slate-800">#INV-{Math.floor(Date.now() / 1000).toString().slice(-6)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Date & Time:</span>
+                <span className="font-bold text-slate-800">{new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Patient:</span>
+                <span className="font-bold text-blue-700">{patientName || 'Walk-in Guest'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Cashier:</span>
+                <span className="font-bold text-slate-800">Pharmacist 01</span>
+              </div>
+            </div>
+
+            {/* Table Headers */}
+            <table className="w-full text-left mb-4">
+              <thead>
+                <tr className="border-b-2 border-slate-200 text-[10px] uppercase text-slate-400">
+                  <th className="pb-2 font-bold w-1/2">Item</th>
+                  <th className="pb-2 font-bold text-center">Qty</th>
+                  <th className="pb-2 font-bold text-right">Price</th>
+                  <th className="pb-2 font-bold text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {medicines.map((med) => (
+                  <tr key={med.id} className="border-b border-slate-50 last:border-0 align-top">
+                    <td className="py-3 pr-2">
+                      <div className="font-bold text-slate-800 text-[12px] leading-tight">{med.name}</div>
+                      <div className="text-[9px] text-blue-500 font-bold uppercase mt-1 tracking-wider">{med.category === 'rx' ? 'Rx Med' : 'OTC'}</div>
+                    </td>
+                    <td className="py-3 text-center font-medium text-[12px]">{med.qty}</td>
+                    <td className="py-3 text-right text-slate-500 text-[11px]">Rs. {med.price.toFixed(2)}</td>
+                    <td className="py-3 text-right font-bold text-slate-800 text-[12px]">Rs. {med.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="border-b-2 border-dashed border-slate-300 my-4"></div>
+
+            {/* Totals */}
+            <div className="space-y-2 mb-6 text-[12px]">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Subtotal</span>
+                <span className="font-bold text-slate-700">Rs. {subTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Discount ({parseFloat(discountPercent) || 0}%)</span>
+                <span className="font-bold text-emerald-600">- Rs. {discountAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-end pt-4 mt-4 border-t-2 border-slate-800">
+                <span className="font-black text-[13px] uppercase text-slate-800">Net Amount</span>
+                <span className="font-black text-2xl tracking-tight text-blue-700">Rs. {grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Payment Info */}
+            <div className={`p-4 rounded-xl text-center text-[12px] mb-8 border-2 ${paymentMethod === 'card' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
+              <span className="uppercase tracking-widest text-[10px] block mb-2 opacity-80 font-bold">Payment Status</span>
+              <span className="font-black uppercase text-lg flex items-center justify-center gap-2">
+                <CheckCircle2 className="w-5 h-5" /> 
+                {paymentMethod === 'card' ? 'Paid via Card' : 'Paid via Cash'}
+              </span>
+            </div>
+
+            {/* Standard POS Footer */}
+            <div className="text-center text-[11px] text-slate-500 pt-6 mt-6 border-t-2 border-dashed border-slate-200">
+              <p className="font-black text-slate-800 uppercase mb-2 tracking-widest text-[13px]">Thank You, Come Again!</p>
+              <p className="font-medium text-slate-600 leading-relaxed">Exchange possible within 7 days with receipt.<br/>Medicines sold cannot be returned.</p>
+              <div className="mt-5 flex justify-center items-center gap-2 text-[9px] font-bold text-slate-400 tracking-widest">
+                <span>***</span>
+                <span>MEDICAREX POS</span>
+                <span>***</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+      </>
+    )}
+    </>
   );
 };
 

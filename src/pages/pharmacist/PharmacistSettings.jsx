@@ -63,7 +63,12 @@ const PharmacistSettings = () => {
       try {
         const data = await getPharmacistProfile();
         if (data) {
-          if (data.profile) setProfile(data.profile);
+          if (data.profile) {
+             setProfile(data.profile);
+             if (data.profile.password) {
+                setPasswords(prev => ({ ...prev, current: data.profile.password }));
+             }
+          }
           if (data.goals) setGoals(data.goals);
           if (data.profileImage) setProfileImage(data.profileImage);
         }
@@ -134,15 +139,35 @@ const PharmacistSettings = () => {
        return updated;
     });
 
+    const updatedProfile = { ...profile };
+    // Handle password updates
+    if (passwords.newPass) {
+       if (passwords.newPass === passwords.confirm) {
+           updatedProfile.password = passwords.newPass;
+       } else {
+           alert("New Password and Confirm Password do not match!");
+           return;
+       }
+    } else {
+       updatedProfile.password = passwords.current;
+    }
+
     try {
-      await updatePharmacistProfile('default_pharmacist', {
-        profile,
+      const currentUserId = sessionStorage.getItem('userId') || 'default_pharmacist';
+      await updatePharmacistProfile(currentUserId, {
+        profile: updatedProfile,
         goals,
         profileImage
       });
       alert("Profile and Security settings saved successfully to Database!");
+      
+      // Update local state to reflect new saved password
+      if (passwords.newPass) {
+          setPasswords({ current: passwords.newPass, newPass: '', confirm: '' });
+      }
     } catch (e) {
-      alert("Failed to save settings to Database.");
+      console.error("Save Error:", e);
+      alert(`Failed to save settings to Database. Error: ${e.message}`);
     }
   };
 
@@ -352,12 +377,13 @@ const PharmacistSettings = () => {
                   <div className="md:col-span-2">
                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Current Password</label>
                      <input 
-                        type="password" 
+                        type="text" 
                         name="current"
                         value={passwords.current}
                         onChange={handlePasswordChange}
-                        placeholder="••••••••"
-                        className="w-full md:w-1/2 bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono"
+                        placeholder="Current Password"
+                        className="w-full md:w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none font-mono"
+                        readOnly
                      />
                   </div>
                   <div>

@@ -53,7 +53,8 @@ const PharmacistDispensing = () => {
     };
     
     fetchData();
-    const poller = setInterval(fetchData, 3000); // Poll every 3s to reflect external payment updates
+    // Changed polling to 30 seconds to prevent Firebase quota exhaustion
+    const poller = setInterval(fetchData, 30000); 
     return () => clearInterval(poller);
   }, []);
 
@@ -275,9 +276,6 @@ const PharmacistDispensing = () => {
                   <td className="td-cell text-right pr-6">
                     {order.paymentStatus === 'Pending Payment' ? (
                        <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => navigate(`/payment-gateway/${order.firebaseId || order.id}`)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3 py-2.5 rounded-lg transition-colors shadow whitespace-nowrap">
-                             Demo Gateway
-                          </button>
                           <button onClick={() => markAsPaid(order.rxId)} className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-6 py-2.5 rounded-lg transition-colors shadow">Mark as Paid</button>
                        </div>
                     ) : (
