@@ -4,25 +4,17 @@ import {
   doc,
   getDoc,
   updateDoc,
-  setDoc,
-  collection,
-  getDocs,
-  query,
-  orderBy,
-  limit,
   Timestamp,
 } from "firebase/firestore";
-import { db } from "../../services/firebase";
+import { db, auth } from "../../services/firebase";
 import {
   MdPerson,
   MdAccountBalance,
   MdLock,
-  MdNotifications,
   MdInfo,
   MdCheckCircle,
   MdCancel,
 } from "react-icons/md";
-import { auth } from "../../services/firebase";
 import {
   reauthenticateWithCredential,
   updatePassword,
@@ -35,138 +27,147 @@ const AVAILABLE_CATEGORIES = [
   "Baby Items",
   "Skin Care",
 ];
-const SUPPLIER_ID = "S001";
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState("profile");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState({ type: "", text: "" });
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [message, setMessage]     = useState({ type: "", text: "" });
 
+  // ✅ Use auth.currentUser.uid — same as the Firestore document ID
+  const [supplierDocId, setSupplierDocId] = useState(null);
+
+  // ── Profile: matches Firestore fields exactly ──
   const [profileData, setProfileData] = useState({
-    name: "",
-    contactPerson: "",
-    email: "",
-    phone: "",
-    rating: 0,
-    status: "active",
-    supplierId: "",
-    categories: [],
+    name:            "",
+    contactPerson:   "",
+    email:           "",
+    phone:           "",
+    rating:          0,
+    status:          "active",
+    supplierId:      "",
+    businessRegNo:   "",
+    businessAddress: "",
+    categories:      [],
   });
+
+  // ── Bank: stored FLAT in Firestore ──
   const [bankData, setBankData] = useState({
-    bankName: "",
+    bankName:          "",
     accountHolderName: "",
-    accountNumber: "",
-    routingNumber: "",
-    swiftCode: "",
-    bankAddress: "",
-    accountType: "Checking",
+    accountNumber:     "",
+    accountType:       "Checking",
+    routingNumber:     "",
+    swiftCode:         "",
+    bankAddress:       "",
   });
+
   const [securityData, setSecurityData] = useState({
     currentPassword: "",
-    newPassword: "",
+    newPassword:     "",
     confirmPassword: "",
   });
   const [showCurrentPw, setShowCurrentPw] = useState(false);
-  const [showNewPw, setShowNewPw] = useState(false);
+  const [showNewPw,     setShowNewPw]     = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
 
-  const [notificationPrefs, setNotificationPrefs] = useState({
-    emailNotifications: true,
-    orderUpdates: true,
-    lowStockAlerts: true,
-    paymentNotifications: true,
-    marketingEmails: false,
-  });
-
-  const generateNextSupplierId = async () => {
-    try {
-      const q = query(
-        collection(db, "suppliers"),
-        orderBy("supplierId", "desc"),
-        limit(1),
-      );
-      const snap = await getDocs(q);
-      if (snap.empty) return "S001";
-      const last = snap.docs[0].data().supplierId;
-      const num = last.match(/\d+/);
-      return num ? `S${String(parseInt(num[0]) + 1).padStart(3, "0")}` : "S001";
-    } catch {
-      return "S001";
+  // ── Step 1: get logged-in UID on mount ──
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      setSupplierDocId(uid);
+    } else {
+      showMessage("error", "Not logged in. Please log in again.");
+      setLoading(false);
     }
-  };
+  }, []);
+
+  // ── Step 2: fetch once UID is available ──
+  useEffect(() => {
+    if (supplierDocId) fetchSupplierData();
+  }, [supplierDocId]);
 
   const fetchSupplierData = async () => {
     try {
       setLoading(true);
-      const snap = await getDoc(doc(db, "suppliers", SUPPLIER_ID));
+      const snap = await getDoc(doc(db, "suppliers", supplierDocId));
+
       if (snap.exists()) {
         const d = snap.data();
+
         setProfileData({
-          name: d.name || "",
-          contactPerson: d.contactPerson || "",
-          email: d.email || "",
-          phone: d.phone || "",
-          rating: d.rating || 0,
-          status: d.status || "active",
-          supplierId: d.supplierId || "",
-          categories: d.categories || [],
+          name:            d.name            || "",
+          contactPerson:   d.contactPerson   || "",
+          email:           d.email           || "",
+          phone:           d.phone           || "",
+          rating:          d.rating          ?? 0,
+          status:          d.status          || "active",
+          supplierId:      d.supplierId      || "",
+          businessRegNo:   d.businessRegNo   || "",
+          businessAddress: d.businessAddress || "",
+          categories:      d.categories      || [],
         });
-        setBankData(d.bankDetails || {});
-        setNotificationPrefs(d.notifications || {});
+
+        setBankData({
+          bankName:          d.bankName          || "",
+          accountHolderName: d.accountHolderName || "",
+          accountNumber:     d.accountNumber     || "",
+          accountType:       d.accountType       || "Checking",
+          routingNumber:     d.routingNumber     || "",
+          swiftCode:         d.swiftCode         || "",
+          bankAddress:       d.bankAddress       || "",
+        });
       } else {
-        const nextId = await generateNextSupplierId();
-        setProfileData((p) => ({ ...p, supplierId: nextId }));
+        showMessage("error", "Supplier profile not found.");
       }
-      setLoading(false);
     } catch (error) {
       showMessage("error", "Failed to load settings: " + error.message);
+    } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchSupplierData();
-  }, []);
-
+  // ── Save profile ──
   const saveProfile = async (e) => {
     e.preventDefault();
+    if (!supplierDocId) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, "suppliers", SUPPLIER_ID), {
-        ...profileData,
-        updatedAt: Timestamp.now(),
+      await updateDoc(doc(db, "suppliers", supplierDocId), {
+        name:            profileData.name,
+        contactPerson:   profileData.contactPerson,
+        email:           profileData.email,
+        phone:           profileData.phone,
+        rating:          profileData.rating,
+        status:          profileData.status,
+        businessRegNo:   profileData.businessRegNo,
+        businessAddress: profileData.businessAddress,
+        categories:      profileData.categories,
+        updatedAt:       Timestamp.now(),
       });
       showMessage("success", "Profile updated successfully!");
     } catch (error) {
-      if (error.code === "not-found") {
-        try {
-          await setDoc(doc(db, "suppliers", SUPPLIER_ID), {
-            ...profileData,
-            bankDetails: {},
-            notifications: {},
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
-          });
-          showMessage("success", "Profile created successfully!");
-        } catch (e) {
-          showMessage("error", "Failed to create profile: " + e.message);
-        }
-      } else {
-        showMessage("error", "Failed to update profile: " + error.message);
-      }
+      showMessage("error", "Failed to update profile: " + error.message);
     } finally {
       setSaving(false);
     }
   };
 
+  // ── Save bank details ──
   const saveBankDetails = async (e) => {
     e.preventDefault();
+    if (!supplierDocId) return;
     setSaving(true);
     try {
-      await updateDoc(doc(db, "suppliers", SUPPLIER_ID), {
-        bankDetails: bankData,
-        updatedAt: Timestamp.now(),
+      await updateDoc(doc(db, "suppliers", supplierDocId), {
+        bankName:          bankData.bankName,
+        accountHolderName: bankData.accountHolderName,
+        accountNumber:     bankData.accountNumber,
+        accountType:       bankData.accountType,
+        routingNumber:     bankData.routingNumber,
+        swiftCode:         bankData.swiftCode,
+        bankAddress:       bankData.bankAddress,
+        updatedAt:         Timestamp.now(),
       });
       showMessage("success", "Bank details updated successfully!");
     } catch (error) {
@@ -176,24 +177,9 @@ const Settings = () => {
     }
   };
 
-  const saveNotifications = async () => {
-    setSaving(true);
-    try {
-      await updateDoc(doc(db, "suppliers", SUPPLIER_ID), {
-        notifications: notificationPrefs,
-        updatedAt: Timestamp.now(),
-      });
-      showMessage("success", "Notification preferences updated!");
-    } catch (error) {
-      showMessage("error", "Failed to update notifications: " + error.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
+  // ── Change password ──
   const changePassword = async (e) => {
     e.preventDefault();
-
     if (securityData.newPassword !== securityData.confirmPassword) {
       showMessage("error", "New passwords do not match!");
       return;
@@ -202,42 +188,22 @@ const Settings = () => {
       showMessage("error", "Password must be at least 6 characters long!");
       return;
     }
-
     setSaving(true);
     try {
       const user = auth.currentUser;
-      if (!user)
-        throw new Error("No logged-in user found. Please log in again.");
-
-      const credential = EmailAuthProvider.credential(
-        user.email,
-        securityData.currentPassword,
-      );
+      if (!user) throw new Error("No logged-in user found. Please log in again.");
+      const credential = EmailAuthProvider.credential(user.email, securityData.currentPassword);
       await reauthenticateWithCredential(user, credential);
       await updatePassword(user, securityData.newPassword);
-
       showMessage("success", "Password changed successfully!");
-      setSecurityData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
+      setSecurityData({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (error) {
-      if (
-        error.code === "auth/wrong-password" ||
-        error.code === "auth/invalid-credential"
-      ) {
+      if (error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
         showMessage("error", "Current password is incorrect.");
       } else if (error.code === "auth/too-many-requests") {
-        showMessage(
-          "error",
-          "Too many attempts. Please wait a few minutes and try again.",
-        );
+        showMessage("error", "Too many attempts. Please wait a few minutes and try again.");
       } else if (error.code === "auth/requires-recent-login") {
-        showMessage(
-          "error",
-          "Session expired. Please log out and log in again before changing your password.",
-        );
+        showMessage("error", "Session expired. Please log out and log in again before changing your password.");
       } else {
         showMessage("error", "Failed to change password: " + error.message);
       }
@@ -256,60 +222,19 @@ const Settings = () => {
     cats[i] = v;
     setProfileData({ ...profileData, categories: cats });
   };
-  const addCategory = () =>
-    setProfileData({
-      ...profileData,
-      categories: [...profileData.categories, ""],
-    });
+  const addCategory    = () =>
+    setProfileData({ ...profileData, categories: [...profileData.categories, ""] });
   const removeCategory = (i) =>
-    setProfileData({
-      ...profileData,
-      categories: profileData.categories.filter((_, idx) => idx !== i),
-    });
+    setProfileData({ ...profileData, categories: profileData.categories.filter((_, idx) => idx !== i) });
 
-  /* ---- shared input class ---- */
   const inputCls =
     "w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10 placeholder:text-slate-400";
 
-  /* ---- tabs config ---- */
+  // ── Only 3 tabs now (notifications removed) ──
   const tabs = [
-    { id: "profile", label: "Profile Details", icon: <MdPerson size={18} /> },
-    { id: "bank", label: "Bank Details", icon: <MdAccountBalance size={18} /> },
-    { id: "security", label: "Security", icon: <MdLock size={18} /> },
-    {
-      id: "notifications",
-      label: "Notifications",
-      icon: <MdNotifications size={18} />,
-    },
-  ];
-
-  /* ---- notification toggles ---- */
-  const notifItems = [
-    {
-      key: "emailNotifications",
-      label: "Email Notifications",
-      desc: "Receive email alerts for important updates",
-    },
-    {
-      key: "orderUpdates",
-      label: "Order Updates",
-      desc: "Get notified about new orders and status changes",
-    },
-    {
-      key: "lowStockAlerts",
-      label: "Low Stock Alerts",
-      desc: "Receive alerts when products are running low",
-    },
-    {
-      key: "paymentNotifications",
-      label: "Payment Notifications",
-      desc: "Get notified about payments and invoices",
-    },
-    {
-      key: "marketingEmails",
-      label: "Marketing Emails",
-      desc: "Receive promotional offers and product updates",
-    },
+    { id: "profile",  label: "Profile Details", icon: <MdPerson size={18} /> },
+    { id: "bank",     label: "Bank Details",    icon: <MdAccountBalance size={18} /> },
+    { id: "security", label: "Security",        icon: <MdLock size={18} /> },
   ];
 
   if (loading)
@@ -324,33 +249,26 @@ const Settings = () => {
 
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
-      {/* Page Header */}
+      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-800 mb-1">Settings</h1>
-        <p className="text-slate-500 text-base">
-          Manage your account settings and preferences
-        </p>
+        <p className="text-slate-500 text-base">Manage your account settings and preferences</p>
       </div>
 
       {/* Message Banner */}
       {message.text && (
         <div
           className={`flex items-center gap-3 px-5 py-4 rounded-xl mb-6 font-medium border text-sm
-            ${
-              message.type === "success"
-                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                : "bg-red-50 text-red-800 border-red-200"
+            ${message.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : "bg-red-50 text-red-800 border-red-200"
             }`}
           style={{ animation: "slideDown 0.3s ease-out" }}
         >
-          {message.type === "success" ? (
-            <MdCheckCircle
-              size={20}
-              className="text-emerald-600 flex-shrink-0"
-            />
-          ) : (
-            <MdCancel size={20} className="text-red-500 flex-shrink-0" />
-          )}
+          {message.type === "success"
+            ? <MdCheckCircle size={20} className="text-emerald-600 flex-shrink-0" />
+            : <MdCancel size={20} className="text-red-500 flex-shrink-0" />
+          }
           {message.text}
         </div>
       )}
@@ -362,10 +280,9 @@ const Settings = () => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-5 py-3 rounded-lg text-[15px] font-medium cursor-pointer border-none whitespace-nowrap transition-all duration-200
-              ${
-                activeTab === tab.id
-                  ? "bg-blue-600 text-white"
-                  : "bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              ${activeTab === tab.id
+                ? "bg-blue-600 text-white"
+                : "bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-800"
               }`}
           >
             {tab.icon}
@@ -374,114 +291,95 @@ const Settings = () => {
         ))}
       </div>
 
-      {/* Settings Content */}
-      <div
-        className="bg-white rounded-xl p-8 shadow-sm"
-        style={{ animation: "fadeIn 0.3s ease-in" }}
-      >
+      {/* Content */}
+      <div className="bg-white rounded-xl p-8 shadow-sm" style={{ animation: "fadeIn 0.3s ease-in" }}>
+
         {/* ===== PROFILE TAB ===== */}
         {activeTab === "profile" && (
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-1">
-              Supplier Profile
-            </h2>
-            <p className="text-sm text-slate-500 mb-8">
-              Manage your company information and contact details
-            </p>
+            <h2 className="text-2xl font-bold text-slate-800 mb-1">Supplier Profile</h2>
+            <p className="text-sm text-slate-500 mb-8">Manage your company information and contact details</p>
 
             <form onSubmit={saveProfile} className="max-w-[900px]">
               <div className="grid grid-cols-2 gap-5 mb-6">
-                {/* Supplier ID — disabled */}
+
+                {/* Supplier ID — read only */}
                 <div className="flex flex-col">
-                  <label className="text-sm font-medium text-slate-700 mb-2">
-                    Supplier ID *
-                  </label>
-                  <input
-                    type="text"
-                    value={profileData.supplierId}
-                    disabled
-                    className={`${inputCls} bg-slate-100 cursor-not-allowed`}
-                  />
-                  <small className="text-xs text-slate-400 mt-1">
-                    Auto-generated (e.g., S001, S002...)
-                  </small>
+                  <label className="text-sm font-medium text-slate-700 mb-2">Supplier ID</label>
+                  <input type="text" value={profileData.supplierId} disabled
+                    className={`${inputCls} bg-slate-100 cursor-not-allowed`} />
+                  <small className="text-xs text-slate-400 mt-1">Auto-generated (e.g., S001, S042…)</small>
                 </div>
 
-                {[
-                  {
-                    label: "Company Name *",
-                    key: "name",
-                    type: "text",
-                    ph: "e.g., Jeny Bel",
-                    req: true,
-                  },
-                  {
-                    label: "Contact Person *",
-                    key: "contactPerson",
-                    type: "text",
-                    ph: "e.g., John Silva",
-                    req: true,
-                  },
-                  {
-                    label: "Email Address *",
-                    key: "email",
-                    type: "email",
-                    ph: "e.g., john@medi.com",
-                    req: true,
-                  },
-                  {
-                    label: "Phone Number *",
-                    key: "phone",
-                    type: "tel",
-                    ph: "e.g., 0760689429",
-                    req: true,
-                  },
-                  {
-                    label: "Rating",
-                    key: "rating",
-                    type: "number",
-                    ph: "e.g., 4.5",
-                    req: false,
-                    extra: { step: "0.1", min: "0", max: "5" },
-                  },
-                ].map((f) => (
-                  <div key={f.key} className="flex flex-col">
-                    <label className="text-sm font-medium text-slate-700 mb-2">
-                      {f.label}
-                    </label>
-                    <input
-                      type={f.type}
-                      required={f.req}
-                      placeholder={f.ph}
-                      value={profileData[f.key]}
-                      onChange={(e) =>
-                        setProfileData({
-                          ...profileData,
-                          [f.key]:
-                            f.type === "number"
-                              ? parseFloat(e.target.value) || 0
-                              : e.target.value,
-                        })
-                      }
-                      className={inputCls}
-                      {...(f.extra || {})}
-                    />
-                  </div>
-                ))}
+                {/* Company Name */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">Company Name *</label>
+                  <input type="text" required placeholder="e.g., Jeny Bel"
+                    value={profileData.name}
+                    onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                    className={inputCls} />
+                </div>
+
+                {/* Contact Person */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">Contact Person *</label>
+                  <input type="text" required placeholder="e.g., John Silva"
+                    value={profileData.contactPerson}
+                    onChange={(e) => setProfileData({ ...profileData, contactPerson: e.target.value })}
+                    className={inputCls} />
+                </div>
+
+                {/* Email */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">Email Address *</label>
+                  <input type="email" required placeholder="e.g., john@medi.com"
+                    value={profileData.email}
+                    onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                    className={inputCls} />
+                </div>
+
+                {/* Phone */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">Phone Number *</label>
+                  <input type="tel" required placeholder="e.g., 0760689429"
+                    value={profileData.phone}
+                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                    className={inputCls} />
+                </div>
+
+                {/* Business Reg No */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">Business Reg. No.</label>
+                  <input type="text" placeholder="e.g., PV/00123/2020"
+                    value={profileData.businessRegNo}
+                    onChange={(e) => setProfileData({ ...profileData, businessRegNo: e.target.value })}
+                    className={inputCls} />
+                </div>
+
+                {/* Business Address */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">Business Address</label>
+                  <input type="text" placeholder="e.g., No.125, Colombo"
+                    value={profileData.businessAddress}
+                    onChange={(e) => setProfileData({ ...profileData, businessAddress: e.target.value })}
+                    className={inputCls} />
+                </div>
+
+                {/* Rating */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-medium text-slate-700 mb-2">Rating</label>
+                  <input type="number" placeholder="e.g., 4.5" step="0.1" min="0" max="5"
+                    value={profileData.rating}
+                    onChange={(e) => setProfileData({ ...profileData, rating: parseFloat(e.target.value) || 0 })}
+                    className={inputCls} />
+                </div>
 
                 {/* Status */}
                 <div className="flex flex-col">
-                  <label className="text-sm font-medium text-slate-700 mb-2">
-                    Status *
-                  </label>
-                  <select
-                    required
-                    value={profileData.status}
-                    onChange={(e) =>
-                      setProfileData({ ...profileData, status: e.target.value })
-                    }
-                    className={inputCls}
-                  >
+                  <label className="text-sm font-medium text-slate-700 mb-2">Status *</label>
+                  <select required value={profileData.status}
+                    onChange={(e) => setProfileData({ ...profileData, status: e.target.value })}
+                    className={inputCls}>
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                     <option value="pending">Pending</option>
@@ -490,41 +388,26 @@ const Settings = () => {
 
                 {/* Categories — full width */}
                 <div className="flex flex-col col-span-2">
-                  <label className="text-sm font-medium text-slate-700 mb-2">
-                    Categories
-                  </label>
+                  <label className="text-sm font-medium text-slate-700 mb-2">Categories</label>
                   <div className="flex flex-col gap-2.5">
                     {profileData.categories.map((cat, i) => (
                       <div key={i} className="flex gap-2.5 items-center">
-                        <select
-                          value={cat}
-                          onChange={(e) =>
-                            handleCategoryChange(i, e.target.value)
-                          }
-                          className={`${inputCls} flex-1`}
-                          required
-                        >
+                        <select value={cat}
+                          onChange={(e) => handleCategoryChange(i, e.target.value)}
+                          className={`${inputCls} flex-1`} required>
                           <option value="">Select a category</option>
                           {AVAILABLE_CATEGORIES.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
+                            <option key={c} value={c}>{c}</option>
                           ))}
                         </select>
-                        <button
-                          type="button"
-                          onClick={() => removeCategory(i)}
-                          className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors"
-                        >
+                        <button type="button" onClick={() => removeCategory(i)}
+                          className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
                           Remove
                         </button>
                       </div>
                     ))}
-                    <button
-                      type="button"
-                      onClick={addCategory}
-                      className="self-start px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors"
-                    >
+                    <button type="button" onClick={addCategory}
+                      className="self-start px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
                       + Add Category
                     </button>
                   </div>
@@ -534,11 +417,7 @@ const Settings = () => {
                 </div>
               </div>
 
-              <FormActions
-                saving={saving}
-                saveLabel="Save Profile"
-                onCancel={fetchSupplierData}
-              />
+              <FormActions saving={saving} saveLabel="Save Profile" onCancel={fetchSupplierData} />
             </form>
           </div>
         )}
@@ -546,82 +425,33 @@ const Settings = () => {
         {/* ===== BANK TAB ===== */}
         {activeTab === "bank" && (
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-1">
-              Bank Account Details
-            </h2>
-            <p className="text-sm text-slate-500 mb-8">
-              Secure payment information for transactions
-            </p>
+            <h2 className="text-2xl font-bold text-slate-800 mb-1">Bank Account Details</h2>
+            <p className="text-sm text-slate-500 mb-8">Secure payment information for transactions</p>
 
             <form onSubmit={saveBankDetails} className="max-w-[900px]">
               <div className="grid grid-cols-2 gap-5 mb-6">
                 {[
-                  {
-                    label: "Bank Name *",
-                    key: "bankName",
-                    type: "text",
-                    ph: "e.g., Bank of America",
-                    req: true,
-                  },
-                  {
-                    label: "Account Holder Name *",
-                    key: "accountHolderName",
-                    type: "text",
-                    ph: "e.g., MedSupply Co.",
-                    req: true,
-                  },
-                  {
-                    label: "Account Number *",
-                    key: "accountNumber",
-                    type: "text",
-                    ph: "e.g., 1234567890",
-                    req: true,
-                  },
-                  {
-                    label: "Routing Number",
-                    key: "routingNumber",
-                    type: "text",
-                    ph: "e.g., 021000021",
-                    req: false,
-                  },
-                  {
-                    label: "SWIFT/BIC Code",
-                    key: "swiftCode",
-                    type: "text",
-                    ph: "e.g., BOFAUS3N",
-                    req: false,
-                  },
+                  { label: "Bank Name *",           key: "bankName",          ph: "e.g., HNB",           req: true  },
+                  { label: "Account Holder Name *", key: "accountHolderName", ph: "e.g., MedSupply Co.", req: true  },
+                  { label: "Account Number *",      key: "accountNumber",     ph: "e.g., 1234567890",    req: true  },
+                  { label: "Routing Number",        key: "routingNumber",     ph: "e.g., 021000021",     req: false },
+                  { label: "SWIFT/BIC Code",        key: "swiftCode",         ph: "e.g., BOFAUS3N",      req: false },
                 ].map((f) => (
                   <div key={f.key} className="flex flex-col">
-                    <label className="text-sm font-medium text-slate-700 mb-2">
-                      {f.label}
-                    </label>
-                    <input
-                      type={f.type}
-                      required={f.req}
-                      placeholder={f.ph}
+                    <label className="text-sm font-medium text-slate-700 mb-2">{f.label}</label>
+                    <input type="text" required={f.req} placeholder={f.ph}
                       value={bankData[f.key] || ""}
-                      onChange={(e) =>
-                        setBankData({ ...bankData, [f.key]: e.target.value })
-                      }
-                      className={inputCls}
-                    />
+                      onChange={(e) => setBankData({ ...bankData, [f.key]: e.target.value })}
+                      className={inputCls} />
                   </div>
                 ))}
 
                 {/* Account Type */}
                 <div className="flex flex-col">
-                  <label className="text-sm font-medium text-slate-700 mb-2">
-                    Account Type *
-                  </label>
-                  <select
-                    required
-                    value={bankData.accountType || "Checking"}
-                    onChange={(e) =>
-                      setBankData({ ...bankData, accountType: e.target.value })
-                    }
-                    className={inputCls}
-                  >
+                  <label className="text-sm font-medium text-slate-700 mb-2">Account Type *</label>
+                  <select required value={bankData.accountType || "Checking"}
+                    onChange={(e) => setBankData({ ...bankData, accountType: e.target.value })}
+                    className={inputCls}>
                     <option value="Checking">Checking</option>
                     <option value="Savings">Savings</option>
                     <option value="Business">Business</option>
@@ -630,27 +460,16 @@ const Settings = () => {
 
                 {/* Bank Address — full width */}
                 <div className="flex flex-col col-span-2">
-                  <label className="text-sm font-medium text-slate-700 mb-2">
-                    Bank Address
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Bank branch address"
+                  <label className="text-sm font-medium text-slate-700 mb-2">Bank Address</label>
+                  <input type="text" placeholder="Bank branch address"
                     value={bankData.bankAddress || ""}
-                    onChange={(e) =>
-                      setBankData({ ...bankData, bankAddress: e.target.value })
-                    }
-                    className={inputCls}
-                  />
+                    onChange={(e) => setBankData({ ...bankData, bankAddress: e.target.value })}
+                    className={inputCls} />
                 </div>
               </div>
 
               <InfoBox text="Your bank details are encrypted and stored securely. This information is used only for payment processing." />
-              <FormActions
-                saving={saving}
-                saveLabel="Save Bank Details"
-                onCancel={fetchSupplierData}
-              />
+              <FormActions saving={saving} saveLabel="Save Bank Details" onCancel={fetchSupplierData} />
             </form>
           </div>
         )}
@@ -658,111 +477,55 @@ const Settings = () => {
         {/* ===== SECURITY TAB ===== */}
         {activeTab === "security" && (
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-1">
-              Security Settings
-            </h2>
-            <p className="text-sm text-slate-500 mb-8">
-              Manage your password and account security
-            </p>
+            <h2 className="text-2xl font-bold text-slate-800 mb-1">Security Settings</h2>
+            <p className="text-sm text-slate-500 mb-8">Manage your password and account security</p>
 
             <form onSubmit={changePassword} className="max-w-[900px]">
               <div className="grid grid-cols-2 gap-5 mb-6">
+
+                {/* Current Password */}
                 <div className="flex flex-col col-span-2">
-                  <label className="text-sm font-medium text-slate-700 mb-2">
-                    Current Password *
-                  </label>
+                  <label className="text-sm font-medium text-slate-700 mb-2">Current Password *</label>
                   <div className="relative">
-                    <input
-                      type={showCurrentPw ? "text" : "password"}
-                      required
+                    <input type={showCurrentPw ? "text" : "password"} required
                       placeholder="Enter current password"
                       value={securityData.currentPassword}
-                      onChange={(e) =>
-                        setSecurityData({
-                          ...securityData,
-                          currentPassword: e.target.value,
-                        })
-                      }
-                      className={inputCls + " pr-11"}
-                    />
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => setShowCurrentPw((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none"
-                      aria-label={
-                        showCurrentPw ? "Hide password" : "Show password"
-                      }
-                    >
-                      {showCurrentPw ? (
-                        <FiEyeOff size={18} />
-                      ) : (
-                        <FiEye size={18} />
-                      )}
+                      onChange={(e) => setSecurityData({ ...securityData, currentPassword: e.target.value })}
+                      className={inputCls + " pr-11"} />
+                    <button type="button" tabIndex={-1} onClick={() => setShowCurrentPw((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none">
+                      {showCurrentPw ? <FiEyeOff size={18} /> : <FiEye size={18} />}
                     </button>
                   </div>
                 </div>
-                {/* NEW PASSWORD: eye toggle + live requirements checklist */}
+
+                {/* New Password */}
                 <div className="flex flex-col">
-                  <label className="text-sm font-medium text-slate-700 mb-2">
-                    New Password *
-                  </label>
+                  <label className="text-sm font-medium text-slate-700 mb-2">New Password *</label>
                   <div className="relative">
-                    <input
-                      type={showNewPw ? "text" : "password"}
-                      required
+                    <input type={showNewPw ? "text" : "password"} required
                       placeholder="Enter new password"
                       value={securityData.newPassword}
-                      onChange={(e) =>
-                        setSecurityData({
-                          ...securityData,
-                          newPassword: e.target.value,
-                        })
-                      }
-                      className={inputCls + " pr-11"}
-                    />
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => setShowNewPw((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none"
-                      aria-label={showNewPw ? "Hide password" : "Show password"}
-                    >
+                      onChange={(e) => setSecurityData({ ...securityData, newPassword: e.target.value })}
+                      className={inputCls + " pr-11"} />
+                    <button type="button" tabIndex={-1} onClick={() => setShowNewPw((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none">
                       {showNewPw ? <FiEyeOff size={18} /> : <FiEye size={18} />}
                     </button>
                   </div>
                   {securityData.newPassword.length > 0 && (
                     <div className="mt-1 flex flex-col gap-1">
                       {[
-                        {
-                          label: "At least 8 characters",
-                          met: securityData.newPassword.length >= 8,
-                        },
-                        {
-                          label: "At least one uppercase letter",
-                          met: /[A-Z]/.test(securityData.newPassword),
-                        },
-                        {
-                          label: "At least one number",
-                          met: /[0-9]/.test(securityData.newPassword),
-                        },
-                        {
-                          label: "At least one special character (!@#$%^&*)",
-                          met: /[!@#$%^&*]/.test(securityData.newPassword),
-                        },
+                        { label: "At least 8 characters",                    met: securityData.newPassword.length >= 8 },
+                        { label: "At least one uppercase letter",             met: /[A-Z]/.test(securityData.newPassword) },
+                        { label: "At least one number",                       met: /[0-9]/.test(securityData.newPassword) },
+                        { label: "At least one special character (!@#$%^&*)", met: /[!@#$%^&*]/.test(securityData.newPassword) },
                       ].map((rule) => (
-                        <div
-                          key={rule.label}
-                          className="flex items-center gap-2"
-                        >
-                          <span
-                            className={`text-xs font-bold ${rule.met ? "text-emerald-500" : "text-slate-400"}`}
-                          >
+                        <div key={rule.label} className="flex items-center gap-2">
+                          <span className={`text-xs font-bold ${rule.met ? "text-emerald-500" : "text-slate-400"}`}>
                             {rule.met ? "✓" : "✗"}
                           </span>
-                          <span
-                            className={`text-xs ${rule.met ? "text-emerald-600" : "text-slate-400"}`}
-                          >
+                          <span className={`text-xs ${rule.met ? "text-emerald-600" : "text-slate-400"}`}>
                             {rule.label}
                           </span>
                         </div>
@@ -771,39 +534,18 @@ const Settings = () => {
                   )}
                 </div>
 
-                {/* CONFIRM NEW PASSWORD: eye toggle only, no checklist */}
+                {/* Confirm Password */}
                 <div className="flex flex-col">
-                  <label className="text-sm font-medium text-slate-700 mb-2">
-                    Confirm New Password *
-                  </label>
+                  <label className="text-sm font-medium text-slate-700 mb-2">Confirm New Password *</label>
                   <div className="relative">
-                    <input
-                      type={showConfirmPw ? "text" : "password"}
-                      required
+                    <input type={showConfirmPw ? "text" : "password"} required
                       placeholder="Confirm new password"
                       value={securityData.confirmPassword}
-                      onChange={(e) =>
-                        setSecurityData({
-                          ...securityData,
-                          confirmPassword: e.target.value,
-                        })
-                      }
-                      className={inputCls + " pr-11"}
-                    />
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() => setShowConfirmPw((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none"
-                      aria-label={
-                        showConfirmPw ? "Hide password" : "Show password"
-                      }
-                    >
-                      {showConfirmPw ? (
-                        <FiEyeOff size={18} />
-                      ) : (
-                        <FiEye size={18} />
-                      )}
+                      onChange={(e) => setSecurityData({ ...securityData, confirmPassword: e.target.value })}
+                      className={inputCls + " pr-11"} />
+                    <button type="button" tabIndex={-1} onClick={() => setShowConfirmPw((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors focus:outline-none">
+                      {showConfirmPw ? <FiEyeOff size={18} /> : <FiEye size={18} />}
                     </button>
                   </div>
                 </div>
@@ -812,81 +554,16 @@ const Settings = () => {
               <InfoBox text="Password must be at least 6 characters long and include a mix of letters and numbers." />
 
               <div className="flex gap-3 pt-6 border-t border-slate-200">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white text-[15px] font-medium rounded-lg border-none cursor-pointer transition-colors"
-                >
+                <button type="submit" disabled={saving}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white text-[15px] font-medium rounded-lg border-none cursor-pointer transition-colors">
                   {saving ? "Changing..." : "Change Password"}
                 </button>
               </div>
             </form>
           </div>
         )}
-
-        {/* ===== NOTIFICATIONS TAB ===== */}
-        {activeTab === "notifications" && (
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-1">
-              Notification Preferences
-            </h2>
-            <p className="text-sm text-slate-500 mb-8">
-              Choose what notifications you want to receive
-            </p>
-
-            <div className="max-w-[900px]">
-              <div className="flex flex-col gap-4 mb-6">
-                {notifItems.map((item) => (
-                  <div
-                    key={item.key}
-                    className="flex justify-between items-center px-5 py-5 border border-slate-200 rounded-xl transition-all duration-200 hover:border-slate-300 hover:shadow-sm flex-wrap gap-4"
-                  >
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-800 mb-1">
-                        {item.label}
-                      </h3>
-                      <p className="text-sm text-slate-500 m-0">{item.desc}</p>
-                    </div>
-
-                    {/* Toggle Switch */}
-                    <label className="relative inline-block w-[52px] h-[28px] flex-shrink-0 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={notificationPrefs[item.key]}
-                        onChange={(e) =>
-                          setNotificationPrefs({
-                            ...notificationPrefs,
-                            [item.key]: e.target.checked,
-                          })
-                        }
-                      />
-                      <span
-                        className={`absolute inset-0 rounded-full transition-colors duration-300 ${notificationPrefs[item.key] ? "bg-blue-600" : "bg-slate-300"}`}
-                      />
-                      <span
-                        className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-300 ${notificationPrefs[item.key] ? "translate-x-[26px]" : "translate-x-1"}`}
-                      />
-                    </label>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-3 pt-6 border-t border-slate-200">
-                <button
-                  onClick={saveNotifications}
-                  disabled={saving}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white text-[15px] font-medium rounded-lg border-none cursor-pointer transition-colors"
-                >
-                  {saving ? "Saving..." : "Save Preferences"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Keyframe animations */}
       <style>{`
         @keyframes slideDown { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
         @keyframes fadeIn    { from{opacity:0;transform:translateY(10px)}  to{opacity:1;transform:translateY(0)} }
@@ -895,7 +572,7 @@ const Settings = () => {
   );
 };
 
-/* ---- Small shared sub-components ---- */
+/* ── Shared sub-components ── */
 function InfoBox({ text }) {
   return (
     <div className="flex gap-3 items-start bg-blue-50 border border-blue-200 rounded-xl px-4 py-4 mb-6">
@@ -908,18 +585,12 @@ function InfoBox({ text }) {
 function FormActions({ saving, saveLabel, onCancel }) {
   return (
     <div className="flex gap-3 pt-6 border-t border-slate-200">
-      <button
-        type="submit"
-        disabled={saving}
-        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white text-[15px] font-medium rounded-lg border-none cursor-pointer transition-colors"
-      >
+      <button type="submit" disabled={saving}
+        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white text-[15px] font-medium rounded-lg border-none cursor-pointer transition-colors">
         {saving ? "Saving..." : saveLabel}
       </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[15px] font-medium rounded-lg border-none cursor-pointer transition-colors"
-      >
+      <button type="button" onClick={onCancel}
+        className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[15px] font-medium rounded-lg border-none cursor-pointer transition-colors">
         Cancel
       </button>
     </div>

@@ -68,25 +68,28 @@ const TableRow = ({ cells, highlight }) => (
 
 /* ─── main component ─────────────────────────────────────────── */
 export default function SalesAnalytics() {
-  const [orders, setOrders]             = useState([]);
-  const [purchaseOrders, setPurchaseOrders] = useState([]);
-  const [payments, setPayments]         = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [year, setYear]                 = useState(CURRENT_YEAR);
-  const [activeTab, setActiveTab]       = useState("overview"); // overview | products | suppliers
+  const [orders, setOrders]                   = useState([]);
+  const [purchaseOrders, setPurchaseOrders]   = useState([]);
+  const [payments, setPayments]               = useState([]);
+  const [customerOrders, setCustomerOrders]   = useState([]); // NEW: customer revenue
+  const [loading, setLoading]                 = useState(true);
+  const [year, setYear]                       = useState(CURRENT_YEAR);
+  const [activeTab, setActiveTab]             = useState("overview"); // overview | products | suppliers
 
   /* ── fetch ── */
   useEffect(() => {
     const fetch = async () => {
       try {
-        const [oSnap, poSnap, pySnap] = await Promise.all([
+        const [oSnap, poSnap, pySnap, coSnap] = await Promise.all([
           getDocs(collection(db, "orders")),
           getDocs(collection(db, "purchaseOrders")),
           getDocs(collection(db, "payments")),
+          getDocs(collection(db, "CustomerOrders")), // NEW
         ]);
         setOrders(oSnap.docs.map((d) => d.data()));
         setPurchaseOrders(poSnap.docs.map((d) => d.data()));
         setPayments(pySnap.docs.map((d) => d.data()));
+        setCustomerOrders(coSnap.docs.map((d) => d.data())); // NEW
       } catch (e) {
         console.error(e);
       } finally {
@@ -97,60 +100,92 @@ export default function SalesAnalytics() {
   }, []);
 
   /* ── derived data ── */
-  const { filteredOrders, filteredPO, filteredPayments } = useMemo(() => {
+  const { filteredOrders, filteredPO, filteredPayments, filteredCustomerOrders } = useMemo(() => {
     const byYear = (arr, field) =>
       arr.filter((d) => toDate(d[field])?.getFullYear() === year);
 
     return {
-      filteredOrders:   byYear(orders, "createdAt"),
-      filteredPO:       byYear(purchaseOrders, "createdAt"),
-      filteredPayments: payments.filter((p) => p.status === "PAID" && toDate(p.paidDate)?.getFullYear() === year),
+      filteredOrders:         byYear(orders, "createdAt"),
+      filteredPO:             byYear(purchaseOrders, "createdAt"),
+      filteredPayments:       payments.filter((p) => p.status === "PAID" && toDate(p.paidDate)?.getFullYear() === year),
+      filteredCustomerOrders: byYear(customerOrders, "createdAt"), // NEW
     };
-  }, [orders, purchaseOrders, payments, year]);
+  }, [orders, purchaseOrders, payments, customerOrders, year]);
 
   /* ── KPIs ── */
-  const totalRevenue  = filteredOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+  // Revenue = what customers paid admin (CustomerOrders → totalAmount)
+  const totalRevenue  = filteredCustomerOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
+  // Cost = what admin paid suppliers (purchaseOrders)
   const totalCost     = filteredPO.reduce((s, p) => s + (p.amount || p.totalAmount || 0), 0);
   const totalProfit   = totalRevenue - totalCost;
   const margin        = totalRevenue ? ((totalProfit / totalRevenue) * 100).toFixed(1) : 0;
-  const totalOrders   = filteredOrders.length;
+  const totalOrders   = filteredCustomerOrders.length; // count of customer orders
   const avgOrderValue = totalOrders ? (totalRevenue / totalOrders) : 0;
   const overdueAmt    = payments.filter((p) => p.status === "OVERDUE").reduce((s, p) => s + (p.amount || 0), 0);
 
   /* ── monthly trend ── */
   const monthlyTrend = useMemo(() => MONTHS.map((month, i) => {
-    const rev  = filteredOrders.filter((o) => toDate(o.createdAt)?.getMonth() === i).reduce((s, o) => s + (o.totalAmount || 0), 0);
+    // Revenue: from CustomerOrders
+    const rev  = filteredCustomerOrders.filter((o) => toDate(o.createdAt)?.getMonth() === i).reduce((s, o) => s + (o.totalAmount || 0), 0);
+    // Cost: from purchaseOrders
     const cost = filteredPO.filter((p) => toDate(p.createdAt)?.getMonth() === i).reduce((s, p) => s + (p.amount || p.totalAmount || 0), 0);
-    const cnt  = filteredOrders.filter((o) => toDate(o.createdAt)?.getMonth() === i).length;
+    // Order count: from CustomerOrders
+    const cnt  = filteredCustomerOrders.filter((o) => toDate(o.createdAt)?.getMonth() === i).length;
     return { month, Revenue: rev, Cost: cost, Profit: rev - cost, Orders: cnt };
-  }), [filteredOrders, filteredPO]);
+  }), [filteredCustomerOrders, filteredPO]);
 
-  /* ── category breakdown ── */
+  /* ── category breakdown ──
+     CustomerOrders don't have a top-level category; derive from types[] items.
+     Each item: { id, name, price, quantity, imageUrl }
+     We group by item name as a category proxy (or item.category if present). */
   const categoryData = useMemo(() => {
     const map = {};
-    filteredOrders.forEach((o) => {
-      const cat = o.category || "Uncategorized";
-      if (!map[cat]) map[cat] = { category: cat, revenue: 0, orders: 0 };
-      map[cat].revenue += o.totalAmount || 0;
-      map[cat].orders  += 1;
+    filteredCustomerOrders.forEach((o) => {
+      if (Array.isArray(o.types)) {
+        o.types.forEach((item) => {
+          const cat = item.category || item.name || "Uncategorized";
+          if (!map[cat]) map[cat] = { category: cat, revenue: 0, orders: 0 };
+          map[cat].revenue += (item.price || 0) * (item.quantity || 1);
+          map[cat].orders  += 1;
+        });
+      } else {
+        // fallback: use top-level category if present
+        const cat = o.category || "Uncategorized";
+        if (!map[cat]) map[cat] = { category: cat, revenue: 0, orders: 0 };
+        map[cat].revenue += o.totalAmount || 0;
+        map[cat].orders  += 1;
+      }
     });
     return Object.values(map).sort((a, b) => b.revenue - a.revenue);
-  }, [filteredOrders]);
+  }, [filteredCustomerOrders]);
 
-  /* ── top products ── */
+  /* ── top products ──
+     CustomerOrders carry product info inside types[] array.
+     Flatten all items across all orders, group by name. */
   const topProducts = useMemo(() => {
     const map = {};
-    filteredOrders.forEach((o) => {
-      const name = o.productName || o.product || "Unknown";
-      if (!map[name]) map[name] = { name, qty: 0, revenue: 0, orders: 0 };
-      map[name].qty     += o.quantity || 0;
-      map[name].revenue += o.totalAmount || 0;
-      map[name].orders  += 1;
+    filteredCustomerOrders.forEach((o) => {
+      if (Array.isArray(o.types)) {
+        o.types.forEach((item) => {
+          const name = item.name || "Unknown";
+          if (!map[name]) map[name] = { name, qty: 0, revenue: 0, orders: 0 };
+          map[name].qty     += item.quantity || 1;
+          map[name].revenue += (item.price || 0) * (item.quantity || 1);
+          map[name].orders  += 1;
+        });
+      } else {
+        // fallback: original orders collection product fields
+        const name = o.productName || o.product || "Unknown";
+        if (!map[name]) map[name] = { name, qty: 0, revenue: 0, orders: 0 };
+        map[name].qty     += o.quantity || 0;
+        map[name].revenue += o.totalAmount || 0;
+        map[name].orders  += 1;
+      }
     });
     return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
-  }, [filteredOrders]);
+  }, [filteredCustomerOrders]);
 
-  /* ── top suppliers ── */
+  /* ── top suppliers ── (unchanged — still from purchaseOrders) */
   const supplierData = useMemo(() => {
     const map = {};
     filteredPO.forEach((po) => {
@@ -162,21 +197,24 @@ export default function SalesAnalytics() {
     return Object.values(map).sort((a, b) => b.spend - a.spend).slice(0, 8);
   }, [filteredPO]);
 
-  /* ── order status distribution ── */
+  /* ── order status distribution — from CustomerOrders ── */
   const statusDist = useMemo(() => {
     const map = {};
-    filteredOrders.forEach((o) => {
-      const s = o.status || "UNKNOWN";
+    filteredCustomerOrders.forEach((o) => {
+      const s = o.orderStatus || o.status || "UNKNOWN";
       map[s] = (map[s] || 0) + 1;
     });
     return Object.entries(map).map(([status, count]) => ({ status, count }));
-  }, [filteredOrders]);
+  }, [filteredCustomerOrders]);
 
-  /* ── available years ── */
+  /* ── available years — derived from CustomerOrders ── */
   const years = useMemo(() => {
-    const ys = new Set(orders.map((o) => toDate(o.createdAt)?.getFullYear()).filter(Boolean));
+    const ys = new Set([
+      ...customerOrders.map((o) => toDate(o.createdAt)?.getFullYear()),
+      ...orders.map((o) => toDate(o.createdAt)?.getFullYear()),
+    ].filter(Boolean));
     return [...ys].sort((a, b) => b - a);
-  }, [orders]);
+  }, [customerOrders, orders]);
 
   /* ─── loading ─── */
   if (loading) {
@@ -347,9 +385,9 @@ export default function SalesAnalytics() {
                         { v: (
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden" style={{ width: 60 }}>
-                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${((c.revenue / totalRevenue) * 100).toFixed(1)}%` }} />
+                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${totalRevenue ? ((c.revenue / totalRevenue) * 100).toFixed(1) : 0}%` }} />
                             </div>
-                            <span className="text-xs text-slate-600 font-medium">{((c.revenue / totalRevenue) * 100).toFixed(1)}%</span>
+                            <span className="text-xs text-slate-600 font-medium">{totalRevenue ? ((c.revenue / totalRevenue) * 100).toFixed(1) : 0}%</span>
                           </div>
                         )},
                       ]}
@@ -458,7 +496,7 @@ export default function SalesAnalytics() {
                         { v: (
                           <div className="flex items-center gap-2">
                             <div className="h-2 bg-slate-100 rounded-full overflow-hidden" style={{ width: 60 }}>
-                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${((s.spend / totalCost) * 100).toFixed(1)}%` }} />
+                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${totalCost ? ((s.spend / totalCost) * 100).toFixed(1) : 0}%` }} />
                             </div>
                             <span className="text-xs text-slate-600 font-medium">{totalCost ? ((s.spend / totalCost) * 100).toFixed(1) : 0}%</span>
                           </div>

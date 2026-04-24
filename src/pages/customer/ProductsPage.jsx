@@ -319,15 +319,7 @@ function ProductCard({ product }) {
 // MAIN PAGE
 // ========================================
 export default function ProductsPage() {
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [products, setProducts] = useState([]);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [smartResults, setSmartResults] = useState(null);
-  const [searchTerm, setSearchTerm]             = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [products, setProducts]                 = useState([]);
-  const [dropdownOpen, setDropdownOpen]         = useState(false);
-  const dropdownRef                             = useRef(null);
+  
 
   useEffect(() => {
     const handleClickOutside = (e) => {
