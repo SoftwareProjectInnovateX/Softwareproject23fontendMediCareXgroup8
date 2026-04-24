@@ -1,8 +1,10 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { FiBell, FiUser } from "react-icons/fi";
 import { useEffect, useState } from "react";
-import { auth, db } from '../services/firebase'; // ✅ added auth
+import { auth, db } from '../services/firebase';
 import { doc, getDoc } from "firebase/firestore";
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function Header() {
   const location = useLocation();
@@ -10,6 +12,7 @@ export default function Header() {
 
   const [showProfile, setShowProfile] = useState(false);
   const [adminData, setAdminData] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const getPageTitle = () => {
     switch (location.pathname) {
@@ -38,16 +41,27 @@ export default function Header() {
 
   const { title, subtitle } = getPageTitle();
 
-  // ✅ Fetch admin data from Firebase
+  // Fetch unread notification count
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/notifications?recipientType=admin`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const count = data.filter((n) => !n.read).length;
+      setUnreadCount(count);
+    } catch (error) {
+      console.error("Error fetching notification count:", error);
+    }
+  };
+
+  // Fetch admin data from Firebase
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
-        const user = auth.currentUser; // ✅ auth is now imported
-
+        const user = auth.currentUser;
         if (user) {
           const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
-
           if (docSnap.exists()) {
             setAdminData(docSnap.data());
           } else {
@@ -62,12 +76,23 @@ export default function Header() {
     fetchAdminData();
   }, []);
 
-  // ✅ Close dropdown when clicking outside
+  // Fetch unread count on mount and poll every 30 seconds
+  useEffect(() => {
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Re-fetch when navigating away from notifications page (user may have read some)
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [location.pathname]);
+
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = () => {
       setShowProfile(false);
     };
-
     window.addEventListener("click", handleClickOutside);
     return () => window.removeEventListener("click", handleClickOutside);
   }, []);
@@ -84,18 +109,20 @@ export default function Header() {
       {/* RIGHT — Bell + Profile */}
       <div className="flex items-center gap-5 relative">
 
-        {/* 🔔 Notification Bell */}
+        {/* Notification Bell */}
         <button
           onClick={() => navigate("/admin/notifications")}
           className="relative p-2 rounded-full hover:bg-white/30 transition"
         >
           <FiBell size={22} className="text-gray-800" />
-          <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-            3
-          </span>
+          {unreadCount > 0 && (
+            <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </button>
 
-        {/* 👤 Profile */}
+        {/* Profile */}
         <div className="relative">
           <div
             onClick={(e) => {
@@ -109,15 +136,15 @@ export default function Header() {
             </div>
             <div>
               <p className="text-sm font-semibold text-gray-900">
-                {adminData?.fullName || "Admin"} {/* ✅ shows real name */}
+                {adminData?.fullName || "Admin"}
               </p>
               <p className="text-xs text-gray-600">
-                {adminData?.role || "Administrator"} {/* ✅ shows real role */}
+                {adminData?.role || "Administrator"}
               </p>
             </div>
           </div>
 
-          {/* ✅ PROFILE CARD */}
+          {/* PROFILE CARD */}
           {showProfile && (
             <div
               onClick={(e) => e.stopPropagation()}
@@ -126,18 +153,17 @@ export default function Header() {
               {adminData ? (
                 <>
                   <p className="font-semibold text-gray-800">
-                    {adminData.fullName} {/* ✅ was admin.fullName */}
+                    {adminData.fullName}
                   </p>
                   <p className="text-sm text-gray-600">
-                    {adminData.email} {/* ✅ was admin.email */}
+                    {adminData.email}
                   </p>
                   <p className="text-sm text-gray-600">
-                    📞 {adminData.phone || "No phone"} {/* ✅ was admin.phone */}
+                    📞 {adminData.phone || "No phone"}
                   </p>
                   <p className="text-xs text-blue-500 mt-2">
-                    Role: {adminData.role} {/* ✅ was admin.role */}
+                    Role: {adminData.role}
                   </p>
-
                   <button
                     onClick={() => navigate("/login")}
                     className="mt-3 w-full bg-red-500 text-white py-1.5 rounded hover:bg-red-600"
