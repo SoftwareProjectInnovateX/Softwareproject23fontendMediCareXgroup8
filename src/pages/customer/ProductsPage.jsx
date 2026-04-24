@@ -6,6 +6,7 @@ import { db } from "../../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import { CATEGORIES } from "../../data/categories";
 import SmartSearch from "../../components/SmartSearch";
+import { useDarkMode } from "../../context/DarkModeContext";
 import {
   ShoppingCart,
   X,
@@ -350,6 +351,7 @@ function ProductCard({ product }) {
 // MAIN PAGE
 // ========================================
 export default function ProductsPage() {
+  const { isDark } = useDarkMode();
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [products, setProducts] = useState([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -436,7 +438,7 @@ export default function ProductsPage() {
   return (
     <div
       className="min-h-screen"
-      style={{ background: C.bg, fontFamily: FONT.body }}
+      style={{ background: isDark ? "#0f172a" : C.bg, fontFamily: FONT.body }}
     >
       {/* Page header banner */}
       <div
@@ -461,7 +463,7 @@ export default function ProductsPage() {
       <div
         className="sticky top-[122px] z-40"
         style={{
-          background: C.surface,
+          background: isDark ? "#1e293b" : C.surface,
           borderBottom: `1px solid ${C.border}`,
           boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
         }}

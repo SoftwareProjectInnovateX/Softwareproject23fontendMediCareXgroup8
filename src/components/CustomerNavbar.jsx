@@ -1,9 +1,11 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useDarkMode } from "../context/DarkModeContext";
 import { useCartStore } from "../stores/cartStore";
 
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
 
 export default function CustomerNavbar() {
+  const { isDark, toggleDark } = useDarkMode();
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
@@ -67,7 +69,7 @@ export default function CustomerNavbar() {
 
       {/* ── Main Navbar ── */}
       <div style={{
-        background: "#ffffff",
+        background: isDark ? "#1e293b" : "#ffffff",
         borderBottom: "1px solid rgba(26,135,225,0.15)",
         boxShadow: "0 2px 16px rgba(26,135,225,0.09)",
       }}>
@@ -109,11 +111,11 @@ export default function CustomerNavbar() {
                     transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
                     ...(isActive(link.href)
                       ? { background: "#1a87e1", color: "#ffffff", boxShadow: "0 4px 14px rgba(26,135,225,0.28)" }
-                      : { color: "#334155", background: "transparent" }
+                      : { color: isDark ? "#e2e8f0" : "#334155", background: "transparent" }
                     ),
                   }}
                   onMouseEnter={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "rgba(26,135,225,0.08)"; e.currentTarget.style.color = "#1a87e1"; } }}
-                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#334155"; } }}
+                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = isDark ? "#e2e8f0" : "#334155"; } }}
                 >
                   {link.name}
                 </Link>
@@ -122,6 +124,23 @@ export default function CustomerNavbar() {
 
             {/* Cart + User */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+               {/* Dark Mode Toggle */}
+              <button
+                onClick={toggleDark}
+                title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 46, height: 46, borderRadius: 12,
+                  background: isDark ? "rgba(255,255,255,0.1)" : "rgba(26,135,225,0.06)",
+                  border: isDark ? "1.5px solid rgba(255,255,255,0.2)" : "1.5px solid rgba(26,135,225,0.18)",
+                  fontSize: 20, cursor: "pointer",
+                  transition: "background 0.15s, border-color 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.18)" : "rgba(26,135,225,0.13)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "rgba(26,135,225,0.06)"; }}
+              >
+                {isDark ? "☀️" : "🌙"}
+              </button>
 
               {/* Cart */}
               <Link
