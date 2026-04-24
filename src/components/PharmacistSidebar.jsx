@@ -14,7 +14,8 @@ import {
   ShieldPlus,
   LogOut,
   Activity,
-  RotateCcw
+  RotateCcw,
+  Package
 } from 'lucide-react';
 
 const PharmacistSidebar = () => {
@@ -28,6 +29,7 @@ const PharmacistSidebar = () => {
   const navItems = [
     { path: '/pharmacist/dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { path: '/pharmacist/prescriptions', name: 'Prescriptions', icon: FileText, badge: pendingRxCount > 0 ? pendingRxCount.toString() : null },
+    { path: '/pharmacist/online-orders', name: 'Orders', icon: Package },
     { path: '/pharmacist/dispensing', name: 'Dispensing', icon: Pill },
     { path: '/pharmacist/patients', name: 'Patients', icon: Users },
     { path: '/pharmacist/inventory', name: 'Inventory', icon: Archive },

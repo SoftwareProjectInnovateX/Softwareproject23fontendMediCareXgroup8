@@ -54,13 +54,6 @@ const PharmacistPrescriptions = () => {
     };
   }, []);
 
-  const [onlineHubCount, setOnlineHubCount] = useState(0);
-
-  useEffect(() => {
-     import('../../services/pharmacistService').then(({ getOnlineOrders }) => {
-         getOnlineOrders().then(orders => setOnlineHubCount(orders.length)).catch(console.error);
-     });
-  }, []);
 
   const [walkinRxCount, setWalkinRxCount] = useState(0);
 
@@ -185,7 +178,7 @@ const PharmacistPrescriptions = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4 mt-8">
+      <div className="grid grid-cols-3 gap-4 mt-8">
         <div 
           className="card border-slate-100 shadow-none hover:shadow-md border-l-4 border-l-blue-500 !py-5 relative overflow-hidden group cursor-pointer hover:bg-slate-50 transition-all"
           onClick={() => {
@@ -229,20 +222,7 @@ const PharmacistPrescriptions = () => {
              <p className="text-xs text-slate-600 font-bold mt-1">Immediate priority</p>
            </div>
         </div>
-        <div 
-          className="card border border-slate-100 shadow-none hover:shadow-md !py-5 relative cursor-pointer hover:bg-slate-50 transition-all border-l-4 border-l-amber-500"
-          onClick={() => navigate('/pharmacist/online-orders')}
-        >
-           <div className="absolute right-4 top-4 w-2 h-2 rounded-full bg-amber-500"></div>
-           <div className="bg-amber-50 text-amber-600 p-2 rounded inline-block">
-             <Package className="w-5 h-5" />
-           </div>
-           <div className="mt-4">
-             <p className="text-sm font-medium text-slate-500">Online Hub</p>
-             <h2 className="text-3xl font-bold text-slate-800 mt-1">{onlineHubCount.toString().padStart(2, '0')}</h2>
-             <p className="text-xs text-slate-600 font-bold mt-1">Total incoming orders</p>
-           </div>
-        </div>
+
         <div 
           className="card border-slate-100 shadow-none hover:shadow-md border-l-4 border-l-emerald-500 !py-5 relative overflow-hidden group cursor-pointer hover:bg-slate-50 transition-all"
           onClick={() => {

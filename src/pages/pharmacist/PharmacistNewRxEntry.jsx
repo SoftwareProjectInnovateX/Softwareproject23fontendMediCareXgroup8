@@ -66,19 +66,19 @@ const PharmacistNewRxEntry = () => {
     if (currentMed.length > 0 && !itemName.toLowerCase().startsWith(currentMed.toLowerCase()) && !itemName.toLowerCase().includes(currentMed.toLowerCase())) return false;
     
     const cat = (item.category || '').toLowerCase();
-    const isOtc = cat.includes('otc') || cat.includes('general') || cat.includes('cosmetic') || cat.includes('supply');
+    const isRx = cat === 'medicine' || cat.includes('prescription') || cat.includes('rx');
     
     if (activeTab === 'rx') {
-      return !isOtc; // If Rx tab, show everything that is NOT strictly OTC/General
+      return isRx; // If Rx tab, show only medicines
     } else {
-      return isOtc; // If OTC tab, show only OTC/General items
+      return !isRx; // If OTC tab, show non-medicines
     }
   }).slice(0, 50);
 
   const handleSelectItem = (item) => {
     const itemName = item.name || item.productName || item.itemName || '';
     setCurrentMed(itemName);
-    const price = item.price || item.unitPrice || item.sellingPrice || item.cost || item.amount || 0;
+    const price = item.retailPrice || item.price || item.unitPrice || item.sellingPrice || item.cost || item.amount || 0;
     if (price !== undefined && price !== null) setCurrentPrice(price.toString());
     setSelectedInventoryItem(item);
     setShowItemSuggest(false);
