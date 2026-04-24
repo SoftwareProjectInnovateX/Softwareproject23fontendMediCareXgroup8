@@ -102,7 +102,7 @@ export default function ContactPage() {
             </div>
             <h1
               className="text-2xl font-semibold mb-[6px]"
-              style={{ fontFamily: FONT.display, color: C.textPrimary }}
+              
             >
               Contact Us
             </h1>

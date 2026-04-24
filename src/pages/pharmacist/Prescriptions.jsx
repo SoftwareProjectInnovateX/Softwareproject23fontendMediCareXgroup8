@@ -1,204 +1,221 @@
+import { useEffect, useState, useRef } from 'react';
+import { db } from '../../lib/firebase';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { Upload, FileText, User, Phone, MapPin, ExternalLink, FileX } from 'lucide-react';
 
+import { C, FONT, inputStyle }              from '../../components/profile/profileTheme';
+import { SectionCard, SectionLabel, Field,
+         SuccessBanner }                    from '../../components/profile/ProfileUI';
+import PageBanner from '../../components/profile/PageBanner';
+import { StatusBadge, getStatusColor }      from '../../components/orders/Orderstatusutils';
+import Card                                 from '../../components/Card';
 
-import { useState, useEffect } from "react";
-import { db } from "../../lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
-import { FileText, Phone, MapPin, ExternalLink, CheckCircle, XCircle, ClipboardList } from "lucide-react";
-
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const C = {
-  bg:          "#f1f5f9",
-  surface:     "#ffffff",
-  border:      "rgba(26,135,225,0.18)",
-  accent:      "#1a87e1",
-  accentMid:   "#0284c7",
-  textPrimary: "#1e293b",
-  textMuted:   "#64748b",
-  textSoft:    "#475569",
-};
-
-const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
-
-/** Maps prescription status to bg/text/border colour triple */
-function statusStyle(status) {
-  if (status === "Approved") return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
-  if (status === "Rejected") return { bg: "rgba(239,68,68,0.1)",   color: "#dc2626", border: "rgba(239,68,68,0.25)"  };
-  return                            { bg: "rgba(245,158,11,0.1)",  color: "#d97706", border: "rgba(245,158,11,0.25)" };
-}
-
-export default function Prescriptions() {
-  const [prescriptions, setPrescriptions] = useState([]);
-  const [updatingId, setUpdatingId]       = useState(null); // ID of the prescription being updated
-
-  // Real-time listener – sorted client-side by createdAt descending
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "prescriptions"), snap => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      data.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-      setPrescriptions(data);
-    });
-    return () => unsub();
-  }, []);
-
-  /**
-   * PATCHes the prescription status via the local backend API.
-   * Using an API endpoint (instead of direct Firestore write) allows
-   * server-side side-effects such as sending customer notifications.
-   */
-  const handleStatusUpdate = async (id, status) => {
-    setUpdatingId(id);
-    try {
-      await fetch(`http://localhost:5000/api/prescriptions/${id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-    } catch (err) {
-      alert(`Failed to update: ${err.message}`);
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+// ── Drop zone ─────────────────────────────────────────────────────────────────
+function DropZone({ selectedFile, onFile }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const ref = useRef(null);
 
   return (
-    <div className="font-['DM_Sans',sans-serif]">
-
-      <div className="mb-6">
-        <h1 className="font-['Playfair_Display',serif] text-[26px] text-[#1e293b] font-semibold">
-          Prescriptions
-        </h1>
-        <p className="text-[13px] text-[#64748b] mt-[5px]">
-          Review and manage customer prescriptions.
-        </p>
+    <Field icon={<FileText size={11} color={C.accent} />} label="Prescription File">
+      <div
+        onDragOver={(e)  => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+        onDrop={(e) => {
+          e.preventDefault(); setIsDragging(false);
+          const f = e.dataTransfer.files[0]; if (f) onFile(f);
+        }}
+        onClick={() => ref.current?.click()}
+        className="rounded-xl px-5 py-7 text-center cursor-pointer transition-all duration-150"
+        style={{
+          border:     `2px dashed ${isDragging ? C.accent : C.border}`,
+          background:  isDragging ? C.accentFaint : C.bg,
+        }}
+      >
+        <Upload size={24} color={isDragging ? C.accent : C.textMuted} className="mx-auto mb-2.5" />
+        {selectedFile
+          ? <p className="text-[13px] font-semibold" style={{ color: C.accent }}>{selectedFile.name}</p>
+          : <>
+              <p className="text-[13px] font-semibold" style={{ color: C.textSoft }}>Drop file here or click to browse</p>
+              <p className="text-[11px] mt-1"          style={{ color: C.textMuted }}>Supports JPG, PNG, PDF</p>
+            </>
+        }
       </div>
+      <input type="file" ref={ref} onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} className="hidden" />
+    </Field>
+  );
+}
 
-      {/* ── Empty state ── */}
-      {prescriptions.length === 0 ? (
-        <div className="bg-white border border-[rgba(26,135,225,0.18)] rounded-[14px] py-[60px] text-center shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
-          <ClipboardList size={40} color={C.textMuted} className="mx-auto mb-3" />
-          <p className="text-[15px] text-[#475569] font-medium">No prescriptions yet.</p>
-          <p className="text-[12px] text-[#64748b] mt-1">They will appear here when customers upload.</p>
+// ── Upload form ───────────────────────────────────────────────────────────────
+function UploadForm({ onUploaded }) {
+  const [file,      setFile]      = useState(null);
+  const [name,      setName]      = useState('');
+  const [phone,     setPhone]     = useState('');
+  const [address,   setAddress]   = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [success,   setSuccess]   = useState(false);
+
+  const reset = () => { setName(''); setPhone(''); setAddress(''); };
+
+  const handleUpload = async () => {
+    if (!file || !name || !phone) { alert('Please fill in name, phone and select a file.'); return; }
+    setUploading(true);
+    const fd = new FormData();
+    fd.append('prescription',    file);
+    fd.append('customerName',    name);
+    fd.append('customerPhone',   phone);
+    fd.append('customerAddress', address);
+    try {
+      const res = await fetch('http://localhost:5000/api/prescriptions/upload', { method: 'POST', body: fd });
+      if (res.ok) {
+        const { prescription } = await res.json();
+        setSuccess(true);
+        onUploaded(prescription);
+        reset();
+        setTimeout(() => { setFile(null); setSuccess(false); }, 3000);
+      } else {
+        const e = await res.json();
+        alert(`Upload failed: ${e.message || 'Unknown error'}`);
+      }
+    } catch { alert('Upload failed. Make sure the backend is running on port 5000.'); }
+    finally  { setUploading(false); }
+  };
+
+  const disabled = !file || uploading;
+
+  return (
+    <SectionCard
+      icon={<Upload size={16} color={C.accent} />}
+      title="Upload Prescription"
+      subtitle="Fill in your details and attach your prescription file"
+    >
+      <Field icon={<User   size={11} color={C.accent} />} label="Name">
+        <input style={inputStyle} placeholder="Your full name"      value={name}    onChange={(e) => setName(e.target.value)} />
+      </Field>
+      <Field icon={<Phone  size={11} color={C.accent} />} label="Phone">
+        <input style={inputStyle} placeholder="Your phone number"   value={phone}   onChange={(e) => setPhone(e.target.value)} />
+      </Field>
+      <Field icon={<MapPin size={11} color={C.accent} />} label="Address">
+        <textarea
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6 }}
+          placeholder="Your delivery address" rows={3}
+          value={address} onChange={(e) => setAddress(e.target.value)}
+        />
+      </Field>
+
+      <DropZone selectedFile={file} onFile={setFile} />
+
+      <button
+        onClick={handleUpload} disabled={disabled}
+        className="flex items-center justify-center gap-2 py-3 rounded-xl border-none text-[13px] font-semibold transition-all"
+        style={{
+          fontFamily: FONT.body,
+          cursor:     disabled ? "not-allowed"  : "pointer",
+          background: disabled ? C.disabled     : C.accent,
+          color:      disabled ? C.textMuted    : "#ffffff",
+          boxShadow:  disabled ? "none"         : C.accentShadow,
+        }}
+      >
+        <Upload size={14} /> {uploading ? 'Uploading…' : 'Upload Prescription'}
+      </button>
+
+      {success && <SuccessBanner message="Upload successful! Pharmacist has been notified." />}
+    </SectionCard>
+  );
+}
+
+// ── Prescription history card ─────────────────────────────────────────────────
+function PrescriptionCard({ p }) {
+  const sc = getStatusColor(p.status);
+  return (
+    <Card
+      header={
+        <div className="flex justify-between items-center">
+          <span className="text-xs font-bold" style={{ color: C.textPrimary }}>
+            #{p.id.slice(0, 8)}&hellip;
+          </span>
+          <StatusBadge status={p.status} colors={sc} />
         </div>
-      ) : (
+      }
+    >
+      <div className="flex gap-5 flex-wrap">
+        <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: C.textPrimary }}>
+          <User  size={12} color={C.accent} /> {p.customerName}
+        </span>
+        <span className="flex items-center gap-1.5 text-xs" style={{ color: C.textMuted }}>
+          <Phone size={12} color={C.accent} /> {p.customerPhone}
+        </span>
+        {p.customerAddress && (
+          <span className="flex items-center gap-1.5 text-xs" style={{ color: C.textMuted }}>
+            <MapPin size={12} color={C.accent} /> {p.customerAddress}
+          </span>
+        )}
+      </div>
+      <div className="mt-2">
+        {p.imageUrl
+          ? <a href={p.imageUrl} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold no-underline px-3 py-1.5 rounded-lg"
+              style={{ color: C.accent, background: C.accentFaint, border: `1px solid ${C.border}` }}>
+              <ExternalLink size={12} /> View File
+            </a>
+          : <span className="text-xs" style={{ color: C.textMuted }}>No file attached</span>
+        }
+      </div>
+    </Card>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export default function PrescriptionsPage() {
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc')));
+        setPrescriptions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      } catch (e) { setError(e.message || 'Failed to load prescriptions'); }
+      finally     { setLoading(false); }
+    })();
+  }, []);
+
+  if (loading) return (
+    <div className="flex justify-center items-center min-h-[60vh] text-sm"
+      style={{ color: C.textMuted, fontFamily: FONT.body, background: C.bg }}>
+      Loading prescriptions…
+    </div>
+  );
+  if (error) return (
+    <div className="flex justify-center items-center min-h-[60vh] text-sm text-red-600"
+      style={{ fontFamily: FONT.body, background: C.bg }}>
+      {error}
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
+      <PageBanner title="Prescription Management" subtitle="Upload your prescription and track its status with ease." />
+
+      <div className="max-w-[860px] mx-auto px-6 py-9 flex flex-col gap-8">
+        <UploadForm onUploaded={(p) => setPrescriptions((prev) => [p, ...prev])} />
+
         <div>
+          <SectionLabel icon={<FileText size={12} color={C.accent} />} label="Prescription History" />
 
-          {/* Status count summary chips */}
-          <div className="flex gap-[10px] mb-5">
-            {["Pending", "Approved", "Rejected"].map(s => {
-              const st = statusStyle(s);
-              return (
-                <div
-                  key={s}
-                  className="text-[11px] font-bold px-[14px] py-[6px] rounded-lg uppercase tracking-[0.06em]"
-                  style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}
-                >
-                  {s}: {prescriptions.filter(p => (p.status || "Pending") === s).length}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* ── Prescription card list ── */}
-          <div className="flex flex-col gap-3">
-            {prescriptions.map(p => {
-              const st = statusStyle(p.status || "Pending");
-              const isUpdating = updatingId === p.id;
-
-              return (
-                <div
-                  key={p.id}
-                  className="bg-white border border-[rgba(26,135,225,0.18)] rounded-[14px] px-[18px] py-4 flex gap-4 shadow-[0_1px_4px_rgba(26,135,225,0.07)]"
-                >
-
-                  {/* Prescription image thumbnail or fallback icon */}
-                  {p.imageUrl ? (
-                    <img
-                      src={p.imageUrl}
-                      alt="prescription"
-                      className="w-[90px] h-[90px] object-cover rounded-[10px] border border-[rgba(26,135,225,0.18)] shrink-0"
-                    />
-                  ) : (
-                    <div className="w-[90px] h-[90px] rounded-[10px] border border-[rgba(26,135,225,0.18)] shrink-0 bg-[#f1f5f9] flex items-center justify-center">
-                      <FileText size={28} color={C.textMuted} />
-                    </div>
-                  )}
-
-                  <div className="flex-1">
-
-                    {/* Top row: customer details + status badge */}
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="text-[14px] font-semibold text-[#1e293b]">{p.customerName}</p>
-                        <div className="flex items-center gap-[5px] mt-1">
-                          <Phone size={11} color={C.textMuted} />
-                          <p className="text-[11px] text-[#64748b]">{p.customerPhone}</p>
-                        </div>
-                        <div className="flex items-center gap-[5px] mt-[3px]">
-                          <MapPin size={11} color={C.textMuted} />
-                          <p className="text-[11px] text-[#64748b]">{p.customerAddress}</p>
-                        </div>
-                      </div>
-                      <span
-                        className="text-[10px] font-bold px-[10px] py-[3px] rounded-[20px] uppercase tracking-[0.06em] whitespace-nowrap"
-                        style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}` }}
-                      >
-                        {p.status || "Pending"}
-                      </span>
-                    </div>
-
-                    {/* External link to view the full-size prescription image */}
-                    {p.imageUrl && (
-                      <a
-                        href={p.imageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] text-[#1a87e1] font-medium no-underline inline-flex items-center gap-1 mb-[10px]"
-                      >
-                        <ExternalLink size={11} color={C.accent} />
-                        View Full Prescription
-                      </a>
-                    )}
-
-                    {/* Approve / Reject action buttons */}
-                    <div className="flex gap-2 mt-1">
-                      <button
-                        onClick={() => handleStatusUpdate(p.id, "Approved")}
-                        disabled={p.status === "Approved" || isUpdating}
-                        className="text-[11px] font-semibold px-[14px] py-[6px] rounded-[7px] font-['DM_Sans',sans-serif] flex items-center gap-[5px]"
-                        style={{
-                          cursor:     p.status === "Approved" || isUpdating ? "not-allowed" : "pointer",
-                          background: p.status === "Approved" || isUpdating ? "rgba(16,185,129,0.05)" : "rgba(16,185,129,0.1)",
-                          color:      p.status === "Approved" || isUpdating ? C.textMuted : "#059669",
-                          border:     `1px solid ${p.status === "Approved" ? C.border : "rgba(16,185,129,0.25)"}`,
-                        }}
-                      >
-                        <CheckCircle size={12} />
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleStatusUpdate(p.id, "Rejected")}
-                        disabled={p.status === "Rejected" || isUpdating}
-                        className="text-[11px] font-semibold px-[14px] py-[6px] rounded-[7px] font-['DM_Sans',sans-serif] flex items-center gap-[5px]"
-                        style={{
-                          cursor:     p.status === "Rejected" || isUpdating ? "not-allowed" : "pointer",
-                          background: p.status === "Rejected" || isUpdating ? "rgba(239,68,68,0.05)" : "rgba(239,68,68,0.1)",
-                          color:      p.status === "Rejected" || isUpdating ? C.textMuted : "#dc2626",
-                          border:     `1px solid ${p.status === "Rejected" ? C.border : "rgba(239,68,68,0.25)"}`,
-                        }}
-                      >
-                        <XCircle size={12} />
-                        Reject
-                      </button>
-                    </div>
-
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
+          {prescriptions.length === 0
+            ? <div className="rounded-2xl py-[60px] text-center"
+                style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.cardShadow }}>
+                <FileX size={40} color={C.textMuted} className="mx-auto mb-3.5" />
+                <p className="text-[15px] font-bold" style={{ color: C.textSoft }}>No prescriptions found.</p>
+                <p className="text-[13px] mt-1.5"    style={{ color: C.textMuted }}>Your uploaded prescriptions will appear here.</p>
+              </div>
+            : <div className="flex flex-col gap-3.5">
+                {prescriptions.map((p) => <PrescriptionCard key={p.id} p={p} />)}
+              </div>
+          }
         </div>
-      )}
+      </div>
     </div>
   );
 }

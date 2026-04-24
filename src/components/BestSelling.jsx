@@ -64,7 +64,7 @@ export default function BestSelling() {
             Top Picks
           </p>
           <h2 style={{
-            fontFamily: FONT.display, fontSize: 30, fontWeight: 700,
+            fontSize: 30, fontWeight: 700, color: C.accent,
             color: C.accentDark, margin: 0,
           }}>
             Best Selling
