@@ -224,8 +224,13 @@ const PharmacistHeader = () => {
         </button>
 
         <div className="flex items-center gap-3 border-l border-white/50 pl-6 ml-2">
-          <div className="w-9 h-9 rounded-full bg-white/40 overflow-hidden flex items-center justify-center border border-white/50 shadow-sm">
-            <img src={displayAvatar} alt="User" className="w-full h-full object-cover" />
+          <div className="relative">
+            <div className="w-9 h-9 rounded-full bg-white/40 overflow-hidden flex items-center justify-center border border-white/50 shadow-sm">
+              <img src={displayAvatar} alt="User" className="w-full h-full object-cover" />
+            </div>
+            {userProfile?.isActive !== false && (
+              <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm"></span>
+            )}
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-bold text-gray-900 leading-tight">{userProfile?.name || 'Pharmacist'}</span>

@@ -10,12 +10,17 @@ const PharmacistLayout = () => {
   const [userProfile, setUserProfile] = useState(() => {
      try {
         const saved = localStorage.getItem('medicarex_pharmacist_profile');
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.isActive === undefined) parsed.isActive = true;
+            return parsed;
+        }
      } catch {}
      return {
         name: 'Sarah Jenkins',
         role: 'Lead Pharmacist',
-        avatarUrl: ''
+        avatarUrl: '',
+        isActive: true
      };
   });
   const [pendingRxCount, setPendingRxCount] = useState(0);

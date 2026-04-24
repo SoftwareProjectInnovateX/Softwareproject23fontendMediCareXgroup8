@@ -107,15 +107,49 @@ const PharmacistSettings = () => {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const imgUrl = URL.createObjectURL(file);
-      setProfileImage(imgUrl);
-      
-      // Update Context to sync header automatically
-      setUserProfile(prev => {
-         const updated = { ...prev, avatarUrl: imgUrl, name: profile.name, role: profile.role };
-         localStorage.setItem('medicarex_pharmacist_profile', JSON.stringify(updated));
-         return updated;
-      });
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 200;
+          const MAX_HEIGHT = 200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+          setProfileImage(compressedBase64);
+          
+          try {
+            // Update Context to sync header automatically
+            setUserProfile(prev => {
+               const updated = { ...prev, avatarUrl: compressedBase64, name: profile.name, role: profile.role };
+               localStorage.setItem('medicarex_pharmacist_profile', JSON.stringify(updated));
+               return updated;
+            });
+          } catch (error) {
+            console.error("Storage error:", error);
+          }
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -254,9 +288,22 @@ const PharmacistSettings = () => {
                  
                  {/* Toggle Switch */}
                  <label className="relative inline-flex items-center cursor-pointer">
-                   <input type="checkbox" className="sr-only peer" defaultChecked />
+                   <input 
+                     type="checkbox" 
+                     className="sr-only peer" 
+                     checked={userProfile?.isActive !== false} 
+                     onChange={(e) => {
+                       setUserProfile(prev => {
+                         const updated = { ...prev, isActive: e.target.checked };
+                         localStorage.setItem('medicarex_pharmacist_profile', JSON.stringify(updated));
+                         return updated;
+                       });
+                     }} 
+                   />
                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
-                   <span className="ml-3 text-xs font-black uppercase text-emerald-600 tracking-wider">Active</span>
+                   <span className={`ml-3 text-xs font-black uppercase tracking-wider ${userProfile?.isActive !== false ? 'text-emerald-600' : 'text-slate-500'}`}>
+                     {userProfile?.isActive !== false ? 'Active' : 'Offline'}
+                   </span>
                  </label>
               </div>
            </div>
@@ -280,6 +327,16 @@ const PharmacistSettings = () => {
                         type="text" 
                         name="name"
                         value={profile.name}
+                        onChange={handleProfileChange}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-[#0b5ed7] focus:ring-1 focus:ring-[#0b5ed7] transition-all"
+                     />
+                  </div>
+                  <div>
+                     <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Position / Role</label>
+                     <input 
+                        type="text" 
+                        name="role"
+                        value={profile.role}
                         onChange={handleProfileChange}
                         className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-[#0b5ed7] focus:ring-1 focus:ring-[#0b5ed7] transition-all"
                      />

@@ -31,7 +31,19 @@ const PharmacistOnlineOrders = () => {
      const fetchOrders = async () => {
          try {
              let fetched = await getOnlineOrders();
-             setOrders(fetched);
+             const mappedOrders = fetched.map(order => ({
+                 ...order,
+                 id: (order.id || order.orderId || order.firebaseId || '').toString(),
+                 patient: order.patient || order.customerName || 'Unknown',
+                 paymentStatus: order.paymentStatus || 'Pending',
+                 items: order.items || order.types || [],
+                 date: order.date || (order.createdAt ? new Date(order.createdAt._seconds * 1000).toLocaleDateString() : 'N/A'),
+                 status: order.status || (order.orderStatus === 'approved' ? 'Confirmed' : (order.orderStatus === 'pending' ? 'Reviewing' : (order.orderStatus === 'delivered' ? 'Dispatched' : 'Reviewing'))),
+                 phone: order.phone || 'N/A',
+                 address: order.address || 'N/A',
+                 total: order.total || order.totalAmount || 0
+             }));
+             setOrders(mappedOrders);
              setIsLoading(false);
          } catch(e) {
              console.error(e);

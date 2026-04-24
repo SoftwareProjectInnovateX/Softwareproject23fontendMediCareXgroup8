@@ -43,7 +43,15 @@ const PharmacistDispensing = () => {
     const fetchData = async () => {
         try {
             const h = await getDispensedHistory();
-            const activeQueue = h.filter(d => !d.finalized);
+            const activeQueue = h
+                .filter(d => !d.finalized && !(d.id && d.id.toString().startsWith('WALKIN')))
+                .map(order => ({
+                    ...order,
+                    rxId: (order.rxId || order.id || '').toString(),
+                    verifiedPatient: order.verifiedPatient || order.patientName || 'Unknown Patient',
+                    orderItems: order.orderItems || order.medicines || [],
+                    total: order.total || order.totalAmount || 0
+                }));
             setDispOrders(activeQueue);
             setIsLoading(false);
         } catch (e) {
