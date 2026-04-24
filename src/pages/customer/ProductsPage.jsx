@@ -148,7 +148,7 @@ function ProductCard({ product, isDark = false }) {
         onClick={() => setShowDetails(true)}
         className="rounded-2xl overflow-hidden cursor-pointer transition-shadow duration-200"
         style={{
-          background:isDark ? DARK.surface : C.surface,
+          background: isDark ? DARK.surface : C.surface,
           border: `1px solid ${C.border}`,
           boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
           fontFamily: FONT.body,
@@ -244,7 +244,7 @@ function ProductCard({ product, isDark = false }) {
           <div
             className="rounded-[20px] w-full max-w-[540px] overflow-hidden"
             style={{
-              background:isDark ? DARK.surface : C.surface,
+              background: isDark ? DARK.surface : C.surface,
               border: `1px solid ${C.border}`,
               boxShadow: "0 24px 48px rgba(15,42,94,0.2)",
               fontFamily: FONT.body,
@@ -419,22 +419,28 @@ export default function ProductsPage() {
   // Filter products by search term (checks multiple fields) and selected category
   const filteredProducts =
     smartResults !== null
-      ? smartResults
+      ? smartResults.map((sr) => {
+          const matchingProduct = products.find((p) => p.id === sr.id);
+          return {
+            ...sr,
+            stock: matchingProduct ? matchingProduct.stock : (sr.stock ?? 0),
+          };
+        })
       : products.filter((p) => {
-          const term = "";
-          const matchSearch =
-            !term ||
-            (p.name || "").toLowerCase().includes(term) ||
-            (p.productName || "").toLowerCase().includes(term) ||
-            (p.title || "").toLowerCase().includes(term) ||
-            (p.description || "").toLowerCase().includes(term) ||
-            (p.category || "").toLowerCase().includes(term) ||
-            (p.brand || "").toLowerCase().includes(term) ||
-            (p.genericName || "").toLowerCase().includes(term);
-          const matchCategory =
-            selectedCategory === "all" || p.category === selectedCategory;
-          return matchSearch && matchCategory;
-        });
+        const term = "";
+        const matchSearch =
+          !term ||
+          (p.name || "").toLowerCase().includes(term) ||
+          (p.productName || "").toLowerCase().includes(term) ||
+          (p.title || "").toLowerCase().includes(term) ||
+          (p.description || "").toLowerCase().includes(term) ||
+          (p.category || "").toLowerCase().includes(term) ||
+          (p.brand || "").toLowerCase().includes(term) ||
+          (p.genericName || "").toLowerCase().includes(term);
+        const matchCategory =
+          selectedCategory === "all" || p.category === selectedCategory;
+        return matchSearch && matchCategory;
+      });
 
   return (
     <div
@@ -474,7 +480,7 @@ export default function ProductsPage() {
           <div className="flex-1 min-w-[200px] flex items-center gap-2">
             <SmartSearch
               onResults={(results) => setSmartResults(results)}
-              onLoading={() => {}}
+              onLoading={() => { }}
             />
             {smartResults !== null && (
               <button
@@ -494,12 +500,12 @@ export default function ProductsPage() {
               className="flex items-center gap-2 px-3.5 py-[9px] rounded-xl text-[13px] font-semibold outline-none cursor-pointer min-w-[180px] transition-all duration-150"
               style={{
                 border: `1px solid ${selectedCategory !== "all" ? C.accent : C.border}`,
-                color: selectedCategory !== "all" ? C.accent :isDark ? DARK.textPrimary : C.textSoft,
+                color: selectedCategory !== "all" ? C.accent : isDark ? DARK.textPrimary : C.textSoft,
                 fontFamily: FONT.body,
                 background:
                   selectedCategory !== "all"
                     ? "rgba(26,135,225,0.06)"
-                    :isDark ? DARK.surface : C.surface,
+                    : isDark ? DARK.surface : C.surface,
                 boxShadow:
                   selectedCategory !== "all"
                     ? "0 2px 8px rgba(26,135,225,0.12)"
@@ -509,7 +515,7 @@ export default function ProductsPage() {
               <span className="flex items-center gap-1.5 flex-1">
                 {getCategoryIcon(
                   categories.find((c) => c.id === selectedCategory)?.name ||
-                    "all",
+                  "all",
                   14,
                   selectedCategory !== "all" ? C.accent : C.textMuted,
                 )}
@@ -532,7 +538,7 @@ export default function ProductsPage() {
               <div
                 className="absolute top-[calc(100%+6px)] left-0 min-w-full z-[100] rounded-xl overflow-hidden"
                 style={{
-                  background:isDark ? DARK.surface : C.surface,
+                  background: isDark ? DARK.surface : C.surface,
                   border: `1px solid ${C.border}`,
                   boxShadow: "0 8px 24px rgba(15,42,94,0.13)",
                 }}
@@ -590,7 +596,7 @@ export default function ProductsPage() {
           <div
             className="rounded-2xl py-[72px] text-center"
             style={{
-              background:isDark ? DARK.surface : C.surface,
+              background: isDark ? DARK.surface : C.surface,
               border: `1px solid ${C.border}`,
               boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
             }}
