@@ -36,7 +36,7 @@ export default function UploadPrescriptionSection({ onOpen }) {
 
       {/* Heading */}
       <h2 style={{
-        fontFamily: FONT.display, fontSize: 32, fontWeight: 700,
+         fontSize: 30, fontWeight: 700, color: C.accent,
         color: "#ffffff", margin: "0 0 14px",
       }}>
         Upload Prescription
