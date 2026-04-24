@@ -40,13 +40,16 @@ import AdminProductApproval from './pages/admin/AdminProductApproval';
 import HomePage from "./pages/customer/HomePage";
 import ProductsPage from "./pages/customer/ProductsPage";
 import CartPage from "./pages/customer/CartPage";
-import CheckoutPage from "./pages/customer/CheckoutPage";
+import CheckoutPage from "./pages/customer/Checkout";
 import OrdersPage from "./pages/customer/OrdersPage";
 import BrandsPage from "./pages/customer/BrandsPage";
 import ContactPage from "./pages/customer/ContactPage";
 import PrescriptionPage from "./pages/customer/PrescriptionPage";
 import ReturnPage from "./pages/customer/ReturnPage";
 import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
+import Checkout from './pages/customer/Checkout';
+import Success from './pages/customer/Success';
+import Cancel from './pages/customer/Cancel';
 
 /* PHARMACIST */
 import PharmacistDashboard from "./pages/pharmacist/Dashboard";
@@ -58,6 +61,14 @@ import Inventory from "./pages/pharmacist/Inventory";
 import Returns from "./pages/pharmacist/Returns";
 import BrandsManagementPage from './pages/pharmacist/BrandsManagementPage';
 import MessagesPage from './pages/pharmacist/MessagesPage';
+
+// ── My Route Constants ────────────────────────────────────────────────────────
+const ROUTES = {
+  HOME:             "/",
+  CHECKOUT:         "/checkout",
+  CHECKOUT_SUCCESS: "/customer/checkout/success",
+  CHECKOUT_CANCEL:  "/customer/checkout/cancel",
+};
 
 export default function App() {
   return (
@@ -124,6 +135,8 @@ export default function App() {
         <Route path="products" element={<ProductsPage />} />
         <Route path="cart" element={<CartPage />} />
         <Route path="checkout" element={<CheckoutPage />} />
+        <Route path="checkout/success" element={<Success />} />
+        <Route path="checkout/cancel" element={<Cancel />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="brands" element={<BrandsPage />} />
         <Route path="contact" element={<ContactPage />} />
