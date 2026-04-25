@@ -78,6 +78,7 @@ const OrderManagement = () => {
       const resolvedPoId        = order.poId || order.productId || orderId;
       const resolvedTotal       = order.totalAmount ?? (order.quantity * order.unitPrice) ?? 0;
 
+      // ─── Upsert payment record ────────────────────────────────────────────
       const paymentsSnap = await getDocs(
         query(
           collection(db, 'payments'),
@@ -112,6 +113,50 @@ const OrderManagement = () => {
           updatedAt:        Timestamp.now(),
         });
       }
+
+      // ─── FIX: create FINAL invoice in invoices collection so the supplier
+      //          can see it in InvoicePayments (query filters by supplierId) ──
+      const finalInvoiceSnap = await getDocs(
+        query(
+          collection(db, 'invoices'),
+          where('purchaseOrderId', '==', orderId),
+          where('invoiceType', '==', 'FINAL')
+        )
+      );
+
+      if (finalInvoiceSnap.empty) {
+        const invoiceDueDate = new Date();
+        invoiceDueDate.setDate(invoiceDueDate.getDate() + 14);
+
+        await addDoc(collection(db, 'invoices'), {
+          purchaseOrderId:  orderId,
+          invoiceNumber:    `INV-FINAL-${resolvedPoId}`,
+          orderId:          resolvedPoId,
+          supplierId:       order.supplierId        || null,   // required for supplier query
+          supplierName:     order.supplierName      || 'N/A',
+          pharmacy:         order.pharmacy          || order.pharmacyName || order.orderedBy || 'N/A',
+          invoiceType:      'FINAL',
+          invoiceLabel:     'Final Payment (50%)',
+          paymentStatus:    'Pending',
+          invoiceDate:      Timestamp.now(),
+          dueDate:          Timestamp.fromDate(invoiceDueDate),
+          items: order.items || [
+            {
+              productName: resolvedProductName,
+              quantity:    order.quantity  || 0,
+              unitPrice:   order.unitPrice || 0,
+            },
+          ],
+          subtotal:         resolvedTotal / 2,
+          taxRate:          order.taxRate   || 0,
+          taxAmount:        order.taxAmount || 0,
+          totalAmount:      resolvedTotal / 2,
+          totalOrderAmount: resolvedTotal,
+          createdAt:        Timestamp.now(),
+          updatedAt:        Timestamp.now(),
+        });
+      }
+      // ─────────────────────────────────────────────────────────────────────
 
       alert('Order marked as COMPLETED and stock updated!\n\nFinal payment is now available in Payments.');
       fetchOrders();
