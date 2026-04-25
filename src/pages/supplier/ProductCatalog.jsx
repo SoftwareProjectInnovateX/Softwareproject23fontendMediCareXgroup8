@@ -34,8 +34,8 @@ const CATEGORY_ICONS = {
   'other':        Package,
 };
 
-// ─── BACKEND URL ─────────────────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// ─── BACKEND URL — fixed to use /api prefix ──────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const STATUS_BADGE = {
   pending:  { cls: 'bg-amber-100 text-amber-700',    label: 'Pending Approval' },
@@ -69,28 +69,31 @@ const ProductCatalog = () => {
     return () => unsubscribe();
   }, []);
 
+  // ✅ Fixed: reads from suppliers collection to get the real company name
   const fetchUserDetails = async (userId) => {
     try {
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (userDoc.exists()) {
+      const supplierDoc = await getDoc(doc(db, 'suppliers', userId));
+      if (supplierDoc.exists()) {
+        const d = supplierDoc.data();
         setCurrentUser({
-          id: userId,
-          name: userDoc.data().name || userDoc.data().email || 'Supplier',
-          email: userDoc.data().email,
+          id:    userId,
+          name:  d.name || 'Supplier',   // ✅ real company name e.g. "University"
+          email: d.email,
         });
       } else {
+        // Fallback if supplier doc not found
         const auth = getAuth();
         setCurrentUser({
-          id: userId,
-          name: auth.currentUser?.email || 'Supplier',
+          id:    userId,
+          name:  'Supplier',
           email: auth.currentUser?.email,
         });
       }
     } catch {
       const auth = getAuth();
       setCurrentUser({
-        id: userId,
-        name: auth.currentUser?.email || 'Supplier',
+        id:    userId,
+        name:  'Supplier',
         email: auth.currentUser?.email,
       });
     }
@@ -155,9 +158,10 @@ const ProductCatalog = () => {
       if (!currentUser?.id) { alert('Please login to add products'); return; }
 
       const userId   = currentUser.id;
-      const userName = currentUser.name;
+      const userName = currentUser.name; // ✅ now correctly "University" not email
 
       const response = await fetch(
+        // ✅ Fixed: API_BASE already includes /api so no double prefix
         `${API_BASE}/supplier/products?supplierId=${userId}&supplierName=${encodeURIComponent(userName)}`,
         {
           method:  'POST',
