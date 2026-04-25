@@ -1,14 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db } from "../../lib/firebase";
-import {
-  collection, getDocs, doc, updateDoc, addDoc, serverTimestamp, query, where,
-} from "firebase/firestore";
 import { CATEGORIES } from "../../data/categories";
 import API_BASE_URL from "../../config/api";
 import { auth } from "../../services/firebase";
 
+// Reusable labelled field wrapper used across all form inputs
 function Field({ label, children }) {
   return (
     <div className="flex flex-col gap-[5px]">
@@ -20,6 +17,7 @@ function Field({ label, children }) {
   );
 }
 
+// Styled checkbox component used for product tag selection (New Arrival, Best Selling)
 function TagCheckbox({ name, label, checked, onChange }) {
   return (
     <label className={`flex items-center gap-2 px-[14px] py-2 rounded-[9px] cursor-pointer text-[13px] font-medium select-none border transition-all duration-150 ${
@@ -39,44 +37,56 @@ function TagCheckbox({ name, label, checked, onChange }) {
   );
 }
 
+// Backend endpoint for all pharmacist product operations
+const PHARMACIST_API = 'http://localhost:5000/api/products';
+
 export default function AddProductForm() {
+  // Products submitted by admin that are waiting for pharmacist approval
   const [pendingProducts, setPendingProducts] = useState([]);
+  // The pending product the pharmacist has clicked to review and approve
   const [selectedPending, setSelectedPending] = useState(null);
   const [loadingPending, setLoadingPending]   = useState(true);
 
+  // Controlled form state for all product fields
   const [form, setForm] = useState({
-    name: "",
-    price: "",
+    name:        "",
+    price:       "",
     description: "",
-    imageUrl: "",
-    category: "",
-    supplierId: "",
-    stockId: "",
+    imageUrl:    "",
+    category:    "",
+    supplierId:  "",
+    stockId:     "",
   });
+  // Tag checkboxes state — tracks which promotional tags are active
   const [tags, setTags]       = useState({ newArrival: false, bestSelling: false });
   const [loading, setLoading] = useState(false);
 
+  // Fetch pending products on initial mount
   useEffect(() => {
     fetchPendingProducts();
   }, []);
 
+  // Loads products from admin that have not yet been approved by the pharmacist
   const fetchPendingProducts = async () => {
     try {
       setLoadingPending(true);
-      const q    = query(collection(db, "pendingProducts"), where("status", "==", "approved"));
-      const snap = await getDocs(q);
-      setPendingProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const res  = await fetch(`${PHARMACIST_API}/pending`);
+      const data = await res.json();
+      setPendingProducts(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error loading pending products:", err);
+      setPendingProducts([]);
     } finally {
       setLoadingPending(false);
     }
   };
 
+  // Pre-fills the form with the selected pending product's data for review
   const handleSelectPending = (product) => {
     setSelectedPending(product);
     setForm({
       name:        product.productName  || "",
+      // Use retailPrice if set; otherwise calculate a 20% markup on wholesale price
       price:       product.retailPrice
                      ? product.retailPrice
                      : (Number(product.wholesalePrice) * 1.2).toFixed(2),
@@ -86,44 +96,42 @@ export default function AddProductForm() {
       supplierId:  product.supplierId   || "",
       stockId:     product.productCode  || "",
     });
+    // Reset tags when switching between pending products
     setTags({ newArrival: false, bestSelling: false });
   };
 
+  // Generic change handler for all text/number inputs using field name attribute
   const handleChange    = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  // Toggles individual tag checkboxes by their name attribute
   const handleTagChange = (e) => setTags({ ...tags, [e.target.name]: e.target.checked });
 
+  // Approves a pending admin product: adds it to pharmacistProducts and marks it approved
   const handleApproveAndAdd = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
+      // Convert the tags object into an array of active tag keys
       const tagArray = Object.entries(tags)
         .filter(([, checked]) => checked)
         .map(([key]) => key);
 
       // 1. Add to pharmacistProducts (customers see this)
-      await addDoc(collection(db, "pharmacistProducts"), {
-        name:        form.name,
-        price:       Number(form.price),
-        description: form.description,
-        imageUrl:    form.imageUrl,
-        category:    form.category,
-        supplierId:  form.supplierId,
-        stockId:     form.stockId,
-        retailPrice: Number(form.price),
-        tags:        tagArray,
-        status:      "active",
-        createdAt:   serverTimestamp(),
+      await fetch(`${PHARMACIST_API}`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ ...form, tags: tagArray }),
       });
 
       // 2. Mark pendingProduct as pharmacist_approved
       if (selectedPending) {
-        await updateDoc(doc(db, "pendingProducts", selectedPending.id), {
-          status: "pharmacist_approved",
+        await fetch(`${PHARMACIST_API}/pending/${selectedPending.id}/approve`, {
+          method: "PATCH",
         });
       }
 
       alert("Product approved and added! Customers can now see it.");
 
+      // Reset form and refresh pending list after approval
       setForm({ name: "", price: "", description: "", imageUrl: "", category: "", supplierId: "", stockId: "" });
       setTags({ newArrival: false, bestSelling: false });
       setSelectedPending(null);
@@ -135,53 +143,48 @@ export default function AddProductForm() {
     }
   };
 
+  // Manually adds a new product without an admin pending approval — also triggers search sync
   const handleManualSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
+      // Convert the tags object into an array of active tag keys
       const tagArray = Object.entries(tags)
         .filter(([, checked]) => checked)
         .map(([key]) => key);
 
-      await addDoc(collection(db, "pharmacistProducts"), {
-        name:        form.name,
-        price:       Number(form.price),
-        description: form.description,
-        imageUrl:    form.imageUrl,
-        category:    form.category,
-        supplierId:  form.supplierId,
-        stockId:     form.stockId,
-        retailPrice: Number(form.price),
-        tags:        tagArray,
-        status:      "active",
-        createdAt:   serverTimestamp(),
+      await fetch(`${PHARMACIST_API}`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ ...form, tags: tagArray }),
       });
 
       // Auto-sync new product into Pinecone for SmartSearch
       try {
+        // Get Firebase auth token if user is logged in, for authorized sync request
         const token = auth.currentUser
           ? await auth.currentUser.getIdToken()
           : null;
-        await fetch(`${API_BASE_URL}/api/admin/search/sync`, {
+        await fetch(`${API_BASE_URL}/search/sync`, {
           headers: {
             ...(token && { Authorization: `Bearer ${token}` }),
           },
         });
       } catch (syncErr) {
+        // Search sync failure is non-critical — product was already saved successfully
         console.warn("Search sync failed (non-critical):", syncErr);
       }
 
-      alert(
-        `Product added successfully. Starting stock: ${supplierData.stock ?? 0}`,
-      );
+      alert("Product added successfully.");
+      // Reset form fields after successful manual submission
       setForm({
-        name: "",
-        price: "",
+        name:        "",
+        price:       "",
         description: "",
-        imageUrl: "",
-        category: "",
-        supplierId: "",
-        stockId: "",
+        imageUrl:    "",
+        category:    "",
+        supplierId:  "",
+        stockId:     "",
       });
       setTags({ newArrival: false, bestSelling: false });
     } catch (err) {
@@ -194,7 +197,7 @@ export default function AddProductForm() {
   return (
     <div className="flex flex-col gap-6 font-['DM_Sans',sans-serif]">
 
-      {/* ── Pending Products from Admin ── */}
+      {/* Pending products from admin — pharmacist selects one to pre-fill the form */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <h3 className="text-[13px] font-bold text-amber-800 uppercase tracking-wide mb-3">
           Pending Approvals from Admin ({pendingProducts.length})
@@ -206,6 +209,7 @@ export default function AddProductForm() {
         ) : (
           <div className="flex flex-col gap-2">
             {pendingProducts.map((p) => (
+              // Clicking a pending product pre-fills the form below for review
               <div
                 key={p.id}
                 onClick={() => handleSelectPending(p)}
@@ -220,6 +224,7 @@ export default function AddProductForm() {
                   <p className="text-[11px] text-slate-500">{p.category} · Supplier: {p.supplierName}</p>
                 </div>
                 <div className="text-right">
+                  {/* Show retailPrice if set; otherwise display calculated markup price */}
                   <p className="text-[13px] font-bold text-emerald-600">
                     Rs. {p.retailPrice
                       ? Number(p.retailPrice).toFixed(2)
@@ -233,11 +238,12 @@ export default function AddProductForm() {
         )}
       </div>
 
-      {/* ── Form ── */}
+      {/* Product form — switches between approve flow and manual add based on selectedPending */}
       <form
         onSubmit={selectedPending ? handleApproveAndAdd : handleManualSubmit}
         className="flex flex-col gap-[14px]"
       >
+        {/* Info banner shown when form is pre-filled from a pending product */}
         {selectedPending && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 text-[13px] text-emerald-700 font-medium">
             ✓ Pre-filled from admin approval — review and click "Approve & Add"
@@ -303,6 +309,7 @@ export default function AddProductForm() {
           />
         </Field>
 
+        {/* Supplier ID and product code side by side */}
         <div className="grid grid-cols-2 gap-[14px]">
           <Field label="Supplier ID">
             <input
@@ -326,6 +333,7 @@ export default function AddProductForm() {
           </Field>
         </div>
 
+        {/* Promotional tag checkboxes — New Arrival and Best Selling */}
         <Field label="Product Tags">
           <div className="flex gap-[10px]">
             <TagCheckbox name="newArrival"  label="New Arrival"  checked={tags.newArrival}  onChange={handleTagChange} />
@@ -333,6 +341,7 @@ export default function AddProductForm() {
           </div>
         </Field>
 
+        {/* Submit button — label changes based on whether approving or manually adding */}
         <button
           type="submit"
           disabled={loading}
