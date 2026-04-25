@@ -104,9 +104,10 @@ const InvoicePayments = () => {
     }
   };
 
+  // ─── FIX: added /api prefix to the path ───────────────────────────────────
   const generatePDF = async (invoice) => {
     try {
-      const response = await fetch(`${API_BASE}/supplier/invoices/generate-pdf`, {
+      const response = await fetch(`${API_BASE}/api/supplier/invoices/generate-pdf`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -378,8 +379,8 @@ const InvoicePayments = () => {
                 : 'bg-blue-50 border-blue-200'}`}>
                 <p className={`text-[13px] font-semibold m-0 ${selectedInvoice.paymentStatus === 'Paid' ? 'text-emerald-800' : 'text-blue-800'}`}>
                   {selectedInvoice.paymentStatus === 'Paid'
-                    ? '✓ Final payment received — all transactions complete'
-                    : '⏳ Final payment pending — MediCareX will pay this after order receipt'}
+                    ? 'Final payment received — all transactions complete'
+                    : 'Final payment pending — MediCareX will pay this after order receipt'}
                 </p>
               </div>
             )}
