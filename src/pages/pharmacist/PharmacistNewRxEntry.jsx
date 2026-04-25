@@ -1,26 +1,65 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Printer, ArrowLeft, CheckCircle2, User, Search, FileText, CreditCard } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, Printer, ArrowLeft, CheckCircle2, User, Search, FileText, CreditCard, Link } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getPatients, updatePatient, addPatient, addPrescription, getInventory, updateInventoryItem, addDispensedRecord } from '../../services/pharmacistService';
+import { db } from '../../lib/firebase';
+import { collection, getDocs, query, where, doc, updateDoc, arrayUnion, addDoc, Timestamp } from 'firebase/firestore';
 
 const PharmacistNewRxEntry = () => {
   const navigate = useNavigate();
   
   const [patientsDb, setPatientsDb] = useState([]);
   const [inventoryDb, setInventoryDb] = useState([]);
-  useEffect(() => {
-     getPatients().then(setPatientsDb).catch(console.error);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState(false);
 
-     getInventory().then(data => {
-       if (data) {
-         setInventoryDb(data);
-       } else {
-         setInventoryDb([]);
+  // Retry inventory load up to 3 times (backend may still be starting)
+  const loadInventory = async (attempt = 1) => {
+    try {
+      setInventoryLoading(true);
+      setInventoryError(false);
+      const data = await getInventory();
+      if (Array.isArray(data)) {
+        setInventoryDb(data);
+      } else {
+        setInventoryDb([]);
+      }
+      setInventoryLoading(false);
+    } catch(err) {
+      console.error(`Inventory load attempt ${attempt} failed:`, err);
+      if (attempt < 3) {
+        setTimeout(() => loadInventory(attempt + 1), 2000 * attempt);
+      } else {
+        setInventoryError(true);
+        setInventoryLoading(false);
+        setInventoryDb([]);
+      }
+    }
+  };
+
+  useEffect(() => {
+     // Load suggestions from Firebase users (role=customer)
+     (async () => {
+       try {
+         const snap = await getDocs(
+           query(collection(db, 'users'), where('role', '==', 'customer'))
+         );
+         const pts = snap.docs.map(d => {
+           const d2 = d.data();
+           return {
+             id: d.id,
+             name: d2.fullName || d2.name || 'Unknown',
+             phone: d2.phone || '',
+             age: d2.age || '',
+             firebaseUid: d.id
+           };
+         });
+         setPatientsDb(pts);
+       } catch (e) {
+         console.error("Failed to fetch customer suggestions:", e);
        }
-     }).catch((err) => {
-       console.error("Inventory API failed", err);
-       setInventoryDb([]);
-     });
+     })();
+     loadInventory();
   }, []);
 
   // Form State
@@ -28,6 +67,11 @@ const PharmacistNewRxEntry = () => {
   const [phone, setPhone] = useState('');
   const [age, setAge] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState(null);
+
+  // Firebase registered customer linked by phone number
+  const [linkedCustomer, setLinkedCustomer] = useState(null); // { firebaseUid, name, email, phone, ... }
+  const [phoneStatus, setPhoneStatus] = useState('idle'); // 'idle' | 'searching' | 'found' | 'not_found'
+  const phoneDebounceRef = useRef(null);
   
   const [showAutoSuggest, setShowAutoSuggest] = useState(false);
   
@@ -45,6 +89,55 @@ const PharmacistNewRxEntry = () => {
   const [isBillGenerated, setIsBillGenerated] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
 
+  // ── Phone lookup: check Firebase users collection ─────────────────────────
+  const lookupPhone = async (phoneVal) => {
+    const cleaned = phoneVal.trim();
+    if (cleaned.length < 7) {
+      setLinkedCustomer(null);
+      setPhoneStatus('idle');
+      return;
+    }
+    setPhoneStatus('searching');
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'users'), where('role', '==', 'customer'), where('phone', '==', cleaned))
+      );
+      if (!snap.empty) {
+        const d2 = snap.docs[0].data();
+        const cust = {
+          firebaseUid: snap.docs[0].id,
+          name: d2.fullName || d2.name || '',
+          email: d2.email || '',
+          phone: d2.phone || cleaned,
+          age: d2.age || '',
+          address: d2.address || '',
+        };
+        setLinkedCustomer(cust);
+        setPhoneStatus('found');
+        // Auto-fill name and age if not already typed
+        if (!patientName) setPatientName(cust.name);
+        if (!age) setAge(cust.age ? String(cust.age) : '');
+      } else {
+        setLinkedCustomer(null);
+        setPhoneStatus('not_found');
+      }
+    } catch (e) {
+      console.error('Phone lookup error:', e);
+      setLinkedCustomer(null);
+      setPhoneStatus('idle');
+    }
+  };
+
+  const handlePhoneChange = (e) => {
+    const val = e.target.value;
+    setPhone(val);
+    setLinkedCustomer(null);
+    setPhoneStatus('idle');
+    // Debounce lookup by 600ms
+    if (phoneDebounceRef.current) clearTimeout(phoneDebounceRef.current);
+    phoneDebounceRef.current = setTimeout(() => lookupPhone(val), 600);
+  };
+
   const handleNameChange = (e) => {
     setPatientName(e.target.value);
     setShowAutoSuggest(true);
@@ -56,22 +149,47 @@ const PharmacistNewRxEntry = () => {
     setPhone(p.phone || '');
     setAge(p.age || '');
     setSelectedPatientId(p.id);
+    
+    // Link as Firebase customer to avoid duplicate registration on payment
+    setLinkedCustomer({
+      firebaseUid: p.firebaseUid,
+      name: p.name,
+      phone: p.phone,
+      age: p.age
+    });
+    setPhoneStatus('found');
+    
     setShowAutoSuggest(false);
   };
 
   const filteredPatients = patientsDb.filter(p => p.name.toLowerCase().includes(patientName.toLowerCase()) && patientName.length > 0);
 
+  // Comprehensive medicine category keywords — covers common pharmacy inventory naming
+  const MEDICINE_KEYWORDS = [
+    'medicine', 'medication', 'drug', 'pharmaceutical', 'prescription', 'rx',
+    'tablet', 'tablets', 'capsule', 'capsules', 'syrup', 'syrups', 'injection',
+    'antibiotic', 'antiviral', 'antifungal', 'analgesic', 'antipyretic',
+    'vitamin', 'supplement', 'drops', 'cream', 'ointment', 'gel', 'patch',
+    'inhaler', 'nebulizer', 'sedative', 'antacid', 'laxative', 'diuretic',
+    'steroid', 'hormone', 'generic', 'branded', 'oral', 'topical', 'eye',
+    'ear', 'nasal', 'dental', 'paediatric', 'pediatric', 'adult'
+  ];
+
   const filteredItems = inventoryDb.filter(item => {
     const itemName = item.name || item.productName || item.itemName || '';
-    if (currentMed.length > 0 && !itemName.toLowerCase().startsWith(currentMed.toLowerCase()) && !itemName.toLowerCase().includes(currentMed.toLowerCase())) return false;
+    if (currentMed.length > 0 && !itemName.toLowerCase().includes(currentMed.toLowerCase())) return false;
     
     const cat = (item.category || '').toLowerCase();
-    const isRx = cat === 'medicine' || cat.includes('prescription') || cat.includes('rx');
+    // If no category is set at all — treat as Rx (medicines usually lack strict categorisation)
+    const hasNoCategory = !item.category || item.category.trim() === '';
+    const isRx = hasNoCategory || MEDICINE_KEYWORDS.some(kw => cat.includes(kw));
     
     if (activeTab === 'rx') {
-      return isRx; // If Rx tab, show only medicines
+      return isRx;
     } else {
-      return !isRx; // If OTC tab, show non-medicines
+      // OTC tab — show everything that is NOT a prescription-only medicine
+      // (includes OTC medicines, personal care, general items)
+      return !isRx || cat.includes('otc') || cat.includes('over the counter') || cat.includes('general') || cat.includes('personal');
     }
   }).slice(0, 50);
 
@@ -161,40 +279,9 @@ const PharmacistNewRxEntry = () => {
       return;
     }
 
-    // 1. Calculate & Store Revenue
-    try {
-       const today = new Date().toDateString();
-       let rxRev = 0;
-       let otcRev = 0;
-       if (localStorage.getItem('medicarex_revenue_date') === today) {
-           rxRev = parseFloat(localStorage.getItem('medicarex_walkin_rx_revenue') || '0');
-           otcRev = parseFloat(localStorage.getItem('medicarex_walkin_otc_revenue') || '0');
-       } else {
-           localStorage.setItem('medicarex_revenue_date', today);
-       }
-       
-       const currentRxSum = medicines.filter(m => m.category === 'rx').reduce((sum, item) => sum + item.total, 0);
-       const currentOtcSum = medicines.filter(m => m.category === 'otc').reduce((sum, item) => sum + item.total, 0);
-       
-       const totalBeforeDiscount = currentRxSum + currentOtcSum;
-       const rxRatio = totalBeforeDiscount > 0 ? currentRxSum / totalBeforeDiscount : 0;
-       const rxDiscount = discountAmount * rxRatio;
-       const otcDiscount = discountAmount * (1 - rxRatio);
-       
-       rxRev += (currentRxSum - rxDiscount);
-       otcRev += (currentOtcSum - otcDiscount);
-       
-       localStorage.setItem('medicarex_walkin_rx_revenue', rxRev.toString());
-       localStorage.setItem('medicarex_walkin_otc_revenue', otcRev.toString());
-       
-       const hasRx = medicines.some(m => m.category === 'rx');
-       if (hasRx) {
-          let rxCount = parseInt(localStorage.getItem('medicarex_walkin_rx_count') || '0');
-          rxCount += 1;
-          localStorage.setItem('medicarex_walkin_rx_count', rxCount.toString());
-       }
-       window.dispatchEvent(new Event('revenue_updated'));
-    } catch(e) {}
+    // NOTE: revenue_updated & dispensed_updated events are fired AFTER
+    // all Firebase writes complete (at the end of this function).
+
 
     // 2. Update Patient Profile
     try {
@@ -225,7 +312,7 @@ const PharmacistNewRxEntry = () => {
         
       } else if (patientName || phone) {
         // Register new patient automatically only if at least name or phone is provided
-        const newId = '#' + Math.floor(Math.random() * 900000 + 100000);
+        const newId = `#PT-${Date.now().toString().slice(-6)}`;
         const newPatient = {
           id: newId,
           name: patientName || 'Walk-in Guest',
@@ -253,7 +340,110 @@ const PharmacistNewRxEntry = () => {
       }
       
       setPatientsDb(updatedPatients);
-    } catch(e) {}
+    } catch(e) { console.error('Patient profile update error:', e); }
+
+    // 2.2 If phone matched a Firebase registered customer → update their user doc
+    if (linkedCustomer?.firebaseUid) {
+      try {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+        const purchasedMeds = medicines.map(item => ({
+          name: item.name,
+          qty: item.qty,
+          price: item.price,
+          total: item.total,
+          category: item.category,
+          date: dateStr,
+          timestamp: now.getTime(),
+          paymentMethod: paymentMethod === 'card' ? 'Card' : 'Cash',
+          dispensedAt: 'Walk-in POS',
+        }));
+        // Use backend service instead of direct updateDoc
+        await updatePatient(linkedCustomer.firebaseUid, {
+          lastVisit: dateStr,
+          medications: purchasedMeds, // backend should handle arrayUnion if implemented, or we send full list
+        });
+      } catch (e) {
+        console.error('Failed to update customer Firebase record:', e);
+      }
+    }
+
+    // 2.3 Auto-register walk-in customer if NOT already in Firebase
+    //     So they appear in Patients tab + Total Patient count on dashboard
+    if (phoneStatus !== 'found') {
+      try {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+        const walkinName = patientName?.trim() || 'Walk-in Guest';
+        const walkinPhone = phone?.trim() || null;
+        const purchasedMeds = medicines.map(item => ({
+          name: item.name,
+          qty: item.qty,
+          price: item.price,
+          total: item.total,
+          category: item.category,
+          date: dateStr,
+          timestamp: now.getTime(),
+          paymentMethod: paymentMethod === 'card' ? 'Card' : 'Cash',
+          dispensedAt: 'Walk-in POS',
+        }));
+
+        // If phone provided, check once more to avoid duplicate
+        let alreadyExists = false;
+        if (walkinPhone) {
+          const chk = await getDocs(
+            query(collection(db, 'users'), where('phone', '==', walkinPhone))
+          );
+          if (!chk.empty) {
+            // Customer found (maybe role differs) — just update their record
+            const existId = chk.docs[0].id;
+            // Use backend service
+            await updatePatient(existId, {
+              lastVisit: dateStr,
+              medications: purchasedMeds,
+            });
+            alreadyExists = true;
+          }
+        }
+
+        if (!alreadyExists) {
+          // Create a new walk-in customer record via Backend
+          const patientData = {
+            fullName: walkinName,
+            phone: walkinPhone || 'N/A',
+            age: age ? parseInt(age) : null,
+            email: '',
+            role: 'customer',
+            status: 'active',
+            registrationSource: 'walkin',
+            walkinId: `#WT-${Date.now().toString().slice(-6)}`,
+            lastVisit: dateStr,
+            medications: purchasedMeds,
+          };
+          
+          const result = await addPatient(patientData);
+          
+          // Update local state so UI says "Registered" immediately
+          setLinkedCustomer({
+            firebaseUid: result.id || result.firebaseId || result.docId,
+            name: walkinName,
+            phone: walkinPhone,
+            age: age
+          });
+          setPhoneStatus('found');
+          console.log("New walk-in customer registered via Backend:", result.id);
+          alert(`Success: Customer ${walkinName} registered & payment processed via Backend!`);
+        } else {
+           setPhoneStatus('found'); // Even if they existed, mark as found now
+        }
+
+        // Notify dashboard + patients page to refresh count
+        window.dispatchEvent(new Event('patient_registered'));
+      } catch (e) {
+        console.error('Walk-in auto-registration failed:', e);
+        alert("Registration failed. Check console for details.");
+      }
+    }
 
     // 2.5 Add to Central Prescription Queue if has Rx
     if (medicines.some(m => m.category === 'rx')) {
@@ -262,7 +452,7 @@ const PharmacistNewRxEntry = () => {
         const [time, ampm] = nowStr.split(' ');
         
         const newQueueItem = {
-          queueId: `${Math.floor(88000 + Math.random() * 999)}`,
+          queueId: `${Date.now().toString().slice(-6)}`,
           isHighPriority: false,
           patientName: patientName || 'Walk-in Guest',
           dob: 'Unknown',
@@ -281,50 +471,66 @@ const PharmacistNewRxEntry = () => {
       } catch(e) {}
     }
 
-    // 2.8 Add to Dispensed History so Dashboard revenue updates correctly
+    // 2.8 Add to Dispensed History — fires AFTER all writes so dashboard reads fresh data
     try {
         const rxMeds = medicines.filter(m => m.category === 'rx');
         const otcMeds = medicines.filter(m => m.category === 'otc');
+        const now = Date.now();
+        const todayStr = new Date().toDateString();
+        const payMethod = paymentMethod === 'card' ? 'Card Payment' : 'Cash';
+        const patLabel = patientName || 'Walk-in Guest';
+        const patId = selectedPatientId || 'N/A';
         
         if (rxMeds.length > 0) {
             const rxTotal = rxMeds.reduce((sum, item) => sum + item.total, 0);
             const totalBeforeDiscount = rxTotal + otcMeds.reduce((sum, item) => sum + item.total, 0);
-            const rxRatio = totalBeforeDiscount > 0 ? rxTotal / totalBeforeDiscount : 0;
+            const rxRatio = totalBeforeDiscount > 0 ? rxTotal / totalBeforeDiscount : 1;
             const finalRxTotal = rxTotal - (discountAmount * rxRatio);
             
             await addDispensedRecord({
-               id: `WALKIN-RX-${Math.floor(Date.now() / 1000)}`,
-               dispensedDate: new Date().toDateString(),
+               id: `WALKIN-RX-${Math.floor(now / 1000)}`,
+               dispensedDate: todayStr,
+               dispensedAt: new Date().toISOString(),
+               dispensedTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
                paymentStatus: 'Paid',
-               paymentMethod: paymentMethod === 'card' ? 'Card Payment' : 'Cash',
+               paymentMethod: payMethod,
                total: finalRxTotal.toFixed(2),
                type: 'prescription',
+               // orderItems used by PharmacistDispensedToday for item count
+               orderItems: rxMeds.map(m => ({ name: m.name, qty: m.qty, price: m.price, total: m.total })),
                medicines: rxMeds,
-               patientName: patientName || 'Walk-in Guest',
-               timestamp: Date.now()
+               patientName: patLabel,
+               patientId: patId,
+               timestamp: now
             });
         }
         
         if (otcMeds.length > 0) {
             const otcTotal = otcMeds.reduce((sum, item) => sum + item.total, 0);
             const totalBeforeDiscount = otcTotal + rxMeds.reduce((sum, item) => sum + item.total, 0);
-            const otcRatio = totalBeforeDiscount > 0 ? otcTotal / totalBeforeDiscount : 0;
+            const otcRatio = totalBeforeDiscount > 0 ? otcTotal / totalBeforeDiscount : 1;
             const finalOtcTotal = otcTotal - (discountAmount * otcRatio);
             
             await addDispensedRecord({
-               id: `WALKIN-OTC-${Math.floor(Date.now() / 1000)}`,
-               dispensedDate: new Date().toDateString(),
+               id: `WALKIN-OTC-${Math.floor(now / 1000)}`,
+               dispensedDate: todayStr,
+               dispensedAt: new Date().toISOString(),
+               dispensedTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
                paymentStatus: 'Paid',
-               paymentMethod: paymentMethod === 'card' ? 'Card Payment' : 'Cash',
+               paymentMethod: payMethod,
                total: finalOtcTotal.toFixed(2),
                type: 'otc',
+               orderItems: otcMeds.map(m => ({ name: m.name, qty: m.qty, price: m.price, total: m.total })),
                medicines: otcMeds,
-               patientName: patientName || 'Walk-in Guest',
-               timestamp: Date.now()
+               patientName: patLabel,
+               patientId: patId,
+               timestamp: now
             });
         }
         
+        // Fire events AFTER all Firebase writes — dashboard refreshes with fresh data
         window.dispatchEvent(new Event('dispensed_updated'));
+        window.dispatchEvent(new Event('revenue_updated'));
     } catch(err) {
         console.error("Failed to add dispensed record", err);
     }
@@ -348,6 +554,8 @@ const PharmacistNewRxEntry = () => {
     setAge('');
     setSelectedPatientId(null);
     setDiscountPercent(0);
+    setLinkedCustomer(null);
+    setPhoneStatus('idle');
   };
 
   return (
@@ -389,7 +597,7 @@ const PharmacistNewRxEntry = () => {
             </h2>
             <div className="grid grid-cols-3 gap-4">
               <div className="relative col-span-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Name</label>
                 <input 
                   type="text" 
                   value={patientName}
@@ -416,18 +624,34 @@ const PharmacistNewRxEntry = () => {
                 )}
               </div>
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
-                <input 
-                  type="text" 
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number</label>
+                <input
+                  type="text"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={handlePhoneChange}
                   placeholder="07X XXX XXXX"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  className={`w-full px-4 py-2.5 bg-slate-50 border rounded-lg text-sm text-slate-800 focus:ring-2 outline-none transition-all ${
+                    phoneStatus === 'found'     ? 'border-emerald-400 focus:ring-emerald-400' :
+                    phoneStatus === 'not_found' ? 'border-slate-200 focus:ring-blue-500' :
+                    'border-slate-200 focus:ring-blue-500'
+                  }`}
                   disabled={isBillGenerated}
                 />
+                {/* Phone lookup status badge */}
+                {phoneStatus === 'searching' && (
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">🔍 Looking up customer…</p>
+                )}
+                {phoneStatus === 'found' && linkedCustomer && (
+                  <p className="text-[11px] text-emerald-600 mt-1 font-bold flex items-center gap-1">
+                    ✅ Registered customer — {linkedCustomer.name}
+                  </p>
+                )}
+                {phoneStatus === 'not_found' && (
+                  <p className="text-[11px] text-slate-400 mt-1 font-medium">👤 Walk-in customer (not registered)</p>
+                )}
               </div>
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Age</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Age</label>
                 <input 
                   type="number" 
                   value={age}
@@ -443,22 +667,24 @@ const PharmacistNewRxEntry = () => {
           {/* Add Item Form */}
           <div className="card ">
             <div className="flex border-b border-slate-200 mb-6 gap-6 w-full justify-between items-center">
-               <div className="flex gap-6">
-                 <button 
-                   type="button"
-                   className={`pb-3 font-bold text-sm transition-colors border-b-2 outline-none ${activeTab === 'rx' ? 'text-blue-600 border-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                   onClick={() => { setActiveTab('rx'); setCurrentMed(''); setCurrentQty(''); setCurrentPrice(''); setShowItemSuggest(false); setSelectedInventoryItem(null); }}
-                 >
-                   Prescribed Medicines
-                 </button>
-                 <button 
-                   type="button"
-                   className={`pb-3 font-bold text-sm transition-colors border-b-2 outline-none ${activeTab === 'otc' ? 'text-emerald-600 border-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                   onClick={() => { setActiveTab('otc'); setCurrentMed(''); setCurrentQty(''); setCurrentPrice(''); setShowItemSuggest(false); setSelectedInventoryItem(null); }}
-                 >
-                   OTC & General Items
-                 </button>
-               </div>
+                <div className="flex gap-6">
+                  <button 
+                    type="button"
+                    className={`pb-3 font-bold text-sm transition-all border-b-2 outline-none flex items-center gap-2 ${activeTab === 'rx' ? 'text-blue-600 border-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                    onClick={() => { setActiveTab('rx'); setCurrentMed(''); setCurrentQty(''); setCurrentPrice(''); setShowItemSuggest(false); setSelectedInventoryItem(null); }}
+                  >
+                    <FileText className={`w-4 h-4 ${activeTab === 'rx' ? 'text-blue-500' : 'text-slate-300'}`} />
+                    Prescribed Medicines
+                  </button>
+                  <button 
+                    type="button"
+                    className={`pb-3 font-bold text-sm transition-all border-b-2 outline-none flex items-center gap-2 ${activeTab === 'otc' ? 'text-emerald-600 border-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                    onClick={() => { setActiveTab('otc'); setCurrentMed(''); setCurrentQty(''); setCurrentPrice(''); setShowItemSuggest(false); setSelectedInventoryItem(null); }}
+                  >
+                    <Plus className={`w-4 h-4 ${activeTab === 'otc' ? 'text-emerald-500' : 'text-slate-300'}`} />
+                    OTC & General Items
+                  </button>
+                </div>
                
                <button 
                  type="button"
@@ -472,11 +698,12 @@ const PharmacistNewRxEntry = () => {
             {!isBillGenerated && (
               <form onSubmit={handleAddMedicine} className={`flex gap-3 mb-6 items-end p-4 rounded-xl border ${activeTab === 'rx' ? 'bg-blue-50/50 border-blue-100 ' : 'bg-emerald-50/50 border-emerald-100 '}`}>
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">
-                    {activeTab === 'rx' ? 'Medicine Name' : 'Item Name (e.g. Shampoo)'}
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    {activeTab === 'rx' ? 'Medicine Name / Formula' : 'Item Name / Brand'}
                   </label>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    {/* Search icon — pulses while loading */}
+                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${inventoryLoading ? 'text-blue-400 animate-pulse' : inventoryError ? 'text-red-400' : 'text-slate-400'}`} />
                     <input 
                       type="text" 
                       value={currentMed}
@@ -487,46 +714,76 @@ const PharmacistNewRxEntry = () => {
                       }}
                       onFocus={() => setShowItemSuggest(true)}
                       onBlur={() => setTimeout(() => setShowItemSuggest(false), 200)}
-                      placeholder="Search from inventory..."
-                      className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500 "
+                      placeholder={inventoryLoading ? 'Loading inventory...' : inventoryError ? 'Backend unavailable — retry below' : 'Search from inventory...'}
+                      disabled={inventoryLoading}
+                      className={`w-full pl-9 pr-3 py-2 bg-white border rounded-md text-sm outline-none transition-colors ${
+                        inventoryError ? 'border-red-300 bg-red-50' : inventoryLoading ? 'border-slate-200 bg-slate-50' : 'border-slate-200 focus:border-blue-500'
+                      }`}
                       required
                     />
-                    {showItemSuggest && filteredItems.length > 0 && (
-                      <ul className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto left-0">
-                        {filteredItems.map(item => {
-                          const itemName = item.name || item.productName || item.itemName || 'Unknown Item';
-                          const itemPrice = item.price || item.unitPrice || item.sellingPrice || item.cost || item.amount;
-                          return (
-                          <li 
-                            key={item.id || itemName} 
-                            onMouseDown={(e) => { e.preventDefault(); handleSelectItem(item); }}
-                            className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-50 flex justify-between items-center"
-                          >
-                            <div>
-                              <span className="font-semibold text-sm text-slate-800">{itemName}</span>
-                              {item.category && <span className="ml-2 text-[10px] uppercase font-bold text-slate-400">{item.category}</span>}
-                            </div>
-                            {itemPrice !== undefined && itemPrice !== null && <span className="text-xs font-bold text-blue-600">Rs. {parseFloat(itemPrice).toFixed(2)}</span>}
+
+                    {/* Dropdown — results / loading / error states */}
+                    {showItemSuggest && !inventoryLoading && (
+                      <ul className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto left-0">
+                        {inventoryError ? (
+                          <li className="px-4 py-4 text-center">
+                            <p className="text-sm font-bold text-red-500 mb-2">⚠ Backend not reachable</p>
+                            <p className="text-xs text-slate-400 mb-3">Make sure the backend server is running on port 3000</p>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => { e.preventDefault(); loadInventory(); }}
+                              className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md transition-colors"
+                            >
+                              Retry Connection
+                            </button>
                           </li>
-                        )})}
+                        ) : filteredItems.length > 0 ? (
+                          filteredItems.map(item => {
+                            const itemName = item.name || item.productName || item.itemName || 'Unknown Item';
+                            const itemPrice = item.retailPrice || item.price || item.unitPrice || item.sellingPrice || item.cost || item.amount;
+                            const itemStock = item.stock ?? item.qty ?? item.quantity ?? item.currentStock ?? 0;
+                            return (
+                              <li 
+                                key={item.id || itemName} 
+                                onMouseDown={(e) => { e.preventDefault(); handleSelectItem(item); }}
+                                className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-slate-100 flex justify-between items-center transition-colors last:border-0"
+                              >
+                                <div>
+                                  <span className="font-semibold text-sm text-slate-800">{itemName}</span>
+                                  {item.category && <span className="ml-2 text-[10px] uppercase font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{item.category}</span>}
+                                  <div className="text-[11px] text-slate-400 mt-0.5">Stock: {itemStock} units</div>
+                                </div>
+                                {itemPrice !== undefined && itemPrice !== null && (
+                                  <span className="text-xs font-bold text-blue-600 ml-3 shrink-0">Rs. {parseFloat(itemPrice).toFixed(2)}</span>
+                                )}
+                              </li>
+                            );
+                          })
+                        ) : (
+                          <li className="px-4 py-4 text-center text-sm text-slate-400 font-medium">
+                            {currentMed.length > 0
+                              ? `No "${currentMed}" found in inventory`
+                              : `${inventoryDb.length} items loaded — start typing to search`}
+                          </li>
+                        )}
                       </ul>
                     )}
                   </div>
                 </div>
                 <div className="w-24">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Qty</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Qty</label>
                   <input 
                     type="number" 
                     value={currentQty}
                     onChange={(e) => setCurrentQty(e.target.value)}
                     placeholder="0"
                     min="1"
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500 "
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
                     required
                   />
                 </div>
                 <div className="w-32">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Unit Price (Rs.)</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Unit Price (Rs.)</label>
                   <input 
                     type="number" 
                     step="0.01"
@@ -534,15 +791,15 @@ const PharmacistNewRxEntry = () => {
                     onChange={(e) => setCurrentPrice(e.target.value)}
                     placeholder="0.00"
                     min="0"
-                    className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none focus:border-blue-500 ${selectedInventoryItem ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
+                    className={`w-full px-3 py-2 bg-white border border-slate-200 rounded-md text-sm outline-none transition-all ${selectedInventoryItem ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10'}`}
                     required
                     readOnly={!!selectedInventoryItem}
                   />
                 </div>
                 <div className="flex items-end gap-3 ml-2">
                   <div className="text-right pb-2">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Item Total</div>
-                    <div className="font-bold text-blue-600">Rs. {((parseFloat(currentQty) || 0) * (parseFloat(currentPrice) || 0)).toFixed(2)}</div>
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Cost</div>
+                    <div className="font-bold text-blue-600 text-base">Rs. {((parseFloat(currentQty) || 0) * (parseFloat(currentPrice) || 0)).toFixed(2)}</div>
                   </div>
                   <button type="submit" className={`${activeTab === 'rx' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'} text-white px-4 py-2 rounded-md font-semibold text-sm flex items-center gap-2 h-[38px] transition-colors`}>
                     <Plus className="w-4 h-4" /> Add
@@ -556,10 +813,10 @@ const PharmacistNewRxEntry = () => {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-200 ">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Item</th>
-                    <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Qty</th>
-                    <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Price / Unit</th>
-                    <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Total</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest">Item Description</th>
+                    <th className="px-4 py-3 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quantity</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unit Price</th>
+                    <th className="px-4 py-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">Subtotal</th>
                     {!isBillGenerated && <th className="px-4 py-3 w-10"></th>}
                   </tr>
                 </thead>

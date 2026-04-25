@@ -27,22 +27,20 @@ const PharmacistDispensing = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const savedDate = localStorage.getItem('medicarex_revenue_date');
-      const today = new Date().toDateString();
-      if (savedDate !== today) {
-        localStorage.setItem('medicarex_revenue_date', today);
-        localStorage.setItem('medicarex_daily_revenue', '0');
-        setDailyRevenue(0);
-      } else {
-        const savedRev = localStorage.getItem('medicarex_daily_revenue');
-        if (savedRev) setDailyRevenue(parseFloat(savedRev));
-      }
-    } catch(e) {}
-
     const fetchData = async () => {
         try {
             const h = await getDispensedHistory();
+            const todayStr = new Date().toDateString();
+
+            // Compute today's revenue from backend — no localStorage
+            const todayRecords = h.filter(d => {
+              const ds = d.dispensedDate || (d.dispensedAt ? new Date(d.dispensedAt).toDateString() : null) || (d.createdAt ? new Date(d.createdAt).toDateString() : null);
+              return ds === todayStr && d.paymentStatus === 'Paid';
+            });
+            const totalToday = todayRecords.reduce((sum, d) => sum + (parseFloat(d.total) || 0), 0);
+            setDailyRevenue(totalToday);
+
+            // Active dispensing queue: not finalized, not walk-in
             const activeQueue = h
                 .filter(d => !d.finalized && !(d.id && d.id.toString().startsWith('WALKIN')))
                 .map(order => ({
@@ -61,7 +59,6 @@ const PharmacistDispensing = () => {
     };
     
     fetchData();
-    // Changed polling to 30 seconds to prevent Firebase quota exhaustion
     const poller = setInterval(fetchData, 30000); 
     return () => clearInterval(poller);
   }, []);
@@ -74,16 +71,12 @@ const PharmacistDispensing = () => {
     const updated = dispOrders.map(o => o.rxId === orderId ? { ...o, paymentStatus: 'Paid' } : o);
     setDispOrders(updated);
     
-    // update Firebase
+    // update backend
     await updateDispensedRecord(order.firebaseId || order.id, { paymentStatus: 'Paid' }).catch(console.error);
     
-    // Add to daily revenue
+    // Update daily revenue total from payment
     if (order.total) {
-      setDailyRevenue(prev => {
-        const newTotal = prev + order.total;
-        localStorage.setItem('medicarex_daily_revenue', newTotal.toString());
-        return newTotal;
-      });
+      setDailyRevenue(prev => prev + parseFloat(order.total));
     }
   };
 
@@ -129,7 +122,7 @@ const PharmacistDispensing = () => {
         } else {
              // Register missing dummy patients from test data
              const { addPatient } = await import('../../services/pharmacistService');
-             const newId = selectedOrder.patientId || ('#' + Math.floor(Math.random() * 900000 + 100000));
+             const newId = selectedOrder.patientId || `#PT-${Date.now().toString().slice(-6)}`;
              const newPatient = {
                  id: newId,
                  name: selectedOrder.verifiedPatient || 'Unknown Patient',

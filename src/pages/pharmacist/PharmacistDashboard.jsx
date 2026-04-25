@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { db } from '../../lib/firebase';
+import { collection, query, orderBy, limit, onSnapshot, getDocs, where } from 'firebase/firestore';
+
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { getInventory, getReturnRequests } from '../../services/pharmacistService';
+import { getInventory, getReturnRequests, getPatients } from '../../services/pharmacistService';
 import { 
   FileText, 
   Calendar,
@@ -11,6 +14,10 @@ import { useNavigate } from 'react-router-dom';
 const PharmacistDashboard = () => {
   const navigate = useNavigate();
   const [showAllLogs, setShowAllLogs] = useState(false);
+  const [activityLog, setActivityLog] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [clockDisplay, setClockDisplay] = useState('');
+  const scrollRef = useRef(null);
   
   const [dailyRevenue, setDailyRevenue] = useState(0);
   const [walkinRxRev, setWalkinRxRev] = useState(0);
@@ -30,60 +37,68 @@ const PharmacistDashboard = () => {
   const [totalInventoryCount, setTotalInventoryCount] = useState(0);
   const [pendingReturns, setPendingReturns] = useState(0);
 
-  const fetchRevenues = async () => {
+  // Optimized: Fetch patient count from backend instead of direct Firebase listener
+  const updatePatientCount = async () => {
     try {
-      const { getPatients, getDispensedHistory, getOnlineOrders } = await import('../../services/pharmacistService');
-      
+      const patients = await getPatients();
+      const count = patients.filter(p => p.role === 'customer').length;
+      setTotalPatientsCount(count);
+    } catch (err) {
+      console.warn('Failed to fetch patient count:', err);
+    }
+  };
+
+  useEffect(() => {
+    updatePatientCount();
+    // Refresh every 5 minutes instead of real-time
+    const interval = setInterval(updatePatientCount, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ─── UNIFIED FETCH: shares dispensedList + onlineOrders between revenue & activity log
+  //     to avoid duplicate API calls on every refresh ────────────────────────────
+  const fetchAllDashboardData = async () => {
+    try {
+      const { getDispensedHistory, getOnlineOrders } = await import('../../services/pharmacistService');
       const todayStr = new Date().toDateString();
 
-      // 1. Fetch Total Patients
-      const patients = await getPatients();
-      const uniquePatients = patients.filter((patient, index, self) => 
-         index === self.findIndex((p) => p.name?.toLowerCase() === patient.name?.toLowerCase())
-      );
-      setTotalPatientsCount(uniquePatients.length);
+      // Single fetch — shared by both revenue calc AND activity log
+      const [dispensedList, onlineOrders, returns] = await Promise.all([
+        getDispensedHistory(),
+        getOnlineOrders(),
+        getReturnRequests(),
+      ]);
 
-      // 2. Fetch Dispensing History for Today (Walk-in & Physical)
-      const dispensedList = await getDispensedHistory();
+      // ── Revenue & dispensed counts ──────────────────────────────────────────
       const todayDispensed = dispensedList.filter(item => item.dispensedDate === todayStr);
-      
       setDispensedTodayCount(todayDispensed.length);
-      
-      let wRxRev = 0;
-      let wOtcRev = 0;
-      let dRev = 0;
-      let dRevCard = 0;
-      let dRevBank = 0;
-      let dRevPayHere = 0;
-      let dRevCod = 0;
-      let onlineDispCount = 0;
-      let physicalDispCount = 0;
+
+      let wRxRev = 0, wOtcRev = 0, dRev = 0;
+      let dRevCard = 0, dRevBank = 0, dRevPayHere = 0, dRevCod = 0;
+      let onlineDispCount = 0, physicalDispCount = 0;
 
       todayDispensed.forEach(d => {
-         // Items verified through the queue have an rxId. 
-         // We'll consider them "Online Prescriptions" / "System Prescriptions" for the dashboard.
-         // Items from the physical Walk-in POS will lack an rxId.
-         if (d.rxId) {
-             onlineDispCount++;
-             if (d.paymentStatus === 'Paid') {
-                 const amt = parseFloat(d.total) || 0;
-                 dRev += amt;
-                 if (d.paymentMethod === 'Card Payment') dRevCard += amt;
-                 else if (d.paymentMethod === 'Bank Transfer') dRevBank += amt;
-                 else if (d.paymentMethod === 'PayHere') dRevPayHere += amt;
-                 else if (d.paymentMethod === 'COD') dRevCod += amt;
-                 else dRevCard += amt; // Default to Card if no method or pharmacist marked manual
-             }
-         } else {
-             physicalDispCount++;
-             if (d.paymentStatus === 'Paid') {
-                 if (d.type === 'prescription' || d.id?.includes('RX')) {
-                    wRxRev += (parseFloat(d.total) || 0);
-                 } else {
-                    wOtcRev += (parseFloat(d.total) || 0);
-                 }
-             }
-         }
+        if (d.rxId) {
+          onlineDispCount++;
+          if (d.paymentStatus === 'Paid') {
+            const amt = parseFloat(d.total) || 0;
+            dRev += amt;
+            if (d.paymentMethod === 'Card Payment') dRevCard += amt;
+            else if (d.paymentMethod === 'Bank Transfer') dRevBank += amt;
+            else if (d.paymentMethod === 'PayHere') dRevPayHere += amt;
+            else if (d.paymentMethod === 'COD') dRevCod += amt;
+            else dRevCard += amt;
+          }
+        } else {
+          physicalDispCount++;
+          if (d.paymentStatus === 'Paid') {
+            if (d.type === 'prescription' || d.id?.includes('RX')) {
+              wRxRev += parseFloat(d.total) || 0;
+            } else {
+              wOtcRev += parseFloat(d.total) || 0;
+            }
+          }
+        }
       });
 
       setDailyRevenue(dRev);
@@ -96,28 +111,84 @@ const PharmacistDashboard = () => {
       setOnlineDispensedCount(onlineDispCount);
       setPhysicalDispensedCount(physicalDispCount);
 
-      // 3. Fetch Online Orders
-      const onlineOrders = await getOnlineOrders();
       const dispatchedOnline = onlineOrders.filter(o => {
-         const orderDate = new Date(o.orderDate || o.timestamp).toDateString();
-         return o.status === 'Dispatched' && orderDate === todayStr;
+        const orderDate = new Date(o.orderDate || o.timestamp).toDateString();
+        return o.status === 'Dispatched' && orderDate === todayStr;
       });
-      
-      let paidRev = 0;
-      let codRev = 0;
+      let paidRev = 0, codRev = 0;
       dispatchedOnline.forEach(o => {
-         if (o.paymentStatus === 'Paid') {
-            paidRev += (parseFloat(o.total) || 0);
-         } else if (o.paymentMethod === 'COD') {
-            codRev += (parseFloat(o.total) || 0);
-         }
+        if (o.paymentStatus === 'Paid') paidRev += parseFloat(o.total) || 0;
+        else if (o.paymentMethod === 'COD') codRev += parseFloat(o.total) || 0;
       });
-      
       setOnlinePaidRev(paidRev);
       setOnlineCodRev(codRev);
 
+      // ── Returns count ───────────────────────────────────────────────────────
+      const pending = returns.filter(r => r.status === 'Pending').length;
+      setPendingReturns(pending);
+
+      // ── Activity log — built from the same already-fetched data ─────────────
+      const entries = [];
+
+      dispensedList.slice(-30).forEach(d => {
+        const ts = d.dispensedAt ? new Date(d.dispensedAt) :
+                   d.createdAt  ? new Date(d.createdAt)  :
+                   d.date       ? new Date(d.date)        : null;
+        if (!ts || isNaN(ts) || !isToday(ts)) return;
+        const patientLabel = d.patientName || d.patient || 'Patient';
+        const rxLabel = d.rxId ? `Rx #${d.rxId}` : (d.id ? `#${d.id}` : '');
+        entries.push({
+          ts,
+          color: 'bg-emerald-500',
+          text: `Dispensed ${rxLabel} to ${patientLabel}`,
+          highlight: 'Dispensed',
+          highlightColor: 'text-emerald-600',
+        });
+      });
+
+      onlineOrders.slice(-20).forEach(o => {
+        const ts = o.updatedAt ? new Date(o.updatedAt) :
+                   o.orderDate ? new Date(o.orderDate)  :
+                   o.timestamp ? new Date(o.timestamp)  : null;
+        if (!ts || isNaN(ts) || !isToday(ts)) return;
+        const patientLabel = o.customerName || o.patient || 'Customer';
+        const status = o.status || 'Updated';
+        const color = status === 'Dispatched' ? 'bg-blue-500' :
+                      status === 'Cancelled'  ? 'bg-red-400'  : 'bg-amber-400';
+        entries.push({
+          ts, color,
+          text: `Online order ${status} - ${patientLabel}`,
+          highlight: status,
+          highlightColor: status === 'Dispatched' ? 'text-blue-600' :
+                          status === 'Cancelled'  ? 'text-red-500'  : 'text-amber-600',
+        });
+      });
+
+      returns.slice(-10).forEach(r => {
+        const ts = r.requestedAt ? new Date(r.requestedAt) :
+                   r.createdAt  ? new Date(r.createdAt)   : null;
+        if (!ts || isNaN(ts) || !isToday(ts)) return;
+        const color = r.status === 'Approved' ? 'bg-emerald-400' :
+                      r.status === 'Rejected' ? 'bg-red-400'     : 'bg-slate-400';
+        entries.push({
+          ts, color,
+          text: `Return request ${r.status || 'Pending'} - ${r.itemName || r.medicineName || 'Item'}`,
+          highlight: r.status || 'Pending',
+          highlightColor: r.status === 'Approved' ? 'text-emerald-600' :
+                          r.status === 'Rejected' ? 'text-red-500'     : 'text-slate-500',
+        });
+      });
+
+      entries.sort((a, b) => a.ts - b.ts);
+      const formatted = entries.slice(-15).map(e => ({
+        ...e,
+        timeLabel: e.ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      }));
+      if (formatted.length > 0) setActivityLog(formatted);
+      setLastUpdated(new Date());
+
     } catch(e) {
-       console.error("Dashboard data sync error:", e);
+      console.error('Dashboard unified fetch error:', e);
     }
   };
 
@@ -127,19 +198,25 @@ const PharmacistDashboard = () => {
          
          setTotalInventoryCount(inv.length);
          
+         // Low stock: qty < 100
          const lowStock = inv.filter(item => {
-            const qty = item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0;
-            return qty < 50;
+            const qty = Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0);
+            return qty < 100;
          });
          setLowStockItems(lowStock);
+         
+         // Expiring: within 7 days (or already expired)
+         const today = new Date();
+         today.setHours(0, 0, 0, 0);
+         const inOneWeek = new Date(today);
+         inOneWeek.setDate(inOneWeek.getDate() + 7);
          
          const expiringList = inv.filter(item => {
             const dateStr = item.expiryDate ?? item.expiry ?? item.expirationDate;
             if (!dateStr) return false;
             const expDate = new Date(dateStr);
-            const in30Days = new Date();
-            in30Days.setDate(in30Days.getDate() + 30);
-            return expDate <= in30Days;
+            expDate.setHours(0, 0, 0, 0);
+            return expDate <= inOneWeek;
          });
          setExpiringItems(expiringList);
      } catch(e) {
@@ -150,32 +227,95 @@ const PharmacistDashboard = () => {
      }
   };
 
-  const fetchReturnsData = async () => {
-     try {
-         const returns = await getReturnRequests();
-         const pending = returns.filter(r => r.status === 'Pending').length;
-         setPendingReturns(pending);
-     } catch (e) {
-         console.error(e);
-     }
+  // fetchReturnsData removed — now handled inside fetchAllDashboardData to avoid duplicate calls
+
+  // --- Helper: is this timestamp from today? ---
+  const isToday = (ts) => {
+    if (!ts || isNaN(ts)) return false;
+    const now = new Date();
+    return ts.getFullYear() === now.getFullYear() &&
+           ts.getMonth()    === now.getMonth()    &&
+           ts.getDate()     === now.getDate();
   };
 
+  // fetchActivityLog removed — activity log is now built inside fetchAllDashboardData
+  // to avoid duplicate getDispensedHistory / getOnlineOrders / getReturnRequests calls
+
   useEffect(() => {
-    fetchRevenues();
+    // Single unified call on mount — fetches each API endpoint only ONCE
+    fetchAllDashboardData();
     fetchInventoryData();
-    fetchReturnsData();
-    const handleUpdate = () => {
-       fetchRevenues();
-       fetchInventoryData();
-       fetchReturnsData();
-    };
-    window.addEventListener('revenue_updated', handleUpdate);
-    window.addEventListener('dispensed_updated', handleUpdate);
+    updatePatientCount();
+
+    // 1-second live clock (no API calls, local only)
+    const clockTimer = setInterval(() => {
+      setClockDisplay(new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      }));
+    }, 1000);
+
+    // Event-driven updates only — no polling timers that hammer the API
+    const handleUpdate = () => fetchAllDashboardData();
+    window.addEventListener('revenue_updated',    handleUpdate);
+    window.addEventListener('dispensed_updated',  handleUpdate);
+    window.addEventListener('inventory_updated',  fetchInventoryData);
+    window.addEventListener('patient_registered', updatePatientCount);
+
+    // --- Firebase onSnapshot - prescriptions real-time (single listener) ------
+    const prescQ = query(
+      collection(db, 'prescriptions'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    const unsubPrescriptions = onSnapshot(prescQ, (snap) => {
+      const prescEntries = snap.docs.map(doc => {
+        const d = doc.data();
+        const ts = d.createdAt?.toDate ? d.createdAt.toDate() :
+                   d.createdAt ? new Date(d.createdAt) : new Date();
+        if (!isToday(ts)) return null;
+        const status = d.status || 'Submitted';
+        const color  = status === 'Verified'  ? 'bg-emerald-500' :
+                       status === 'Dispensed' ? 'bg-blue-500'    :
+                       status === 'Rejected'  ? 'bg-red-400'     : 'bg-indigo-400';
+        const hlColor = status === 'Verified'  ? 'text-emerald-600' :
+                        status === 'Dispensed' ? 'text-blue-600'    :
+                        status === 'Rejected'  ? 'text-red-500'     : 'text-indigo-500';
+        const patient = d.patientName || d.customerName || d.uploadedBy || 'Patient';
+        return {
+          ts, color,
+          text: `Prescription ${status} - ${patient}`,
+          highlight: status,
+          highlightColor: hlColor,
+          timeLabel: ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        };
+      }).filter(Boolean);
+
+      setActivityLog(prev => {
+        const merged = [...prescEntries, ...prev.filter(p =>
+          !prescEntries.some(pe => pe && pe.text === p.text && pe.timeLabel === p.timeLabel)
+        )];
+        merged.sort((a, b) => a.ts - b.ts);
+        return merged.slice(-30);
+      });
+      setLastUpdated(new Date());
+    }, (err) => console.error('Firestore prescriptions listen error:', err));
+
     return () => {
-       window.removeEventListener('revenue_updated', handleUpdate);
-       window.removeEventListener('dispensed_updated', handleUpdate);
+      window.removeEventListener('revenue_updated',    handleUpdate);
+      window.removeEventListener('dispensed_updated',  handleUpdate);
+      window.removeEventListener('inventory_updated',  fetchInventoryData);
+      window.removeEventListener('patient_registered', updatePatientCount);
+      clearInterval(clockTimer);
+      unsubPrescriptions();
     };
   }, []);
+
+  // Auto-scroll to bottom when new log entries arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [activityLog]);
 
   const currentDate = new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
@@ -195,6 +335,11 @@ const PharmacistDashboard = () => {
   const bankDashQueue = dailyRevenue > 0 ? (onlineRevBank / dailyRevenue) * circ : 0;
   const payHereDashQueue = dailyRevenue > 0 ? (onlineRevPayHere / dailyRevenue) * circ : 0;
   const codDashQueue = dailyRevenue > 0 ? (onlineRevCod / dailyRevenue) * circ : 0;
+
+  // Online Prescriptions simplified: Paid = Card+Bank+PayHere grouped, COD separate
+  const onlinePrescPaidRev = onlineRevCard + onlineRevBank + onlineRevPayHere;
+  const prescPaidDash = dailyRevenue > 0 ? (onlinePrescPaidRev / dailyRevenue) * circ : 0;
+  const prescCodDash  = dailyRevenue > 0 ? (onlineRevCod / dailyRevenue) * circ : 0;
 
   const paidDash = onlineTotal > 0 ? (onlinePaidRev / onlineTotal) * circ : 0;
   const codDash = onlineTotal > 0 ? (onlineCodRev / onlineTotal) * circ : 0;
@@ -216,99 +361,150 @@ const PharmacistDashboard = () => {
       </div>
 
       {/* Top Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        {/* Card 1 */}
-        <div 
-          className="card shadow-none hover:shadow-md border border-slate-100 border-l-4 border-l-emerald-500 relative overflow-hidden group cursor-pointer transition-all"
+      <div className="grid grid-cols-4 gap-4 items-stretch">
+
+        {/* Card 1 - Dispensed Today (Emerald) */}
+        <div
+          className="relative bg-white rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-[0_8px_30px_rgba(16,185,129,0.18)] border border-slate-100"
           onClick={() => navigate('/pharmacist/dispensed-today')}
         >
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-medium text-slate-500">Dispensed Today</p>
-              <h2 className="text-3xl font-bold text-slate-800 mt-1">{dispensedTodayCount}</h2>
+          <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-emerald-400 to-emerald-600" />
+          <div className="pl-5 pr-5 pt-5 pb-5 h-full flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <p className="text-sm font-semibold text-slate-500">Dispensed Today</p>
+              <div className="bg-emerald-50 p-1.5 rounded-lg group-hover:scale-110 transition-transform">
+                <FileText className="w-4 h-4 text-emerald-500" />
+              </div>
             </div>
-          </div>
-          <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-110 transition-transform z-0">
-             <FileText className="w-20 h-20 -mr-4 -mb-4 text-emerald-500" />
-          </div>
-          <div className="w-full bg-slate-100 h-2 mt-4 rounded-full overflow-hidden flex relative z-10 w-full">
-            <div className="bg-blue-500 h-full transition-all duration-500" style={{ width: `${physicalWidth}%` }} title={`Physical: ${physicalDispensedCount}`}></div>
-            <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${onlineWidth}%` }} title={`Online: ${onlineDispensedCount}`}></div>
-          </div>
-          <div className="flex justify-between items-center mt-2 relative z-10">
-             <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500"></span><span className="text-[10px] text-slate-500 font-bold tracking-wide">Physical ({physicalDispensedCount})</span></div>
-             <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span><span className="text-[10px] text-slate-500 font-bold tracking-wide">Online ({onlineDispensedCount})</span></div>
+            <h2 className="text-4xl font-bold text-slate-800 my-3">{dispensedTodayCount}</h2>
+            <div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
+                <div className="bg-blue-400 h-full transition-all duration-500" style={{ width: `${physicalWidth}%` }} />
+                <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${onlineWidth}%` }} />
+              </div>
+              <div className="flex justify-between items-center mt-2">
+                <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span className="text-[10px] text-slate-400 font-semibold">Physical ({physicalDispensedCount})</span></div>
+                <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /><span className="text-[10px] text-slate-400 font-semibold">Online ({onlineDispensedCount})</span></div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Card 2 */}
-        <div 
-          className="card shadow-none hover:shadow-md border border-slate-100 cursor-pointer transition-all flex flex-col justify-between" 
+        {/* Card 2 - Total Patients (Blue) */}
+        <div
+          className="relative bg-white rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-[0_8px_30px_rgba(59,130,246,0.18)] border border-slate-100"
           onClick={() => navigate('/pharmacist/new-patients')}
         >
-          <div className="flex justify-between items-start">
-            <div className="bg-blue-50 text-blue-600 p-2 rounded-lg flex items-center justify-center">
-              <Inbox className="w-6 h-6" strokeWidth={2} />
+          <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-blue-400 to-blue-600" />
+          <div className="pl-5 pr-5 pt-5 pb-5 h-full flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <p className="text-sm font-semibold text-slate-500">Registered Customers</p>
+              <span className="bg-blue-50 text-blue-500 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">Registered</span>
             </div>
-            <div className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-bold">
-              System
+            <h2 className="text-4xl font-bold text-slate-800 my-3">{totalPatientsCount}</h2>
+            <div className="flex items-center gap-2">
+              <div className="bg-blue-50 p-1.5 rounded-lg group-hover:scale-110 transition-transform">
+                <Inbox className="w-4 h-4 text-blue-500" strokeWidth={2} />
+              </div>
+              <p className="text-[12px] text-slate-400 font-medium">App registered customers</p>
             </div>
-          </div>
-          <div className="mt-4">
-            <p className="text-sm font-medium text-slate-500">Total Patients</p>
-            <h2 className="text-4xl font-bold text-slate-800 mt-1">{totalPatientsCount}</h2>
-            <p className="text-[13px] text-slate-400 mt-2 font-medium">All registered patients</p>
           </div>
         </div>
 
-        {/* Card 3 */}
-        <div 
-          className="card shadow-none hover:shadow-md border border-slate-100 border-l-4 border-l-orange-500 transition-all cursor-pointer relative overflow-hidden group"
-          onClick={() => navigate('/pharmacist/low-stock')}
-        >
-          <div className="flex justify-between items-start">
-            <h3 className="text-sm font-medium text-slate-500">Low Stock Items</h3>
-            {lowStockItems.length > 0 && <span className="bg-orange-50 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Alert</span>}
-          </div>
-          <div className="mt-4">
-            <h2 className="text-4xl font-bold text-slate-800">{lowStockItems.length}</h2>
-            {lowStockItems.length > 0 ? (
-               <div className="w-full bg-slate-100 h-1.5 mt-4 rounded-full overflow-hidden flex" title={`Low Stock items: ${lowStockItems.map(i => i.name).join(', ')}`}>
-                 <div className="bg-orange-500 h-full transition-all duration-500" style={{ width: `${Math.min((lowStockItems.length / Math.max(totalInventoryCount, 1)) * 100, 100)}%` }}></div>
-               </div>
-            ) : (
-               <p className="text-[13px] text-slate-400 mt-2 font-medium">Inventory levels are stable</p>
-            )}
-          </div>
-        </div>
+        {/* Card 3 - Low Stock (Orange) — qty<100 total, qty<20 critical */}
+        {(() => {
+          const criticalCount = lowStockItems.filter(item => Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0) < 20).length;
+          return (
+            <div
+              className="relative bg-white rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-[0_8px_30px_rgba(249,115,22,0.18)] border border-slate-100"
+              onClick={() => navigate('/pharmacist/low-stock')}
+            >
+              <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-orange-400 to-orange-600" />
+              <div className="pl-5 pr-5 pt-5 pb-5 h-full flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <p className="text-sm font-semibold text-slate-500">Low Stock Items</p>
+                  {lowStockItems.length > 0
+                    ? <span className="bg-orange-50 text-orange-500 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">Alert</span>
+                    : <span className="bg-slate-50 text-slate-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">OK</span>
+                  }
+                </div>
+                <h2 className="text-4xl font-bold text-slate-800 my-2">{lowStockItems.length}</h2>
+                <div>
+                  {lowStockItems.length > 0 ? (
+                    <>
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-2">
+                        <div className="bg-gradient-to-r from-orange-400 to-orange-600 h-full rounded-full transition-all duration-700"
+                          style={{ width: `${Math.min((lowStockItems.length / Math.max(totalInventoryCount, 1)) * 100, 100)}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-400 font-semibold">&lt;100 items</span>
+                        {criticalCount > 0 && (
+                          <span className="flex items-center gap-1 bg-red-50 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-100">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            {criticalCount} critical (&lt;20)
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-[12px] text-slate-400 font-medium">Inventory levels are stable</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
-        {/* Card 4 - Expiring Soon */}
-        <div 
-          className="card shadow-none hover:shadow-md border border-slate-100 border-l-4 border-l-red-500 cursor-pointer transition-all flex flex-col justify-between"
-          onClick={() => navigate('/pharmacist/expiring-inventory')}
-        >
-          <div className="flex justify-between items-start">
-            <h3 className="text-sm font-medium text-slate-500">Expiring Soon</h3>
-            {expiringItems.length > 0 && <span className="bg-red-50 text-red-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Action Req.</span>}
-          </div>
-          <div className="mt-4">
-            <h2 className="text-4xl font-bold text-slate-800">{expiringItems.length}</h2>
-            {expiringItems.length > 0 ? (
-               <div className="flex gap-2 mt-4 overflow-hidden" title={`Expiring medications: ${expiringItems.map(i => i.name).join(', ')}`}>
-                 {expiringItems.slice(0, 5).map((item, idx) => (
-                    <span key={idx} className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center text-[10px] font-bold text-red-600 border border-red-100 flex-shrink-0" title={item.name}>
-                       {item.name ? item.name.charAt(0).toUpperCase() : '?'}
-                    </span>
-                 ))}
-                 {expiringItems.length > 5 && (
-                    <span className="text-xs text-slate-400 font-bold ml-1 self-center w-6 text-center">+{expiringItems.length - 5}</span>
-                 )}
-               </div>
-            ) : (
-               <p className="text-[13px] text-slate-400 mt-2 font-medium">No near-expirations found</p>
-            )}
-          </div>
-        </div>
+        {/* Card 4 - Expiring Soon (Red) — 7-day window */}
+        {(() => {
+          const expiredCount = expiringItems.filter(item => {
+            const dateStr = item.expiryDate ?? item.expiry ?? item.expirationDate;
+            if (!dateStr) return false;
+            const d = new Date(dateStr); d.setHours(0,0,0,0);
+            const t = new Date(); t.setHours(0,0,0,0);
+            return d < t;
+          }).length;
+          return (
+            <div
+              className="relative bg-white rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-[0_8px_30px_rgba(239,68,68,0.18)] border border-slate-100"
+              onClick={() => navigate('/pharmacist/expiring-inventory')}
+            >
+              <div className="absolute left-0 top-0 h-full w-1.5 rounded-l-2xl bg-gradient-to-b from-red-400 to-red-600" />
+              <div className="pl-5 pr-5 pt-5 pb-5 h-full flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <p className="text-sm font-semibold text-slate-500">Expiring (7 days)</p>
+                  {expiringItems.length > 0
+                    ? <span className="bg-red-50 text-red-500 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">Action</span>
+                    : <span className="bg-slate-50 text-slate-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">OK</span>
+                  }
+                </div>
+                <h2 className="text-4xl font-bold text-slate-800 my-2">{expiringItems.length}</h2>
+                <div>
+                  {expiringItems.length > 0 ? (
+                    <>
+                      <div className="flex gap-1.5 flex-wrap mb-1">
+                        {expiringItems.slice(0, 4).map((item, idx) => (
+                          <span key={idx} className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center text-[10px] font-bold text-red-500 border border-red-100 flex-shrink-0" title={item.name}>
+                            {item.name ? item.name.charAt(0).toUpperCase() : '?'}
+                          </span>
+                        ))}
+                        {expiringItems.length > 4 && (
+                          <span className="text-[10px] text-slate-400 font-bold self-center">+{expiringItems.length - 4}</span>
+                        )}
+                      </div>
+                      {expiredCount > 0 && (
+                        <span className="text-[10px] text-red-500 font-bold">{expiredCount} already expired</span>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-[12px] text-slate-400 font-medium">No near-expirations this week</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
       </div>
 
       {/* Main Grid Content */}
@@ -317,133 +513,118 @@ const PharmacistDashboard = () => {
         {/* Left Column */}
         <div className="col-span-2 space-y-6">
 
-          {/* Today's Business Circle Chart */}
-          <div className="card shadow-sm pt-6 pb-6">
-            <div className="flex items-center justify-between mb-6">
+          {/* Today's Revenue Overview */}
+          <div>
+            {/* Header - outside the card, exactly like the screenshot */}
+            <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-800">Today's Revenue Overview</h3>
-              <p className="text-sm font-black text-[#0b5ed7] bg-blue-50 px-3 py-1 rounded border border-blue-100">Total: Rs. {(dailyRevenue + walkinTotal + onlineTotal).toFixed(0)}</p>
+              <span className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
+                Total: Rs. {(dailyRevenue + walkinTotal + onlineTotal).toFixed(0)}
+              </span>
             </div>
-            
-            <div className="grid grid-cols-3 gap-2">
-              
-              {/* Online Prescriptions Circle */}
-              <div className="flex flex-col items-center">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-[#0b5ed7] mb-6 text-center">Online Prescriptions</h4>
-                 <div className="flex items-center justify-center relative">
-                   <svg className="w-32 h-32 transform -rotate-90">
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-100" />
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${cardDashQueue} ${circ}`} strokeDashoffset={0} className="text-blue-600" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${bankDashQueue} ${circ}`} strokeDashoffset={-cardDashQueue} className="text-indigo-500" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${payHereDashQueue} ${circ}`} strokeDashoffset={-(cardDashQueue + bankDashQueue)} className="text-cyan-500" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${codDashQueue} ${circ}`} strokeDashoffset={-(cardDashQueue + bankDashQueue + payHereDashQueue)} className="text-amber-500" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                   </svg>
-                   <div className="absolute flex flex-col items-center justify-center text-center px-2">
-                     <span className="text-[15px] font-black text-slate-800">Rs.<br/>{dailyRevenue.toFixed(0)}</span>
-                   </div>
-                 </div>
-                 
-                 <div className="grid grid-cols-2 gap-2 mt-6 pt-4 border-t border-slate-100 w-full px-2">
-                   <div className="text-center">
-                     <div className="flex items-center justify-center gap-1 mb-1">
-                       <div className="w-2.5 h-2.5 bg-blue-600 rounded-full"></div>
-                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Card</span>
-                     </div>
-                     <span className="font-bold text-slate-800 text-xs">Rs. {(onlineRevCard/1000).toFixed(1)}k</span>
-                   </div>
-                   <div className="text-center">
-                     <div className="flex items-center justify-center gap-1 mb-1">
-                       <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
-                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Bank</span>
-                     </div>
-                     <span className="font-bold text-slate-800 text-xs">Rs. {(onlineRevBank/1000).toFixed(1)}k</span>
-                   </div>
-                   <div className="text-center">
-                     <div className="flex items-center justify-center gap-1 mb-1">
-                       <div className="w-2.5 h-2.5 bg-cyan-500 rounded-full"></div>
-                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">PayHere</span>
-                     </div>
-                     <span className="font-bold text-slate-800 text-xs">Rs. {(onlineRevPayHere/1000).toFixed(1)}k</span>
-                   </div>
-                   <div className="text-center">
-                     <div className="flex items-center justify-center gap-1 mb-1">
-                       <div className="w-2.5 h-2.5 bg-amber-500 rounded-full"></div>
-                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">COD</span>
-                     </div>
-                     <span className="font-bold text-slate-800 text-xs">Rs. {(onlineRevCod/1000).toFixed(1)}k</span>
-                   </div>
-                 </div>
+
+            {/* Card - circles only inside */}
+            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+              <div className="grid grid-cols-3 divide-x divide-slate-100">
+
+              {/* (1) Online Prescriptions */}
+              <div className="flex flex-col items-center px-6 py-6">
+                <div className="h-0.5 w-16 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400 mb-4" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-5 text-center">Online Prescriptions</h4>
+                <div className="flex items-center justify-center relative mb-5">
+                  <svg className="w-32 h-32 transform -rotate-90">
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-100" />
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${prescPaidDash} ${circ}`} strokeDashoffset={0} className="text-blue-600" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${prescCodDash} ${circ}`} strokeDashoffset={-prescPaidDash} className="text-amber-400" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center text-center">
+                    <span className="text-[11px] font-semibold text-slate-400">Rs.</span>
+                    <span className="text-xl font-black text-slate-800">{dailyRevenue.toFixed(0)}</span>
+                  </div>
+                </div>
+                <div className="w-full flex justify-center gap-8 pt-4 border-t border-slate-100">
+                  {[
+                    { color: 'bg-blue-600',  label: 'Paid', val: onlinePrescPaidRev },
+                    { color: 'bg-amber-400', label: 'COD',  val: onlineRevCod },
+                  ].map(({ color, label, val }) => (
+                    <div key={label} className="flex flex-col items-center text-center gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-700">Rs. {(val/1000).toFixed(1)}k</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Walk-in POS Circle */}
-              <div className="flex flex-col items-center border-l border-slate-100">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-600 mb-6 text-center">Walk-in POS</h4>
-                 <div className="flex items-center justify-center relative">
-                   <svg className="w-32 h-32 transform -rotate-90">
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-100" />
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${walkinRxDash} ${circ}`} strokeDashoffset={0} className="text-purple-600" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${walkinOtcDash} ${circ}`} strokeDashoffset={-walkinRxDash} className="text-pink-400" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                   </svg>
-                   <div className="absolute flex flex-col items-center justify-center text-center px-2">
-                     <span className="text-[15px] font-black text-slate-800">Rs.<br/>{walkinTotal.toFixed(0)}</span>
-                   </div>
-                 </div>
-                 
-                 <div className="flex justify-center gap-2 mt-6 pt-4 border-t border-slate-100 w-full px-2">
-                   <div className="text-center w-1/2">
-                     <div className="flex items-center justify-center gap-1.5 mb-1">
-                       <div className="w-2.5 h-2.5 bg-purple-600 rounded-full"></div>
-                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Rx Meds</span>
-                     </div>
-                     <span className="font-bold text-slate-800 text-xs">Rs. {(walkinRxRev/1000).toFixed(1)}k</span>
-                   </div>
-                   <div className="text-center w-1/2">
-                     <div className="flex items-center justify-center gap-1.5 mb-1">
-                       <div className="w-2.5 h-2.5 bg-pink-400 rounded-full"></div>
-                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">OTC+Gen</span>
-                     </div>
-                     <span className="font-bold text-slate-800 text-xs">Rs. {(walkinOtcRev/1000).toFixed(1)}k</span>
-                   </div>
-                 </div>
+              {/* (2) Online Other Order - CENTER */}
+              <div className="flex flex-col items-center px-6 py-6">
+                <div className="h-0.5 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-amber-400 mb-4" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-5 text-center">Online Other Order</h4>
+                <div className="flex items-center justify-center relative mb-5">
+                  <svg className="w-32 h-32 transform -rotate-90">
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-100" />
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${paidDash} ${circ}`} strokeDashoffset={0} className="text-emerald-500" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${codDash} ${circ}`} strokeDashoffset={-paidDash} className="text-amber-400" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center text-center">
+                    <span className="text-[11px] font-semibold text-slate-400">Rs.</span>
+                    <span className="text-xl font-black text-slate-800">{onlineTotal.toFixed(0)}</span>
+                  </div>
+                </div>
+                <div className="w-full flex justify-center gap-8 pt-4 border-t border-slate-100">
+                  {[
+                    { color: 'bg-emerald-500', label: 'Paid', val: onlinePaidRev },
+                    { color: 'bg-amber-400',   label: 'COD',  val: onlineCodRev },
+                  ].map(({ color, label, val }) => (
+                    <div key={label} className="flex flex-col items-center text-center gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-700">Rs. {(val/1000).toFixed(1)}k</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Online Hub Circle */}
-              <div className="flex flex-col items-center border-l border-slate-100">
-                 <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-6 text-center">Online Hub</h4>
-                 <div className="flex items-center justify-center relative">
-                   <svg className="w-32 h-32 transform -rotate-90">
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-100" />
-                     {/* Paid Segment */}
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${paidDash} ${circ}`} strokeDashoffset={0} className="text-emerald-500" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                     {/* COD Segment */}
-                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${codDash} ${circ}`} strokeDashoffset={-paidDash} className="text-amber-400" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                   </svg>
-                   <div className="absolute flex flex-col items-center justify-center text-center px-2">
-                     <span className="text-[15px] font-black text-slate-800">Rs.<br/>{onlineTotal.toFixed(0)}</span>
-                   </div>
-                 </div>
-
-                 <div className="flex justify-center gap-2 mt-6 pt-4 border-t border-slate-100 w-full px-2">
-                   <div className="text-center w-1/2">
-                     <div className="flex items-center justify-center gap-1.5 mb-1">
-                       <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
-                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">Paid</span>
-                     </div>
-                     <span className="font-bold text-slate-800 text-xs">Rs. {(onlinePaidRev/1000).toFixed(1)}k</span>
-                   </div>
-                   <div className="text-center w-1/2">
-                     <div className="flex items-center justify-center gap-1.5 mb-1">
-                       <div className="w-2.5 h-2.5 bg-amber-400 rounded-full"></div>
-                       <span className="text-[8px] font-black uppercase tracking-widest text-slate-500">COD</span>
-                     </div>
-                     <span className="font-bold text-slate-800 text-xs">Rs. {(onlineCodRev/1000).toFixed(1)}k</span>
-                   </div>
-                 </div>
-
+              {/* (3) Walk-in POS */}
+              <div className="flex flex-col items-center px-6 py-6">
+                <div className="h-0.5 w-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-400 mb-4" />
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-600 mb-5 text-center">Walk-in POS</h4>
+                <div className="flex items-center justify-center relative mb-5">
+                  <svg className="w-32 h-32 transform -rotate-90">
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-100" />
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${walkinRxDash} ${circ}`} strokeDashoffset={0} className="text-purple-600" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${walkinOtcDash} ${circ}`} strokeDashoffset={-walkinRxDash} className="text-pink-400" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center text-center">
+                    <span className="text-[11px] font-semibold text-slate-400">Rs.</span>
+                    <span className="text-xl font-black text-slate-800">{walkinTotal.toFixed(0)}</span>
+                  </div>
+                </div>
+                <div className="w-full flex justify-center gap-8 pt-4 border-t border-slate-100">
+                  {[
+                    { color: 'bg-purple-600', label: 'Rx Meds', val: walkinRxRev },
+                    { color: 'bg-pink-400',   label: 'OTC+Gen', val: walkinOtcRev },
+                  ].map(({ color, label, val }) => (
+                    <div key={label} className="flex flex-col items-center text-center gap-0.5">
+                      <div className="flex items-center gap-1">
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-700">Rs. {(val/1000).toFixed(1)}k</p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-            </div>
-          </div>
-        </div>
+              </div>{/* end grid */}
+            </div>{/* end card */}
+          </div>{/* end outer wrapper */}
+
+        </div>{/* End Left Column col-span-2 */}
 
         {/* Right Column (Recent Activity & Alerts) */}
         <div className="space-y-6">
@@ -464,48 +645,61 @@ const PharmacistDashboard = () => {
             </div>
           )}
 
-          <div className="card pt-5 pb-2">
-            <h3 className="text-base font-bold text-slate-800 mb-6">Recent Activity</h3>
-            
-            <div className="relative border-l-2 border-slate-100 ml-3 space-y-6 pb-4">
-              <div className="relative pl-6">
-                <span className="absolute w-3 h-3 bg-emerald-500 rounded-full -left-[7px] top-1 border-2 border-white"></span>
-                <p className="text-xs text-slate-400 font-medium">10:05 AM</p>
-                <p className="text-sm text-slate-700 mt-0.5">Rx #8892 <span className="text-emerald-600 font-semibold">Verified</span> by Dr. Sarah L.</p>
+          {/* Activity section - header outside card, same as Revenue Overview */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-800">Today's Activity</h3>
+                {lastUpdated && (
+                  <span className="text-[10px] text-slate-400">
+                    {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
               </div>
-              <div className="relative pl-6">
-                <span className="absolute w-3 h-3 bg-blue-400 rounded-full -left-[7px] top-1 border-2 border-white"></span>
-                <p className="text-xs text-slate-400 font-medium">09:55 AM</p>
-                <p className="text-sm text-slate-700 mt-0.5">Inventory Update: Amoxicillin batch #223 received.</p>
-              </div>
-              <div className="relative pl-6">
-                <span className="absolute w-3 h-3 bg-amber-400 rounded-full -left-[7px] top-1 border-2 border-white"></span>
-                <p className="text-xs text-slate-400 font-medium">09:30 AM</p>
-                <p className="text-sm text-slate-700 mt-0.5">Dispensed Rx #8890 to Patient J. Doe.</p>
-              </div>
-              <div className="relative pl-6">
-                <span className="absolute w-3 h-3 bg-slate-300 rounded-full -left-[7px] top-1 border-2 border-white"></span>
-                <p className="text-xs text-slate-400 font-medium">09:15 AM</p>
-                <p className="text-sm text-slate-700 mt-0.5">Shift started for Tech Team A.</p>
-              </div>
-              
-              <div className={`space-y-6 overflow-hidden transition-all duration-300 ${showAllLogs ? 'max-h-[500px] mt-6 opacity-100' : 'max-h-0 opacity-0 mt-0'}`}>
-                <div className="relative pl-6">
-                  <span className="absolute w-3 h-3 bg-red-400 rounded-full -left-[7px] top-1 border-2 border-white"></span>
-                  <p className="text-xs text-slate-400 font-medium">08:45 AM</p>
-                  <p className="text-sm text-slate-700 mt-0.5">Alert Flag: Severe interaction prevented.</p>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-slate-400">{clockDisplay}</span>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Live</span>
               </div>
             </div>
-            
-            <button 
-               onClick={() => setShowAllLogs(!showAllLogs)}
-               className="w-full text-center text-sm font-semibold text-slate-500 hover:text-slate-800 mt-4 py-2 border-t border-slate-100 transition-colors"
-            >
-               {showAllLogs ? 'View Less' : 'View All Log'}
-            </button>
-          </div>
-        </div>
+
+            <div className="card pt-4 pb-3">
+              {activityLog.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">No activity today yet.</p>
+              ) : (
+                <>
+                  <div
+                    ref={scrollRef}
+                    className="overflow-y-auto transition-all duration-300 pr-1"
+                    style={{ maxHeight: showAllLogs ? '420px' : '260px' }}
+                  >
+                    <div className="relative border-l-2 border-slate-100 ml-3 space-y-5 pb-2">
+                      {(showAllLogs ? activityLog : activityLog.slice(0, 4)).map((entry, idx) => (
+                        <div key={idx} className="relative pl-6">
+                          <span className={`absolute w-3 h-3 ${entry.color} rounded-full -left-[7px] top-1 border-2 border-white`} />
+                          <p className="text-xs text-slate-400 font-medium">{entry.timeLabel}</p>
+                          <p className="text-sm text-slate-700 mt-0.5">
+                            {entry.text.substring(0, entry.text.indexOf(entry.highlight))}
+                            <span className={`font-semibold ${entry.highlightColor}`}>{entry.highlight}</span>
+                            {entry.text.substring(entry.text.indexOf(entry.highlight) + entry.highlight.length)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowAllLogs(!showAllLogs)}
+                    className="w-full text-center text-sm font-semibold text-slate-500 hover:text-slate-800 mt-3 py-2 border-t border-slate-100 transition-colors"
+                  >
+                    {showAllLogs ? 'View Less ^' : `View All (${activityLog.length}) v`}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>{/* end activity section */}
+
+
+        </div>{/* end right column */}
 
       </div>
     </div>

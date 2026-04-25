@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { Upload, FileText, User, Phone, MapPin, ExternalLink, FileX } from 'lucide-react';
+import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { Upload, FileText, User, Phone, MapPin, ExternalLink, FileX, CheckCircle, CreditCard, Pill, Receipt } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 import { C, FONT, inputStyle }                        from '../../components/profile/profileTheme';
 import { SectionCard, SectionLabel, Field,
@@ -46,7 +47,7 @@ function DropZone({ selectedFile, onFile }) {
 }
 
 // ── Upload form ───────────────────────────────────────────────────────────────
-function UploadForm({ onUploaded }) {
+function UploadForm({ onUploaded, userId }) {
   const [file,      setFile]      = useState(null);
   const [name,      setName]      = useState('');
   const [phone,     setPhone]     = useState('');
@@ -64,6 +65,7 @@ function UploadForm({ onUploaded }) {
     fd.append('customerName',    name);
     fd.append('customerPhone',   phone);
     fd.append('customerAddress', address);
+    if (userId) fd.append('userId', userId);
     try {
       const res = await fetch('http://localhost:5000/api/prescriptions/upload', { method: 'POST', body: fd });
       if (res.ok) {
@@ -126,39 +128,85 @@ function UploadForm({ onUploaded }) {
 // ── Prescription history card ─────────────────────────────────────────────────
 function PrescriptionCard({ p }) {
   const sc = getStatusColor(p.status);
+  const isApproved = p.status === 'Approved' || p.status === 'Completed';
+
   return (
     <Card
       header={
         <div className="flex justify-between items-center">
-          <span className="text-xs font-bold" style={{ color: C.textPrimary }}>
-            #{p.id.slice(0, 8)}&hellip;
+          <span className="text-xs font-bold uppercase tracking-wider" style={{ color: C.textMuted }}>
+            {p.isDigital ? 'Digital Order' : 'Physical Upload'} #{p.id.slice(-6)}
           </span>
           <StatusBadge status={p.status} colors={sc} />
         </div>
       }
     >
-      <div className="flex gap-5 flex-wrap">
-        <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: C.textPrimary }}>
-          <User  size={12} color={C.accent} /> {p.customerName}
-        </span>
-        <span className="flex items-center gap-1.5 text-xs" style={{ color: C.textMuted }}>
-          <Phone size={12} color={C.accent} /> {p.customerPhone}
-        </span>
-        {p.customerAddress && (
-          <span className="flex items-center gap-1.5 text-xs" style={{ color: C.textMuted }}>
-            <MapPin size={12} color={C.accent} /> {p.customerAddress}
+      <div className="flex flex-col gap-4">
+        {/* Main Info */}
+        <div className="flex gap-5 flex-wrap">
+          <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: C.textPrimary }}>
+            <User  size={12} color={C.accent} /> {p.customerName}
           </span>
+          <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.textSoft }}>
+            <Phone size={12} color={C.accent} /> {p.customerPhone}
+          </span>
+        </div>
+
+        {/* Pharmacist Approval Details */}
+        {isApproved && p.orderItems && p.orderItems.length > 0 && (
+          <div className="mt-2 p-4 rounded-xl border border-emerald-100 bg-emerald-50/30">
+             <div className="flex items-center gap-2 mb-3">
+                <CheckCircle size={14} className="text-emerald-500" />
+                <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Pharmacist Approved Medications</span>
+             </div>
+             
+             <div className="space-y-2.5 mb-4">
+                {p.orderItems.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-white/60 p-2 rounded-lg border border-emerald-50 shadow-sm">
+                    <div className="flex items-center gap-2">
+                       <Pill size={12} className="text-blue-500" />
+                       <div>
+                          <p className="text-[12px] font-bold text-slate-800">{item.name}</p>
+                          <p className="text-[10px] text-slate-500 font-medium">{item.form} • Qty: {item.qty}</p>
+                       </div>
+                    </div>
+                    <span className="text-xs font-bold text-slate-700">Rs. {item.total.toFixed(2)}</span>
+                  </div>
+                ))}
+             </div>
+
+             <div className="flex justify-between items-center pt-3 border-t border-emerald-100">
+                <div className="flex items-center gap-1.5">
+                   <Receipt size={14} className="text-emerald-600" />
+                   <span className="text-xs font-bold text-slate-600">Total Payable Amount</span>
+                </div>
+                <span className="text-lg font-black text-emerald-800">Rs. {Number(p.total || 0).toFixed(2)}</span>
+             </div>
+
+             {/* Payment Button */}
+             <button 
+               onClick={() => {
+                 // Simulate redirect to checkout with prescription data
+                 window.location.href = `/customer/checkout?rxId=${p.id}&amount=${p.total}`;
+               }}
+               className="w-full mt-4 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-emerald-500/20 active:scale-[0.98]"
+             >
+                <CreditCard size={14} /> Confirm & Process Payment
+             </button>
+          </div>
         )}
-      </div>
-      <div className="mt-2">
-        {p.imageUrl
-          ? <a href={p.imageUrl} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold no-underline px-3 py-1.5 rounded-lg"
-              style={{ color: C.accent, background: C.accentFaint, border: `1px solid ${C.border}` }}>
-              <ExternalLink size={12} /> View File
-            </a>
-          : <span className="text-xs" style={{ color: C.textMuted }}>No file attached</span>
-        }
+
+        {/* View Original File */}
+        <div className="pt-2 border-t border-slate-100">
+          {p.imageUrl
+            ? <a href={p.imageUrl} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold no-underline px-3 py-1.5 rounded-lg transition-colors hover:bg-blue-50"
+                style={{ color: C.accent, background: C.accentFaint, border: `1px solid ${C.border}` }}>
+                <ExternalLink size={12} /> View Scanned Prescription
+              </a>
+            : <span className="text-xs italic" style={{ color: C.textMuted }}>No scanned file attached</span>
+          }
+        </div>
       </div>
     </Card>
   );
@@ -166,6 +214,7 @@ function PrescriptionCard({ p }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function PrescriptionsPage() {
+  const { currentUser } = useAuth();
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
@@ -173,12 +222,34 @@ export default function PrescriptionsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc')));
+        let snap;
+        if (currentUser?.uid) {
+          try {
+            // Filtered query — requires composite index on (userId, createdAt)
+            const q = query(
+              collection(db, 'prescriptions'),
+              where('userId', '==', currentUser.uid),
+              orderBy('createdAt', 'desc')
+            );
+            snap = await getDocs(q);
+          } catch (indexErr) {
+            // Index not yet created — fallback to client-side filter
+            console.warn('Firebase index missing; using client-side filter. Create the index via the URL in the error:', indexErr.message);
+            const fallbackQ = query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc'));
+            const allSnap = await getDocs(fallbackQ);
+            const allDocs = allSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            setPrescriptions(allDocs.filter(p => p.userId === currentUser.uid));
+            return;
+          }
+        } else {
+          const q = query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc'));
+          snap = await getDocs(q);
+        }
         setPrescriptions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (e) { setError(e.message || 'Failed to load prescriptions'); }
       finally     { setLoading(false); }
     })();
-  }, []);
+  }, [currentUser]);
 
   if (loading) return (
     <div className="flex justify-center items-center min-h-[60vh] text-sm"
@@ -198,7 +269,7 @@ export default function PrescriptionsPage() {
       <PageBanner title="Prescription Management" subtitle="Upload your prescription and track its status with ease." />
 
       <div className="max-w-[860px] mx-auto px-6 py-9 flex flex-col gap-8">
-        <UploadForm onUploaded={(p) => setPrescriptions((prev) => [p, ...prev])} />
+        <UploadForm onUploaded={(p) => setPrescriptions((prev) => [p, ...prev])} userId={currentUser?.uid} />
 
         <div>
           <SectionLabel icon={<FileText size={12} color={C.accent} />} label="Prescription History" />
