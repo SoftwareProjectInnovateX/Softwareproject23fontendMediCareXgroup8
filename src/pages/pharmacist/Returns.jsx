@@ -1,17 +1,11 @@
-
-
-import { useState, useEffect } from "react";
-import { db } from "../../lib/firebase";
-import {
-  collection, onSnapshot, doc,
-  updateDoc, serverTimestamp, increment,
-} from "firebase/firestore";
+import { useState, useEffect, useCallback } from "react";
 import {
   RefreshCw, Clock, CheckCircle, XCircle,
   Phone, Hash, ChevronDown, ChevronUp, Check, X
 } from "lucide-react";
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
+const API_BASE = "http://localhost:5000/api/pharmacist/returns";
+
 const C = {
   bg:          "#f1f5f9",
   surface:     "#ffffff",
@@ -28,9 +22,6 @@ const FONT = {
   body:    "'DM Sans', sans-serif",
 };
 
-// ── Style helpers ─────────────────────────────────────────────────────────────
-
-/** Colour triple for the return request status (pending / approved / rejected) */
 function returnStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "approved": return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
@@ -39,7 +30,6 @@ function returnStatusStyle(status) {
   }
 }
 
-/** Colour triple for the refund processing status (processed / rejected / pending) */
 function refundStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "processed": return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
@@ -48,31 +38,22 @@ function refundStatusStyle(status) {
   }
 }
 
-/** Badge – generic coloured pill, style passed as a pre-computed object */
 function Badge({ label, style: s }) {
   return (
     <span
       className="text-[10px] font-bold px-[10px] py-[3px] rounded-[20px] uppercase tracking-[0.06em] whitespace-nowrap"
-      style={{
-        background: s.bg,
-        color: s.color,
-        border: `1px solid ${s.border}`,
-      }}
+      style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}
     >
       {label}
     </span>
   );
 }
 
-/** StatCard – summary metric tile (shared pattern across admin pages) */
 function StatCard({ icon: Icon, label, value, iconBg, iconColor }) {
   return (
     <div
       className="bg-white rounded-[14px] p-[18px_20px] flex items-center gap-[14px]"
-      style={{
-        border: `1px solid ${C.border}`,
-        boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
-      }}
+      style={{ border: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(26,135,225,0.07)" }}
     >
       <div
         className="w-11 h-11 rounded-[11px] shrink-0 flex items-center justify-center"
@@ -92,10 +73,6 @@ function StatCard({ icon: Icon, label, value, iconBg, iconColor }) {
   );
 }
 
-/**
- * ActionBtn – styled button for approve / reject actions.
- * Disabled when return is no longer in "pending" state or a write is in-flight.
- */
 function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) {
   return (
     <button
@@ -116,24 +93,14 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
   );
 }
 
-/**
- * ReturnRow – collapsible card for a single return request.
- * Summary row always visible; expanded section shows items, refund total,
- * customer note, pharmacist adjustment note textarea, and action buttons.
- *
- * @param {Object}   ret       - Firestore return document data.
- * @param {Function} onAction  - Callback: (id, returnStatus, refundStatus, note, items)
- * @param {boolean}  updating  - Disables buttons while Firestore write is in-flight.
- */
 function ReturnRow({ ret, onAction, updating }) {
   const [expanded, setExpanded] = useState(false);
-  const [adjNote, setAdjNote]   = useState(ret.adjustmentNote || ""); // pharmacist note draft
+  const [adjNote, setAdjNote]   = useState(ret.adjustmentNote || "");
   const rs = returnStatusStyle(ret.returnStatus);
   const rf = refundStatusStyle(ret.refundStatus);
 
-  // Format Firestore Timestamp to readable string
-  const createdAt = ret.createdAt?.toDate
-    ? ret.createdAt.toDate().toLocaleString("en-GB", {
+  const createdAt = ret.createdAt?._seconds
+    ? new Date(ret.createdAt._seconds * 1000).toLocaleString("en-GB", {
         day: "2-digit", month: "short", year: "numeric",
         hour: "2-digit", minute: "2-digit",
       })
@@ -142,12 +109,8 @@ function ReturnRow({ ret, onAction, updating }) {
   return (
     <div
       className="bg-white rounded-xl overflow-hidden"
-      style={{
-        border: `1px solid ${C.border}`,
-        boxShadow: "0 1px 3px rgba(26,135,225,0.06)",
-      }}
+      style={{ border: `1px solid ${C.border}`, boxShadow: "0 1px 3px rgba(26,135,225,0.06)" }}
     >
-      {/* ── Summary row ── */}
       <div
         className="grid items-center gap-3 px-[18px] py-[14px]"
         style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto" }}
@@ -157,7 +120,6 @@ function ReturnRow({ ret, onAction, updating }) {
           <p className="text-[11px] mt-[3px] flex items-center gap-1" style={{ color: C.textMuted }}>
             <Phone size={11} /> {ret.phone || "—"}
           </p>
-          {/* Truncate order ID for display */}
           <p className="text-[11px] mt-0.5 flex items-center gap-1" style={{ color: C.textMuted }}>
             <Hash size={11} /> Order: {ret.orderId?.slice(0, 8)}...
           </p>
@@ -166,36 +128,25 @@ function ReturnRow({ ret, onAction, updating }) {
         <div className="text-[13px] font-semibold" style={{ color: C.textPrimary }}>
           {ret.items?.length ?? 0} item{ret.items?.length !== 1 ? "s" : ""}
         </div>
-        {/* Refund amount in green */}
         <div className="text-sm font-bold text-[#059669]">
           Rs. {(ret.refundAmount || 0).toFixed(2)}
         </div>
-        {/* Two stacked badges: return status + refund status */}
         <div className="flex flex-col gap-[5px]">
           <Badge label={ret.returnStatus || "pending"} style={rs} />
           <Badge label={`Refund: ${ret.refundStatus || "pending"}`} style={rf} />
         </div>
         <button
           onClick={() => setExpanded(e => !e)}
-          className="bg-[#f1f5f9] rounded-lg px-3 py-[6px] cursor-pointer text-xs font-semibold flex items-center gap-[5px] transition-all duration-150"
-          style={{
-            border: `1px solid ${C.border}`,
-            color: C.textSoft,
-            fontFamily: FONT.body,
-          }}
+          className="bg-[#f1f5f9] rounded-lg px-3 py-[6px] cursor-pointer text-xs font-semibold flex items-center gap-[5px]"
+          style={{ border: `1px solid ${C.border}`, color: C.textSoft, fontFamily: FONT.body }}
         >
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           {expanded ? "Hide" : "Details"}
         </button>
       </div>
 
-      {/* ── Expanded detail section ── */}
       {expanded && (
-        <div
-          className="border-t px-[18px] py-4 bg-[#f8fafc]"
-          style={{ borderColor: C.border }}
-        >
-          {/* Returned items list */}
+        <div className="border-t px-[18px] py-4 bg-[#f8fafc]" style={{ borderColor: C.border }}>
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] mb-[10px]" style={{ color: C.textMuted }}>
             Returned Items
           </p>
@@ -209,10 +160,9 @@ function ReturnRow({ ret, onAction, updating }) {
                 <div>
                   <p className="text-[13px] font-semibold" style={{ color: C.textPrimary }}>{item.name}</p>
                   <p className="text-[11px]" style={{ color: C.textMuted }}>
-                    Code: {item.id} · Qty: {item.quantity} · Reason: {item.reason}
+                    Code: {item.productCode || "⚠️ missing"} · Qty: {item.quantity} · Reason: {item.reason}
                   </p>
                 </div>
-                {/* Line total: price × quantity */}
                 <p className="text-[13px] font-semibold" style={{ color: C.accent }}>
                   Rs. {((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                 </p>
@@ -220,23 +170,16 @@ function ReturnRow({ ret, onAction, updating }) {
             ))}
           </div>
 
-          {/* Customer's adjustment note (read-only display) */}
           {ret.adjustmentNote && (
             <div
               className="rounded-lg px-[14px] py-[10px] mb-4"
-              style={{
-                background: "rgba(26,135,225,0.04)",
-                border: "1px solid rgba(26,135,225,0.15)",
-              }}
+              style={{ background: "rgba(26,135,225,0.04)", border: "1px solid rgba(26,135,225,0.15)" }}
             >
-              <p className="text-[11px] font-bold uppercase mb-1" style={{ color: C.textMuted }}>
-                Customer Note
-              </p>
+              <p className="text-[11px] font-bold uppercase mb-1" style={{ color: C.textMuted }}>Customer Note</p>
               <p className="text-[13px]" style={{ color: C.textSoft }}>{ret.adjustmentNote}</p>
             </div>
           )}
 
-          {/* Pharmacist's internal note – editable only while return is still pending */}
           <div className="mb-4">
             <label
               className="text-[11px] font-bold uppercase tracking-[0.08em] block mb-[6px]"
@@ -249,7 +192,7 @@ function ReturnRow({ ret, onAction, updating }) {
               onChange={e => setAdjNote(e.target.value)}
               placeholder="Add note about this return/adjustment..."
               rows={2}
-              disabled={ret.returnStatus !== "pending"} // lock once processed
+              disabled={ret.returnStatus !== "pending"}
               className="w-full bg-white rounded-lg px-3 py-2 text-xs outline-none resize-y box-border"
               style={{
                 border: `1px solid rgba(26,135,225,0.4)`,
@@ -260,16 +203,13 @@ function ReturnRow({ ret, onAction, updating }) {
             />
           </div>
 
-          {/* Action buttons – disabled once return is no longer pending */}
           <div className="flex gap-2 flex-wrap">
-            {/* Approve: sets returnStatus=approved, refundStatus=processed, restocks items */}
             <ActionBtn
               label="Approve & Restock" icon={Check}
               disabled={ret.returnStatus !== "pending" || updating}
               onClick={() => onAction(ret.id, "approved", "processed", adjNote, ret.items)}
               color="#059669" bg="rgba(16,185,129,0.1)" border="rgba(16,185,129,0.25)"
             />
-            {/* Reject: sets both statuses to rejected, no restock (empty items array) */}
             <ActionBtn
               label="Reject Return" icon={X}
               disabled={ret.returnStatus !== "pending" || updating}
@@ -283,62 +223,63 @@ function ReturnRow({ ret, onAction, updating }) {
   );
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
 export default function Returns() {
   const [returns, setReturns]   = useState([]);
   const [filter, setFilter]     = useState("all");
   const [search, setSearch]     = useState("");
   const [updating, setUpdating] = useState(false);
 
-  // Real-time listener – sorted client-side by createdAt descending
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "CustomerReturns"), snap => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      data.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-      setReturns(data);
-    });
-    return () => unsub();
+  const fetchReturns = useCallback(async () => {
+    try {
+      const res  = await fetch(API_BASE);
+      const data = await res.json();
+      setReturns(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch returns:", err);
+    }
   }, []);
 
-  /**
-   * Processes a return request:
-   * 1. Updates returnStatus, refundStatus, note, and processedAt on the return doc.
-   * 2. If approved, increments stock for each returned item in the "products" collection
-   *    by matching on productCode. Uses dynamic import to avoid circular dependency.
-   */
+  useEffect(() => {
+    fetchReturns();
+    const interval = setInterval(fetchReturns, 30000);
+    return () => clearInterval(interval);
+  }, [fetchReturns]);
+
+  // Same signature as original: (id, returnStatus, refundStatus, adjNote, items)
   const handleAction = async (id, returnStatus, refundStatus, adjNote, items) => {
     setUpdating(true);
     try {
-      await updateDoc(doc(db, "CustomerReturns", id), {
-        returnStatus, refundStatus,
-        adjustmentNote: adjNote,
-        processedAt: serverTimestamp(),
-      });
-      if (returnStatus === "approved" && items.length > 0) {
-        await Promise.all(items.map(async item => {
-          if (!item.id) return;
-          const { getDocs, query, where, collection: col } = await import("firebase/firestore");
-          const q    = query(col(db, "products"), where("productCode", "==", item.id));
-          const snap = await getDocs(q);
-          if (!snap.empty) {
-            await updateDoc(snap.docs[0].ref, { stock: increment(item.quantity || 1) });
-          }
-        }));
+      if (returnStatus === "approved") {
+        // Approve + restock via dedicated endpoint
+        const res = await fetch(`${API_BASE}/${id}/approve`, {
+          method:  "PUT",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ adjNote, items }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } else {
+        // Reject via dedicated endpoint
+        const res = await fetch(`${API_BASE}/${id}/reject`, {
+          method:  "PUT",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ adjNote }),
+        });
+        if (!res.ok) throw new Error(await res.text());
       }
+      await fetchReturns();
     } catch (err) {
+      console.error("handleAction error:", err);
       alert(`Error: ${err.message}`);
     } finally {
       setUpdating(false);
     }
   };
 
-  // Derived counts for stat cards and filter labels
   const total    = returns.length;
   const pending  = returns.filter(r => (r.returnStatus || "pending") === "pending").length;
   const approved = returns.filter(r => r.returnStatus === "approved").length;
   const rejected = returns.filter(r => r.returnStatus === "rejected").length;
 
-  /** Applies filter tab and search to produce visible rows */
   const visible = returns.filter(r => {
     const matchFilter =
       filter === "all"      ? true :
@@ -366,7 +307,6 @@ export default function Returns() {
         </p>
       </div>
 
-      {/* ── Stat cards ── */}
       <div className="grid grid-cols-4 gap-[14px] mb-6">
         <StatCard icon={RefreshCw}   label="Total Returns" value={total}    iconBg="rgba(26,135,225,0.1)"  iconColor="#1a87e1" />
         <StatCard icon={Clock}       label="Pending"       value={pending}  iconBg="rgba(245,158,11,0.1)"  iconColor="#d97706" />
@@ -374,18 +314,17 @@ export default function Returns() {
         <StatCard icon={XCircle}     label="Rejected"      value={rejected} iconBg="rgba(239,68,68,0.1)"   iconColor="#dc2626" />
       </div>
 
-      {/* ── Filter tabs + search ── */}
       <div className="flex gap-2 mb-[18px] flex-wrap items-center">
         {[
-          { key: "all",      label: `All (${total})`        },
-          { key: "pending",  label: `Pending (${pending})`  },
+          { key: "all",      label: `All (${total})`         },
+          { key: "pending",  label: `Pending (${pending})`   },
           { key: "approved", label: `Approved (${approved})` },
           { key: "rejected", label: `Rejected (${rejected})` },
         ].map(f => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className="text-xs font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer transition-all duration-150"
+            className="text-xs font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer"
             style={{
               fontFamily: FONT.body,
               background: filter === f.key ? "rgba(26,135,225,0.12)" : C.surface,
@@ -401,34 +340,21 @@ export default function Returns() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="ml-auto bg-white rounded-lg px-3 py-[7px] text-xs outline-none w-60"
-          style={{
-            border: `1px solid ${C.border}`,
-            color: C.textPrimary,
-            fontFamily: FONT.body,
-          }}
+          style={{ border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }}
         />
       </div>
 
-      {/* ── Table column header ── */}
       <div
         className="grid px-[18px] py-[11px] gap-3 bg-[#e0f2fe] rounded-t-[10px]"
-        style={{
-          gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto",
-          border: `1px solid ${C.border}`,
-        }}
+        style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto", border: `1px solid ${C.border}` }}
       >
         {["Customer", "Date", "Items", "Refund", "Status", ""].map((h, i) => (
-          <div
-            key={i}
-            className="text-[11px] font-bold uppercase tracking-[0.08em]"
-            style={{ color: C.accent }}
-          >
+          <div key={i} className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.accent }}>
             {h}
           </div>
         ))}
       </div>
 
-      {/* ── Return rows ── */}
       <div className="flex flex-col gap-0.5 mt-0.5">
         {visible.length === 0 ? (
           <div

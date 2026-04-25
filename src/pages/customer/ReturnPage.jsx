@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
-import { collection, addDoc, serverTimestamp, getDocs } from "firebase/firestore";
+import {
+  collection, addDoc, serverTimestamp,
+  getDocs, query, where,
+} from "firebase/firestore";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, CheckCircle, RotateCcw, Package,
   ChevronDown, DollarSign, FileText, Send,
 } from "lucide-react";
 
-// Shared color tokens
 const C = {
   bg:          "#f1f5f9",
   surface:     "#ffffff",
@@ -23,7 +25,6 @@ const C = {
 
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
 
-// Reasons the customer can choose when returning a product
 const RETURN_REASONS = [
   "Damaged product",
   "Wrong item delivered",
@@ -32,7 +33,6 @@ const RETURN_REASONS = [
   "Other",
 ];
 
-// Reusable input style for all form fields
 const inputStyle = {
   background: C.surface, border: `1px solid ${C.border}`,
   borderRadius: 10, padding: "10px 14px",
@@ -40,7 +40,12 @@ const inputStyle = {
   outline: "none", width: "100%", boxSizing: "border-box",
 };
 
-// Labeled form field wrapper
+function clean(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  );
+}
+
 function Field({ label, children, required, icon: Icon }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -60,20 +65,18 @@ export default function ReturnPage() {
   const location      = useLocation();
   const navigate      = useNavigate();
 
-  // If coming from the Orders page, the order is pre-filled via router state
-  const passedOrder   = location.state?.order || null;
+  const passedOrder   = location.state?.order   || null;
   const passedOrderId = location.state?.orderId || "";
 
-  const [orders, setOrders]               = useState([]);
-  const [orderId, setOrderId]             = useState(passedOrderId);
-  const [selectedOrder, setSelectedOrder] = useState(passedOrder);
-  const [items, setItems]                 = useState([]);
-  const [note, setNote]                   = useState("");
-  const [loading, setLoading]             = useState(false);
-  const [submitted, setSubmitted]         = useState(false);
+  const [orders, setOrders]                 = useState([]);
+  const [orderId, setOrderId]               = useState(passedOrderId);
+  const [selectedOrder, setSelectedOrder]   = useState(passedOrder);
+  const [items, setItems]                   = useState([]);
+  const [note, setNote]                     = useState("");
+  const [loading, setLoading]               = useState(false);
+  const [submitted, setSubmitted]           = useState(false);
   const [fetchingOrders, setFetchingOrders] = useState(!passedOrder);
 
-  // On mount — if no order was passed, load delivered orders so the customer can pick one
   useEffect(() => {
     if (passedOrder) {
       initItems(passedOrder);
@@ -95,7 +98,6 @@ export default function ReturnPage() {
     fetchOrders();
   }, []);
 
-  // Build the item selection list from an order's product array
   function initItems(order) {
     if (order?.types) {
       setItems(order.types.map(item => ({
@@ -107,7 +109,6 @@ export default function ReturnPage() {
     }
   }
 
-  // Called when the customer picks an order from the dropdown
   const handleOrderSelect = (e) => {
     const id    = e.target.value;
     setOrderId(id);
@@ -117,48 +118,72 @@ export default function ReturnPage() {
     else setItems([]);
   };
 
-  // Toggle whether an item is selected for return
   const toggleItem = (i) =>
     setItems(prev => prev.map((item, idx) =>
       idx === i ? { ...item, selected: !item.selected } : item
     ));
 
-  // Update a field (quantity or reason) for a specific item
   const updateItem = (i, field, value) =>
     setItems(prev => prev.map((item, idx) =>
       idx === i ? { ...item, [field]: value } : item
     ));
 
-  // Only the items the customer ticked
   const selectedItems = items.filter(item => item.selected);
 
-  // Estimated refund = sum of (price × return quantity) for selected items
   const refundAmount = selectedItems.reduce((sum, item) =>
     sum + ((item.price || 0) * (item.returnQuantity || 1)), 0
   );
 
-  // Submit the return request to Firestore
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!orderId)                   return alert("Please select an order.");
     if (selectedItems.length === 0) return alert("Please select at least one item to return.");
     setLoading(true);
     try {
-      await addDoc(collection(db, "CustomerReturns"), {
-        orderId,
-        customerName:   selectedOrder?.customerName || "",
-        phone:          selectedOrder?.phone || "",
-        address:        selectedOrder?.address || "",
-        items: selectedItems.map(({ id, name, price, returnQuantity, reason }) => ({
-          id, name, price: price || 0, quantity: returnQuantity, reason,
-        })),
-        refundAmount,
-        adjustmentNote: note,
-        returnStatus:   "pending",
-        refundStatus:   "pending",
-        createdAt:      serverTimestamp(),
-        processedAt:    null,
-      });
+      // ✅ For each selected item, look up productCode from products collection by name
+      const cleanedItems = await Promise.all(
+        selectedItems.map(async (item) => {
+          let productCode = null;
+
+          // Look up by productName field in products collection
+          try {
+            const q    = query(collection(db, "products"), where("productName", "==", item.name));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+              productCode = snap.docs[0].data().productCode ?? null;
+            } else {
+              console.warn(`No product found with productName: "${item.name}"`);
+            }
+          } catch (err) {
+            console.error("Product lookup failed:", err);
+          }
+
+          return clean({
+            productCode,                          // ✅ what pharmacist uses to restock
+            name:     item.name          ?? null,
+            price:    item.price         ?? 0,
+            quantity: item.returnQuantity ?? 1,
+            reason:   item.reason        ?? RETURN_REASONS[0],
+          });
+        })
+      );
+
+      await addDoc(
+        collection(db, "CustomerReturns"),
+        clean({
+          orderId:        orderId                      || null,
+          customerName:   selectedOrder?.customerName  ?? null,
+          phone:          selectedOrder?.phone         ?? null,
+          address:        selectedOrder?.address       ?? null,
+          items:          cleanedItems,
+          refundAmount,
+          adjustmentNote: note                         || null,
+          returnStatus:   "pending",
+          refundStatus:   "pending",
+          createdAt:      serverTimestamp(),
+          processedAt:    null,
+        })
+      );
       setSubmitted(true);
     } catch (err) {
       alert(`Error: ${err.message}`);
@@ -167,26 +192,17 @@ export default function ReturnPage() {
     }
   };
 
-  // Success screen after submission
   if (submitted) return (
     <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
       <div className="flex items-center justify-center flex-col gap-3.5 min-h-[70vh] px-6">
         <div
           className="w-[72px] h-[72px] rounded-full flex items-center justify-center"
-          style={{
-            background: "rgba(16,185,129,0.1)",
-            border: "2px solid rgba(16,185,129,0.3)",
-          }}
+          style={{ background: "rgba(16,185,129,0.1)", border: "2px solid rgba(16,185,129,0.3)" }}
         >
           <CheckCircle size={36} color="#10b981" />
         </div>
-        <h2 className="text-[22px] font-bold" style={{ color: C.textPrimary }}>
-          Return Submitted!
-        </h2>
-        <p
-          className="text-sm text-center max-w-[340px] leading-relaxed"
-          style={{ color: C.textMuted }}
-        >
+        <h2 className="text-[22px] font-bold" style={{ color: C.textPrimary }}>Return Submitted!</h2>
+        <p className="text-sm text-center max-w-[340px] leading-relaxed" style={{ color: C.textMuted }}>
           Your return request has been submitted. The pharmacist will review it shortly.
         </p>
         <div className="flex gap-2.5 mt-2">
@@ -194,10 +210,8 @@ export default function ReturnPage() {
             onClick={() => navigate("/customer/orders")}
             className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer"
             style={{
-              background: C.surface,
-              color: C.textPrimary,
-              border: `1px solid ${C.border}`,
-              fontFamily: FONT.body,
+              background: C.surface, color: C.textPrimary,
+              border: `1px solid ${C.border}`, fontFamily: FONT.body,
               boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
             }}
           >
@@ -211,8 +225,7 @@ export default function ReturnPage() {
             }}
             className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-[13px] font-semibold cursor-pointer border-none text-white"
             style={{
-              background: C.accent,
-              fontFamily: FONT.body,
+              background: C.accent, fontFamily: FONT.body,
               boxShadow: "0 4px 12px rgba(26,135,225,0.25)",
             }}
           >
@@ -225,16 +238,11 @@ export default function ReturnPage() {
 
   return (
     <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
-
-      {/* Page header banner */}
       <div
         className="px-6 pt-12 pb-10 text-center"
         style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}
       >
-        <h1
-          className="text-[34px] font-bold text-white mb-2.5"
-          style={{ fontFamily: FONT.display }}
-        >
+        <h1 className="text-[34px] font-bold text-white mb-2.5" style={{ fontFamily: FONT.display }}>
           Return Request
         </h1>
         <p className="text-sm text-white/75 max-w-[480px] mx-auto">
@@ -243,49 +251,38 @@ export default function ReturnPage() {
       </div>
 
       <div className="max-w-[700px] mx-auto px-6 py-8">
-
-        {/* Back navigation */}
         <button
           onClick={() => navigate("/customer/orders")}
           className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-[7px] rounded-lg cursor-pointer mb-6"
           style={{
-            color: C.textMuted,
-            background: C.surface,
-            border: `1px solid ${C.border}`,
-            fontFamily: FONT.body,
+            color: C.textMuted, background: C.surface,
+            border: `1px solid ${C.border}`, fontFamily: FONT.body,
             boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
           }}
         >
           <ArrowLeft size={13} /> Back to Orders
         </button>
 
-        {/* Show order details if one was pre-selected from Orders page */}
         {selectedOrder && (
           <div
             className="rounded-xl px-[18px] py-3.5 mb-6"
-            style={{
-              background: "rgba(26,135,225,0.06)",
-              border: `1px solid ${C.border}`,
-            }}
+            style={{ background: "rgba(26,135,225,0.06)", border: `1px solid ${C.border}` }}
           >
             <p className="text-[13px] font-bold" style={{ color: C.accentDark }}>
               Order #{orderId.slice(0, 8)}&hellip;
             </p>
             <p className="text-xs mt-0.5" style={{ color: C.textMuted }}>
-              {selectedOrder.customerName} &middot; {selectedOrder.phone}
+              {selectedOrder.customerName ?? "—"} &middot; {selectedOrder.phone ?? "—"}
             </p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-[22px]">
-
-          {/* Order selector — only shown when no order was passed via router */}
           {!passedOrder && (
             <div
               className="rounded-2xl p-5"
               style={{
-                background: C.surface,
-                border: `1px solid ${C.border}`,
+                background: C.surface, border: `1px solid ${C.border}`,
                 boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
               }}
             >
@@ -310,8 +307,7 @@ export default function ReturnPage() {
                       ))}
                     </select>
                     <ChevronDown
-                      size={14}
-                      color={C.textMuted}
+                      size={14} color={C.textMuted}
                       className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
                     />
                   </div>
@@ -320,30 +316,24 @@ export default function ReturnPage() {
             </div>
           )}
 
-          {/* Item selection */}
           {items.length > 0 && (
             <div
               className="rounded-2xl overflow-hidden"
               style={{
-                background: C.surface,
-                border: `1px solid ${C.border}`,
+                background: C.surface, border: `1px solid ${C.border}`,
                 boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
               }}
             >
               <div
                 className="px-5 py-3.5"
-                style={{
-                  background: "rgba(26,135,225,0.04)",
-                  borderBottom: `1px solid ${C.border}`,
-                }}
+                style={{ background: "rgba(26,135,225,0.04)", borderBottom: `1px solid ${C.border}` }}
               >
                 <p
                   className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em]"
                   style={{ color: C.textMuted }}
                 >
                   <Package size={12} color={C.accent} />
-                  Select Items to Return{" "}
-                  <span style={{ color: C.error }}>*</span>
+                  Select Items to Return <span style={{ color: C.error }}>*</span>
                 </p>
               </div>
 
@@ -358,7 +348,6 @@ export default function ReturnPage() {
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      {/* Checkbox */}
                       <input
                         type="checkbox"
                         checked={item.selected}
@@ -366,8 +355,6 @@ export default function ReturnPage() {
                         className="w-4 h-4 flex-shrink-0"
                         style={{ accentColor: C.accent }}
                       />
-
-                      {/* Product image or icon */}
                       {item.imageUrl ? (
                         <img
                           src={item.imageUrl}
@@ -378,26 +365,21 @@ export default function ReturnPage() {
                       ) : (
                         <div
                           className="w-[42px] h-[42px] rounded-lg flex items-center justify-center flex-shrink-0"
-                          style={{
-                            background: "rgba(26,135,225,0.08)",
-                            border: `1px solid ${C.border}`,
-                          }}
+                          style={{ background: "rgba(26,135,225,0.08)", border: `1px solid ${C.border}` }}
                         >
                           <Package size={18} color={C.accent} />
                         </div>
                       )}
-
                       <div className="flex-1">
                         <p className="text-[13px] font-bold" style={{ color: C.textPrimary }}>
-                          {item.name}
+                          {item.name ?? "Unnamed item"}
                         </p>
                         <p className="text-[11px] mt-0.5" style={{ color: C.textMuted }}>
-                          Rs. {item.price || 0} &middot; Code: {item.id}
+                          Rs. {item.price ?? 0}
                         </p>
                       </div>
                     </div>
 
-                    {/* Extra fields appear only when the item is checked */}
                     {item.selected && (
                       <div className="grid grid-cols-2 gap-3 mt-3.5">
                         <Field label="Return Quantity">
@@ -422,8 +404,7 @@ export default function ReturnPage() {
                               ))}
                             </select>
                             <ChevronDown
-                              size={13}
-                              color={C.textMuted}
+                              size={13} color={C.textMuted}
                               className="absolute right-[11px] top-1/2 -translate-y-1/2 pointer-events-none"
                             />
                           </div>
@@ -436,14 +417,10 @@ export default function ReturnPage() {
             </div>
           )}
 
-          {/* Estimated refund preview */}
           {selectedItems.length > 0 && (
             <div
               className="flex justify-between items-center rounded-xl px-[18px] py-3.5"
-              style={{
-                background: "rgba(16,185,129,0.06)",
-                border: "1px solid rgba(16,185,129,0.22)",
-              }}
+              style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.22)" }}
             >
               <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: "#059669" }}>
                 <DollarSign size={14} color="#059669" /> Estimated Refund
@@ -454,12 +431,10 @@ export default function ReturnPage() {
             </div>
           )}
 
-          {/* Optional note from the customer */}
           <div
             className="rounded-2xl p-5"
             style={{
-              background: C.surface,
-              border: `1px solid ${C.border}`,
+              background: C.surface, border: `1px solid ${C.border}`,
               boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
             }}
           >
@@ -474,7 +449,6 @@ export default function ReturnPage() {
             </Field>
           </div>
 
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
@@ -489,10 +463,8 @@ export default function ReturnPage() {
             <Send size={15} />
             {loading ? "Submitting…" : "Submit Return Request"}
           </button>
-
         </form>
       </div>
-
     </div>
   );
 }
