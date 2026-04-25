@@ -1,54 +1,56 @@
-import { Outlet } from "react-router-dom";
-import PharmacistSidebar from "../components/PharmacistSidebar";
-import PharmacistHeader from "../components/PharmacistHeader";
+import React, { useState, createContext } from 'react';
+import { Outlet } from 'react-router-dom';
+import PharmacistSidebar from '../components/PharmacistSidebar';
+import PharmacistHeader from '../components/PharmacistHeader';
 
-export default function PharmacistLayout() {
+export const AlertContext = createContext();
+
+const PharmacistLayout = () => {
+  const [unreadAlerts, setUnreadAlerts] = useState(4);
+  const [userProfile, setUserProfile] = useState(() => {
+     try {
+        const saved = localStorage.getItem('medicarex_pharmacist_profile');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.isActive === undefined) parsed.isActive = true;
+            return parsed;
+        }
+     } catch {}
+     return {
+        name: 'Sarah Jenkins',
+        role: 'Lead Pharmacist',
+        avatarUrl: '',
+        isActive: true
+     };
+  });
+  const [pendingRxCount, setPendingRxCount] = useState(0);
+
+  const updateQueueCount = () => {
+     import('../services/pharmacistService').then(({ getPrescriptions }) => {
+        getPrescriptions().then(qs => {
+           setPendingRxCount(qs.filter(q => q.status === 'In Review' || q.status === 'New').length);
+        }).catch(console.error);
+     });
+  };
+
+  React.useEffect(() => {
+     updateQueueCount();
+  }, []);
+
   return (
-   <div style={{ flex: 1, display: "flex", flexDirection: "column", marginLeft: "230px" }}>
-
-      {/* White sidebar */}
-      <PharmacistSidebar />
-
-      {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-
-        {/* Header */}
-        <header style={{
-          background: "#ffffff",
-          borderBottom: "1px solid rgba(26,135,225,0.18)",
-          padding: "0 24px",
-          height: 60,
-          display: "flex",
-          alignItems: "center",
-          boxShadow: "0 1px 8px rgba(26,135,225,0.07)",
-        }}>
+    <AlertContext.Provider value={{ unreadAlerts, setUnreadAlerts, pendingRxCount, updateQueueCount, userProfile, setUserProfile }}>
+      <div className="flex bg-[#f5f9ff] min-h-screen font-sans transition-colors duration-200">
+        <PharmacistSidebar />
+        <div className="ml-64 flex-1 flex flex-col h-screen">
           <PharmacistHeader />
-        </header>
-
-        {/* Page content */}
-        <main style={{
-          flex: 1,
-          padding: "32px",
-          overflowY: "auto",
-          background: "#f1f5f9",
-        }}>
-          <Outlet />
-        </main>
-
-        {/* Footer */}
-        <footer style={{
-          background: "#ffffff",
-          borderTop: "1px solid rgba(26,135,225,0.18)",
-          textAlign: "center",
-          padding: "14px",
-          fontSize: 13,
-          color: "#94a3b8",
-          fontWeight: 500,
-        }}>
-          © 2026 MediCareX Pharmacy System. All rights reserved.
-        </footer>
-
+          <div className="flex-1 overflow-y-auto w-full p-6 relative">
+             <Outlet />
+          </div>
+        </div>
       </div>
-    </div>
+    </AlertContext.Provider>
   );
-}
+};
+
+export default PharmacistLayout;
+

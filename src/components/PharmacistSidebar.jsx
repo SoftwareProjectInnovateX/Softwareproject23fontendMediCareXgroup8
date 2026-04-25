@@ -1,121 +1,116 @@
-import { NavLink } from "react-router-dom";
-import logo from "../assets/logo.png";
-import {
-  LayoutDashboard, PlusCircle, Package,
-  FileText, ShoppingCart, Archive,
-  RefreshCw, Tag, MessageSquare
-} from "lucide-react";
+import React, { useContext } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { AlertContext } from '../layouts/PharmacistLayout';
+import { 
+  LayoutDashboard, 
+  FileText, 
+  Pill, 
+  Users, 
+  Archive, 
+  Search, 
+  Bell,
+  BarChart2,
+  Settings,
+  LogOut,
+  RotateCcw,
+  Package,
+  PlusCircle,
+  Tag,
+  Layers,
+  MessageSquare,
+} from 'lucide-react';
 
-const C = {
-  sidebar: "linear-gradient(180deg, #1737c2 0%, #0284c7 100%)",
-  border: "rgba(255,255,255,0.18)",
-};
+const PharmacistSidebar = () => {
+  const navigate = useNavigate();
+  const { unreadAlerts, pendingRxCount } = useContext(AlertContext);
 
-const FONT = {
-  display: "'Playfair Display', serif",
-  body: "'DM Sans', sans-serif",
-};
+  const handleLogout = () => {
+    navigate('/login');
+  };
 
-const navItems = [
-  { section: "Main", items: [
-    { to: "/pharmacist/dashboard",   label: "Dashboard",     icon: LayoutDashboard },
-    { to: "/pharmacist/add-product", label: "Add Product",   icon: PlusCircle      },
-    { to: "/pharmacist/my-products", label: "My Products",   icon: Package         },
-  ]},
-  { section: "Management", items: [
-    { to: "/pharmacist/prescriptions", label: "Prescriptions", icon: FileText      },
-    { to: "/pharmacist/orders",        label: "Orders",        icon: ShoppingCart  },
-    { to: "/pharmacist/inventory",     label: "Inventory",     icon: Archive       },
-    { to: "/pharmacist/returns",       label: "Returns",       icon: RefreshCw     },
-    { to: "/pharmacist/brands",        label: "Brands",        icon: Tag           },
-    { to: "/pharmacist/messages",      label: "Messages",      icon: MessageSquare },
-  ]},
-];
+  const navItems = [
+    { path: '/pharmacist/dashboard',     name: 'Dashboard',      icon: LayoutDashboard },
+    { path: '/pharmacist/prescriptions', name: 'Prescriptions',  icon: FileText, badge: pendingRxCount > 0 ? pendingRxCount.toString() : null },
+    { path: '/pharmacist/orders', name: 'Orders',         icon: Package },
+    { path: '/pharmacist/dispensing',    name: 'Dispensing',     icon: Pill },
+    { path: '/pharmacist/patients',      name: 'Patients',       icon: Users },
+    { path: '/pharmacist/inventory',     name: 'Inventory',      icon: Archive },
+    { path: '/pharmacist/lookup',        name: 'Drug Lookup',    icon: Search },
+    { path: '/pharmacist/returns',       name: 'Returns',        icon: RotateCcw },
+    { path: '/pharmacist/notifications', name: 'Notifications',  icon: Bell, dot: unreadAlerts > 0 },
+    { path: '/pharmacist/reports',       name: 'Reports',        icon: BarChart2 },
+    // ── New pages ──────────────────────────────────────────────
+    { path: '/pharmacist/add-product',   name: 'Add Product',    icon: PlusCircle },
+    { path: '/pharmacist/brands', name: 'Add Brand', icon: Tag },
+    { path: '/pharmacist/my-products',   name: 'My Products',    icon: Layers },
+    { path: '/pharmacist/messages',      name: 'Messages',       icon: MessageSquare, dot: false },
+  ];
 
-export default function PharmacistSidebar() {
   return (
-    <>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@500&display=swap" rel="stylesheet" />
+    <div className="w-64 bg-[#0b5ed7] text-white flex flex-col h-screen fixed left-0 top-0 transition-all duration-300">
+      {/* Logo */}
+      <div className="h-[70px] flex items-center px-6 bg-[#084298] border-b border-indigo-900/30">
+        <span className="text-3xl font-black tracking-wider antialiased text-white drop-shadow-sm">
+          MediCareX
+        </span>
+      </div>
 
-      <aside style={{
-    width: "230px", height: "100vh",
-    position: "fixed", top: 0, left: 0,
-    background: C.sidebar,
-    borderRight: `1px solid ${C.border}`,
-    display: "flex", flexDirection: "column",
-    fontFamily: FONT.body,
-    boxShadow: "2px 0 16px rgba(2,132,199,0.3)",
-    overflowY: "auto", zIndex: 100,
-  }}>
-        {/* Logo */}
-        <div style={{ padding: "28px 20px 22px", borderBottom: `1px solid ${C.border}` }}>
-          <img
-            src={logo}
-            alt="MediCare Logo"
-            style={{ width: 120, height: "auto", objectFit: "contain", marginBottom: 6 }}
-          />
-          <div style={{
-            fontSize: 11, color: "rgb(255, 255, 255)", marginTop: 3,
-            textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600,
-          }}>
-            Pharmacist Panel
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: "16px 12px", display: "flex", flexDirection: "column", gap: 2 }}>
-          {navItems.map(({ section, items }) => (
-            <div key={section}>
-              <div style={{
-                fontSize: 11, color: "rgb(255, 255, 255)",
-                textTransform: "uppercase", letterSpacing: "0.12em",
-                fontWeight: 700, padding: "14px 12px 5px",
-              }}>
-                {section}
-              </div>
-              {items.map(({ to, label, icon: Icon }) => (
-                <NavLink key={to} to={to} style={({ isActive }) => ({
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8,
-                  fontSize: 14, fontWeight: isActive ? 600 : 500,
-                  color: "#ffffff",
-                  opacity: isActive ? 1 : 0.78,
-                  background: isActive ? "rgba(255,255,255,0.22)" : "transparent",
-                  borderLeft: isActive ? "2.5px solid #ffffff" : "2.5px solid transparent",
-                  textDecoration: "none", fontFamily: FONT.body,
-                  transition: "all 0.15s",
-                  boxShadow: isActive ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
-                })}>
-                  <Icon size={16} strokeWidth={2} style={{ flexShrink: 0 }} />
-                  {label}
-                </NavLink>
-              ))}
+      {/* Navigation */}
+      <div className="flex-1 overflow-y-auto py-6 space-y-1">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.name}
+            to={item.path}
+            className={({ isActive }) =>
+              `flex items-center justify-between px-6 py-3 transition-colors duration-200 ${
+                isActive
+                  ? 'bg-[#06357a] text-white font-medium'
+                  : 'hover:bg-[#084298] text-white'
+              }`
+            }
+          >
+            <div className="flex items-center gap-3">
+              <item.icon className="w-5 h-5" />
+              <span>{item.name}</span>
             </div>
-          ))}
-        </nav>
+            {item.badge && (
+              <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {item.badge}
+              </span>
+            )}
+            {item.dot && (
+              <span className="w-2 h-2 rounded-full bg-red-400" />
+            )}
+          </NavLink>
+        ))}
+      </div>
 
-        {/* User footer */}
-        <div style={{ padding: "14px 16px", borderTop: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: "50%",
-              background: "rgba(255,255,255,0.25)",
-              border: "1.5px solid rgba(255,255,255,0.4)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 12, fontWeight: 700, color: "#ffffff",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-            }}>PH</div>
-            <div>
-              <div style={{ fontSize: 15, color: "#ffffff", fontWeight: 700 }}>Pharmacist</div>
-              <div style={{ fontSize: 12, color: "#bbf7d0", fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
-                Online
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Footer */}
+      <div className="border-t border-blue-400/40 p-3">
+        <NavLink
+          to="/pharmacist/settings"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
+              isActive
+                ? 'bg-[#06357a] text-white font-medium'
+                : 'hover:bg-[#084298] text-white'
+            }`
+          }
+        >
+          <Settings className="w-5 h-5" />
+          <span>Settings</span>
+        </NavLink>
 
-      </aside>
-    </>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 w-full px-4 py-3 text-white rounded-lg hover:bg-red-500/80 transition-colors duration-200 bg-transparent border-none mt-1"
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Logout</span>
+        </button>
+      </div>
+    </div>
   );
-}
+};
+
+export default PharmacistSidebar;
