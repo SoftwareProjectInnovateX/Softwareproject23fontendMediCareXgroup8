@@ -107,9 +107,9 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
           <span
             className="text-[10px] font-bold px-[10px] py-[3px] rounded-[10px] uppercase tracking-[0.06em]"
             style={{
-              background: order.paymentStatus === 'paid' ? '#f0fdf4' : '#fffbeb',
+              background: order.paymentStatus === 'paid' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(217, 119, 6, 0.1)',
               color:      order.paymentStatus === 'paid' ? '#16a34a' : '#d97706',
-              border:     order.paymentStatus === 'paid' ? '1px solid #bbf7d0' : '1px solid #fde68a',
+              border:     order.paymentStatus === 'paid' ? '1px solid rgba(22, 163, 74, 0.3)' : '1px solid rgba(217, 119, 6, 0.3)',
             }}
           >
             {order.paymentStatus || 'pending'}
@@ -121,7 +121,7 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
           <button
             onClick={onReturnClick}
             className="flex items-center gap-[6px] text-[12px] font-semibold px-[18px] py-[9px] rounded-[10px] cursor-pointer"
-            style={{ background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fed7aa', fontFamily: FONT.body }}
+            style={{ background: "rgba(234, 88, 12, 0.1)", color: '#ea580c', border: '1.5px solid rgba(234, 88, 12, 0.3)', fontFamily: FONT.body }}
           >
             <RotateCcw size={13} /> Return Items <ChevronRight size={12} />
           </button>

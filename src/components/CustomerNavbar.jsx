@@ -1,8 +1,9 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCartStore } from "../stores/cartStore";
-import { ShoppingCart, User, LogOut, Phone, Mail } from "lucide-react";
+import { ShoppingCart, User, LogOut, Phone, Mail, Sun, Moon } from "lucide-react";
 import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
 
@@ -17,6 +18,7 @@ export default function CustomerNavbar() {
   const pathname = location.pathname;
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { isDarkMode, toggleTheme } = useTheme();
 
   const items = useCartStore((state) => state.items || []);
   const cartCount = items.reduce((total, item) => total + (item.qty || 0), 0);
@@ -97,9 +99,10 @@ export default function CustomerNavbar() {
 
       {/* ── Main Navbar ── */}
       <div style={{
-        background: "#ffffff",
-        borderBottom: "1px solid rgba(26,135,225,0.15)",
+        background: "var(--navbar-bg)",
+        borderBottom: "1px solid var(--navbar-border)",
         boxShadow: "0 2px 16px rgba(26,135,225,0.09)",
+        transition: "background 0.3s ease, border-color 0.3s ease",
       }}>
         <div style={{ width: "100%", padding: "0 40px", boxSizing: "border-box" }}>
           <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -113,10 +116,10 @@ export default function CustomerNavbar() {
                 flexShrink: 0,
               }} />
               <div>
-                <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 20, color: "#0f2a5e", lineHeight: 1.2 }}>
+                <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 20, color: "var(--text-primary)", lineHeight: 1.2 }}>
                   MediCareX
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 500, color: "#64748b", letterSpacing: "0.04em", marginTop: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", letterSpacing: "0.04em", marginTop: 1 }}>
                   Your Smart Pharmacy
                 </div>
               </div>
@@ -139,11 +142,11 @@ export default function CustomerNavbar() {
                     transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
                     ...(isActive(link.href)
                       ? { background: "#1749b5", color: "#ffffff", boxShadow: "0 4px 20px rgba(26,135,225,0.28)" }
-                      : { color: "#334155", background: "transparent" }
+                      : { color: "var(--text-primary)", background: "transparent" }
                     ),
                   }}
-                  onMouseEnter={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "rgba(26,135,225,0.08)"; e.currentTarget.style.color = "#1a87e1"; } }}
-                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#334155"; } }}
+                  onMouseEnter={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "var(--accent-blue-soft)"; e.currentTarget.style.color = "var(--accent-blue)"; } }}
+                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-primary)"; } }}
                 >
                   {link.name}
                 </Link>
@@ -153,6 +156,23 @@ export default function CustomerNavbar() {
             {/* ── RIGHT: Cart + Profile + Logout ── */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
 
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 44, height: 44, borderRadius: 12,
+                  background: "var(--accent-blue-soft)",
+                  border: "1.5px solid var(--card-border)",
+                  cursor: "pointer",
+                  transition: "background 0.15s, border-color 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,135,225,0.13)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--accent-blue-soft)"; }}
+              >
+                {isDarkMode ? <Sun size={20} color="var(--accent-blue)" strokeWidth={1.8} /> : <Moon size={20} color="var(--accent-blue)" strokeWidth={1.8} />}
+              </button>
+
               {/* Cart */}
               <Link
                 to="/customer/cart"
@@ -160,15 +180,15 @@ export default function CustomerNavbar() {
                   position: "relative",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   width: 44, height: 44, borderRadius: 12,
-                  background: "rgba(26,135,225,0.06)",
-                  border: "1.5px solid rgba(26,135,225,0.18)",
+                  background: "var(--accent-blue-soft)",
+                  border: "1.5px solid var(--card-border)",
                   textDecoration: "none",
                   transition: "background 0.15s, border-color 0.15s",
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,135,225,0.13)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.4)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(26,135,225,0.06)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.18)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--accent-blue-soft)"; e.currentTarget.style.borderColor = "var(--card-border)"; }}
               >
-                <ShoppingCart size={20} color="#1a87e1" strokeWidth={1.8} />
+                <ShoppingCart size={20} color="var(--accent-blue)" strokeWidth={1.8} />
                 {cartCount > 0 && (
                   <span style={{
                     position: "absolute", top: -7, right: -7,

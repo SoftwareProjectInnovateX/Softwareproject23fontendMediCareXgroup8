@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { db } from "../../lib/firebase";
+import { db } from "../../services/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import { Package } from "lucide-react";
 

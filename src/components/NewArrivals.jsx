@@ -3,13 +3,13 @@ import { db } from "../lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 
 const C = {
-  bg:          "#f1f5f9",
-  surface:     "#ffffff",
-  border:      "rgba(26,135,225,0.18)",
-  accent:      "#1a87e1",
-  accentDark:  "#0f2a5e",
-  textPrimary: "#1e293b",
-  textMuted:   "#64748b",
+  bg:          "var(--bg-primary)",
+  surface:     "var(--bg-secondary)",
+  border:      "var(--card-border)",
+  accent:      "var(--accent-blue)",
+  accentDark:  "var(--accent-blue)",
+  textPrimary: "var(--text-primary)",
+  textMuted:   "var(--text-secondary)",
   gold:        "#d97706",
 };
 

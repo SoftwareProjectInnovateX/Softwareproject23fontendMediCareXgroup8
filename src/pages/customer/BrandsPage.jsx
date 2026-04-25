@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { db } from "../../lib/firebase";
+import { db } from "../../services/firebase";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 
 import PageBanner from "../../components/profile/PageBanner";
 import BrandCard from "../../components/brands/BrandCard";
 
 const C = {
-  bg: "#f1f5f9",
+  bg: "var(--bg-primary)",
 };
 
 export default function BrandsPage() {

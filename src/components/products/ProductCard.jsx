@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ShoppingCart, X, Package } from 'lucide-react';
 import { useCartStore } from '../../stores/cartStore';
-import { db } from '../../lib/firebase';
+import { db } from '../../services/firebase';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { C, FONT } from './categoryConfig';
 

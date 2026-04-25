@@ -10,7 +10,7 @@ export default function HomePage() {
   const navigate = useNavigate();
 
   return (
-    <div className="bg-white w-full">
+    <div className="bg-[var(--bg-secondary)] w-full">
 
       {/* HERO */}
       <HeroCarousel />

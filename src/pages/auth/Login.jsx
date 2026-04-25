@@ -3,10 +3,11 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { FiEye, FiEyeOff } from "react-icons/fi";
+import { FcGoogle } from "react-icons/fc";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
 
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -57,6 +58,26 @@ const Login = () => {
       }, 1500);
     } catch (error) {
       setErrors({ submit: error.message || "Login failed. Please try again." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setErrors({});
+    try {
+      const response = await loginWithGoogle();
+      const userRole = response.user.role;
+      setSuccessMessage("Signed in with Google!");
+      setTimeout(() => {
+        if (userRole === "admin") navigate("/admin");
+        else if (userRole === "supplier") navigate("/supplier");
+        else if (userRole === "pharmacist") navigate("/pharmacist");
+        else navigate("/customer");
+      }, 1500);
+    } catch (error) {
+      setErrors({ submit: error.message || "Google login failed." });
     } finally {
       setLoading(false);
     }
@@ -186,6 +207,26 @@ const Login = () => {
             )}
           </button>
         </form>
+
+        {/* OR Divider */}
+        <div className="flex items-center gap-4 my-6">
+          <div className="flex-1 h-px bg-slate-200" />
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            OR
+          </span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>
+
+        {/* Google Login */}
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-slate-200 bg-white text-slate-700 text-base font-bold shadow-sm hover:bg-slate-50 hover:border-blue-200 hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+        >
+          <FcGoogle size={22} />
+          Sign in with Google
+        </button>
 
         {/* Footer */}
         <div className="mt-6 text-center">

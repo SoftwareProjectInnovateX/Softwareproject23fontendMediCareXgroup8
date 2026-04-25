@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../../lib/firebase';
+import { db } from '../../services/firebase';
 import {
   collection, addDoc, serverTimestamp,
   query, where, onSnapshot
@@ -9,14 +9,14 @@ import {
 import { Send, Mail, CheckCircle, MailOpen, Clock, Pill, MessageSquare } from 'lucide-react';
 
 const C = {
-  bg:          "#f1f5f9",
-  surface:     "#ffffff",
-  border:      "rgba(26,135,225,0.18)",
-  accent:      "#1a87e1",
+  bg:          "var(--bg-primary)",
+  surface:     "var(--bg-secondary)",
+  border:      "var(--card-border)",
+  accent:      "var(--accent-blue)",
   accentMid:   "#0284c7",
-  textPrimary: "#1e293b",
-  textMuted:   "#64748b",
-  textSoft:    "#475569",
+  textPrimary: "var(--text-primary)",
+  textMuted:   "var(--text-secondary)",
+  textSoft:    "var(--text-secondary)",
 };
 
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };

@@ -4,6 +4,7 @@ import CryptoJS from 'crypto-js';
 import { useCartStore } from '../../stores/cartStore';
 import BillingDetails from '../../components/checkout/BillingDetails';
 import OrderSummary from '../../components/checkout/OrderSummary';
+import { getAuthHeaders } from '../../services/firebase';
 
 const Checkout = () => {
     const navigate = useNavigate();
@@ -114,9 +115,13 @@ const Checkout = () => {
 
     const handleOrderSubmission = async (referenceId, shouldClearCart = false) => {
         try {
+            const authHeaders = await getAuthHeaders();
             const response = await fetch('http://localhost:5000/api/orders', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...authHeaders
+                },
                 body: JSON.stringify({
                     ...orderData,
                     orderId:      referenceId,
@@ -151,7 +156,7 @@ const Checkout = () => {
     };
 
     return (
-        <div className="min-h-screen bg-white font-sans text-slate-800">
+        <div className="min-h-screen font-sans" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
             <nav className="max-w-7xl mx-auto px-4 py-4 text-sm text-slate-500 border-b border-slate-100 mb-8">
                 Home &gt; <span className="text-blue-900 font-medium">Checkout</span>
             </nav>

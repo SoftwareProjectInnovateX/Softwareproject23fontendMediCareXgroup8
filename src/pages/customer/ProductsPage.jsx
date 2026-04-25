@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useCartStore } from "../../stores/cartStore";
-import { db } from "../../lib/firebase";
+import { db } from "../../services/firebase";
 import { collection, onSnapshot, query, where, getDocs, updateDoc, doc } from "firebase/firestore";
 import { CATEGORIES } from "../../data/categories";
 import SmartSearch from "../../components/SmartSearch";
@@ -69,15 +69,15 @@ function getCategoryIcon(name = "", size = 14, color = "currentColor") {
 }
 
 const C = {
-  bg: "#f1f5f9",
-  surface: "#ffffff",
-  border: "rgba(26,135,225,0.18)",
-  accent: "#1a87e1",
-  accentDark: "#0f2a5e",
+  bg: "var(--bg-primary)",
+  surface: "var(--bg-secondary)",
+  border: "var(--card-border)",
+  accent: "var(--accent-blue)",
+  accentDark: "var(--accent-blue)",
   accentMid: "#0284c7",
-  textPrimary: "#1e293b",
-  textMuted: "#64748b",
-  textSoft: "#475569",
+  textPrimary: "var(--text-primary)",
+  textMuted: "var(--text-secondary)",
+  textSoft: "var(--text-secondary)",
 };
 
 const FONT = {
@@ -270,6 +270,7 @@ function ProductCard({ product }) {
 export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [products, setProducts] = useState([]);
+  const [stockMap, setStockMap] = useState({});
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [smartResults, setSmartResults] = useState(null);
   const dropdownRef = useRef(null);
@@ -290,28 +291,17 @@ export default function ProductsPage() {
   ];
 
   useEffect(() => {
-    let productList = [];
-    let stockMap = {};
-
-    const merge = (list, map) =>
-      setProducts(
-        list.map((p) => ({
-          ...p,
-          stock: map[p.stockId || p.productCode]?.stock ?? 0,
-        }))
-      );
-
     const unsubProducts = onSnapshot(collection(db, "pharmacistProducts"), (snap) => {
-      productList = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      merge(productList, stockMap);
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setProducts(list);
     });
 
     const unsubStock = onSnapshot(collection(db, "products"), (snap) => {
-      stockMap = {};
+      const map = {};
       snap.forEach((d) => {
-        stockMap[d.data().productCode || d.id] = d.data();
+        map[d.data().productCode || d.id] = d.data();
       });
-      merge(productList, stockMap);
+      setStockMap(map);
     });
 
     return () => {
@@ -320,14 +310,22 @@ export default function ProductsPage() {
     };
   }, []);
 
-  const filteredProducts =
+  const enrichWithStock = (list) => {
+    return list.map((p) => ({
+      ...p,
+      stock: stockMap[p.stockId || p.productCode]?.stock ?? 0,
+    }));
+  };
+
+  const filteredProducts = enrichWithStock(
     smartResults !== null
       ? smartResults
       : products.filter((p) => {
           const matchCategory =
             selectedCategory === "all" || p.category === selectedCategory;
           return matchCategory;
-        });
+        })
+  );
 
   return (
     <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>

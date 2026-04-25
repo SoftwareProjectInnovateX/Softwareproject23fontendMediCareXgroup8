@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import {
-  collection, getDocs, doc, updateDoc,
-  deleteDoc, Timestamp, query, orderBy, setDoc
+  collection, getDocs, query, orderBy
 } from "firebase/firestore";
-import { db } from "../../services/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../services/firebase";
+import { db, getAuthHeaders } from "../../services/firebase";
+import {
+  MdVisibility,
+  MdCardGiftcard,
+  MdBlock,
+} from "react-icons/md";
+import { FaStar } from "react-icons/fa";
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function AccountRequests() {
   const [requests, setRequests]         = useState([]);
@@ -28,128 +33,68 @@ export default function AccountRequests() {
     }
   };
 
-  const generateNextId = async (collectionName, prefix) => {
-    const snapshot = await getDocs(collection(db, collectionName));
-    let maxNum = 0;
-    snapshot.forEach(d => {
-      const data = d.data();
-      const idField = `${collectionName.slice(0, -1)}Id`;
-      if (data[idField]) {
-        const num = parseInt(data[idField].replace(prefix, ''));
-        if (num > maxNum) maxNum = num;
-      }
-    });
-    return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
-  };
-
-  // Generate a secure temporary password
-  const generateTempPassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
-    let password = '';
-    for (let i = 0; i < 10; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
-  };
 
   const handleApprove = async (request) => {
-    if (!request?.id) return;   // ← guard against null request
+    if (!request?.id) return;
     if (!window.confirm(`Approve ${request.type} account for ${request.companyName || request.fullName}?`)) return;
 
     setActionLoading(request.id);
     try {
-      // 1. Generate a temporary password (since password is never stored in pendingRequests)
-      const tempPassword = generateTempPassword();
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`${API_BASE}/account-requests/${request.id}/approve`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders
+        }
+      });
+      const data = await res.json();
 
-      // 2. Create Firebase Auth account
-      const userCredential = await createUserWithEmailAndPassword(
-        auth, request.email, tempPassword
-      );
-      const uid = userCredential.user.uid;
-
-      // 3. Save to appropriate Firestore collection
-      if (request.type === 'supplier') {
-        const supplierId = await generateNextId('suppliers', 'S');
-        await setDoc(doc(db, 'suppliers', uid), {
-          supplierId,
-          userId:            uid,
-          name:              request.companyName,
-          email:             request.email,
-          phone:             request.phone,
-          contactPerson:     request.contactPerson,
-          businessRegNo:     request.businessRegNo,
-          businessAddress:   request.businessAddress,
-          categories:        request.categories || [],
-          bankName:          request.bankName,
-          accountNumber:     request.accountNumber,
-          accountHolderName: request.accountHolderName,
-          rating:            0,
-          status:            'active',
-          role:              'supplier',
-          createdAt:         Timestamp.now(),
-          updatedAt:         Timestamp.now(),
-        });
-      } else {
-        const pharmacistId = await generateNextId('pharmacists', 'P');
-        await setDoc(doc(db, 'pharmacists', uid), {
-          pharmacistId,
-          userId:         uid,
-          name:           request.fullName,
-          email:          request.email,
-          phone:          request.phone,
-          nicNumber:      request.nicNumber,
-          licenseNumber:  request.licenseNumber,
-          licenseExpiry:  request.licenseExpiry,
-          specialization: request.specialization,
-          role:           'pharmacist',
-          status:         'active',
-          createdAt:      Timestamp.now(),
-          updatedAt:      Timestamp.now(),
-        });
+      if (!res.ok) {
+        throw new Error(data.message || 'Approval failed');
       }
 
-      // 4. Mark request as approved
-      await updateDoc(doc(db, 'pendingRequests', request.id), {
-        status:     'approved',
-        approvedAt: Timestamp.now(),
-      });
-
-      // 5. Refresh list
+      // Refresh list
       await fetchRequests();
 
-      // 6. Show admin the temp password to share with the user
+      // Show admin the temp password returned from backend
       alert(
         `✓ Account approved!\n\n` +
         `Email: ${request.email}\n` +
-        `Temporary Password: ${tempPassword}\n\n` +
-        `Please share these credentials with the user and ask them to change their password after first login.`
+        `Temporary Password: ${data.tempPassword}\n\n` +
+        `The user has been notified via email with these credentials.`
       );
 
     } catch (err) {
       console.error(err);
-      if (err.code === 'auth/email-already-in-use') {
-        alert('This email already has a Firebase Auth account.');
-      } else {
-        alert('Failed to approve: ' + err.message);
-      }
+      alert('Failed to approve: ' + err.message);
     } finally {
       setActionLoading(null);
     }
   };
 
   const handleReject = async (request) => {
-    if (!request?.id) return;   // ← guard against null request
+    if (!request?.id) return;
     if (!window.confirm(`Reject request from ${request.companyName || request.fullName}?`)) return;
     setActionLoading(request.id);
     try {
-      await updateDoc(doc(db, 'pendingRequests', request.id), {
-        status:     'rejected',
-        rejectedAt: Timestamp.now(),
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`${API_BASE}/account-requests/${request.id}/reject`, {
+        method: 'POST',
+        headers: {
+          ...authHeaders
+        }
       });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Rejection failed');
+      }
+
       await fetchRequests();
+      alert('Request rejected. User has been notified.');
     } catch (err) {
       console.error(err);
-      alert('Failed to reject request');
+      alert('Failed to reject request: ' + err.message);
     } finally {
       setActionLoading(null);
     }

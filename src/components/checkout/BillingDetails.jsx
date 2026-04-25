@@ -8,7 +8,7 @@ const BillingDetails = ({ formData, handleInputChange }) => {
     return (
         <div className="space-y-8">
             <header>
-                <h2 className="text-2xl font-bold text-blue-900 border-b pb-4">
+                <h2 className="text-2xl font-bold border-b pb-4" style={{ color: "var(--accent-blue)" }}>
                     Billing details
                 </h2>
             </header>
@@ -24,7 +24,8 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                         name="email" 
                         value={formData.email} 
                         onChange={handleInputChange} 
-                        className="w-full p-4 bg-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        className="w-full p-4 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--navbar-border)" }}
                         placeholder="Enter your email"
                     />
                 </div>
@@ -39,7 +40,8 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                         name="firstName" 
                         value={formData.firstName} 
                         onChange={handleInputChange} 
-                        className="w-full p-4 bg-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        className="w-full p-4 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--navbar-border)" }}
                     />
                 </div>
 
@@ -52,7 +54,8 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                         name="lastName" 
                         value={formData.lastName} 
                         onChange={handleInputChange} 
-                        className="w-full p-4 bg-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        className="w-full p-4 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--navbar-border)" }}
                     />
                 </div>
 
@@ -61,7 +64,7 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                     <label className="block text-sm font-bold mb-2 text-slate-700">
                         Country / Region *
                     </label>
-                    <div className="w-full p-4 bg-white border border-slate-100 rounded-lg font-medium text-slate-600">
+                    <div className="w-full p-4 border rounded-lg font-medium" style={{ background: "var(--bg-secondary)", borderColor: "var(--navbar-border)", color: "var(--text-secondary)" }}>
                         Sri Lanka
                     </div>
                 </div>
@@ -77,7 +80,8 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                         value={formData.houseNumber} 
                         onChange={handleInputChange} 
                         placeholder="House Number or Name" 
-                        className="w-full p-4 bg-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        className="w-full p-4 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--navbar-border)" }}
                     />
                 </div>
 
@@ -91,7 +95,8 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                         value={formData.laneStreet} 
                         onChange={handleInputChange} 
                         placeholder="Lane / Street" 
-                        className="w-full p-4 bg-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        className="w-full p-4 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--navbar-border)" }}
                     />
                 </div>
 
@@ -104,7 +109,8 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                         name="city" 
                         value={formData.city} 
                         onChange={handleInputChange} 
-                        className="w-full p-4 bg-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        className="w-full p-4 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--navbar-border)" }}
                     />
                 </div>
 
@@ -117,7 +123,8 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                         name="phone" 
                         value={formData.phone} 
                         onChange={handleInputChange} 
-                        className="w-full p-4 bg-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        className="w-full p-4 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all" 
+                        style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--navbar-border)" }}
                         placeholder="07x xxxxxxx"
                     />
                 </div>
@@ -133,7 +140,8 @@ const BillingDetails = ({ formData, handleInputChange }) => {
                         onChange={handleInputChange} 
                         rows="4" 
                         placeholder="Notes about your order, e.g. special notes for delivery." 
-                        className="w-full p-4 bg-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                        className="w-full p-4 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                        style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--navbar-border)" }}
                     ></textarea>
                 </div>
             </div>

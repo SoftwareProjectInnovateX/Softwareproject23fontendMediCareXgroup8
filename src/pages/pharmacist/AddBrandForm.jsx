@@ -1,6 +1,6 @@
 
 import { useState, useRef, useEffect } from "react";
-import { db } from "../../lib/firebase";
+import { db } from "../../services/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { UploadCloud, X } from "lucide-react";
 

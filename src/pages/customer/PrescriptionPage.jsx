@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { db } from '../../lib/firebase';
+import { db, getAuthHeaders } from '../../services/firebase';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { Upload, FileText, User, Phone, MapPin, ExternalLink, FileX } from 'lucide-react';
 
@@ -65,7 +65,12 @@ function UploadForm({ onUploaded }) {
     fd.append('customerPhone',   phone);
     fd.append('customerAddress', address);
     try {
-      const res = await fetch('http://localhost:5000/api/prescriptions/upload', { method: 'POST', body: fd });
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch('http://localhost:5000/api/prescriptions/upload', { 
+        method: 'POST', 
+        headers: authHeaders,
+        body: fd 
+      });
       if (res.ok) {
         const { prescription } = await res.json();
         setSuccess(true);

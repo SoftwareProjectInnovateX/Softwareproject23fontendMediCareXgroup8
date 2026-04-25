@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { db } from "../../lib/firebase";
+import { db } from "../../services/firebase";
 import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { FileText, Phone, MapPin, ExternalLink, CheckCircle, XCircle, ClipboardList } from "lucide-react";
 
