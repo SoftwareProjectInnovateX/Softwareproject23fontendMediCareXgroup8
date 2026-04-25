@@ -9,6 +9,7 @@ import Card from '../Card';
 
 export default function OrderCard({ order, returnDoc, onReturnClick }) {
   const hasReturn = !!returnDoc;
+  const isCOD = (order.paymentMethod || '').toLowerCase() === 'cod';
 
   const createdAt = order.createdAt?.toDate
     ? order.createdAt.toDate().toLocaleDateString('en-GB', {
@@ -115,7 +116,8 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
           </span>
         </div>
 
-        {order.orderStatus === 'delivered' && !hasReturn && (
+        {/* ── Return button: only for COD orders that are delivered and have no existing return ── */}
+        {order.orderStatus === 'delivered' && !hasReturn && isCOD && (
           <button
             onClick={onReturnClick}
             className="flex items-center gap-[6px] text-[12px] font-semibold px-[18px] py-[9px] rounded-[10px] cursor-pointer"
