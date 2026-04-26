@@ -13,38 +13,38 @@ import {
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 
+// Available product categories for filtering
 const CATEGORIES = ["All", "Medicine", "Baby Items", "Skin Care", "Medical Equipment"];
 
-// Normalize strings for case/space-insensitive category matching
+// Removes spaces and lowercases a string for safe category comparison
 const normalize = (v = "") => v.toLowerCase().replace(/\s+/g, "");
 
 export default function Products() {
-  const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-  const [pendingOrders, setPendingOrders] = useState({});  // keyed by adminProductId
-  const [showOrderForm, setShowOrderForm] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [orderQty, setOrderQty] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState([]);            // All products from adminProducts collection
+  const [search, setSearch] = useState("");                // Keyword search input
+  const [category, setCategory] = useState("All");        // Active category filter
+  const [pendingOrders, setPendingOrders] = useState({}); // Latest order per product (keyed by adminProductId)
+  const [showOrderForm, setShowOrderForm] = useState(false);   // Controls order modal visibility
+  const [selectedProduct, setSelectedProduct] = useState(null); // Product being ordered
+  const [orderQty, setOrderQty] = useState("");            // Quantity entered in order form
+  const [loading, setLoading] = useState(false);           // Order submission loading state
 
-  // On mount: load products and subscribe to live order updates
+  // Load products and start listening to orders on mount
   useEffect(() => {
     loadProducts();
     const unsub = subscribeToOrders();
-    return () => unsub && unsub();
+    return () => unsub && unsub(); // Cleanup listener on unmount
   }, []);
 
-  // Fetch all admin products and run low stock check
+  // Fetch all products from adminProducts collection
   const loadProducts = async () => {
     const snap = await getDocs(collection(db, "adminProducts"));
     const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     setProducts(list);
-    autoLowStockCheck(list);
+    autoLowStockCheck(list); // Check for low stock after loading
   };
 
-  // Real-time listener for PENDING/APPROVED/REJECTED orders
-  // Keeps only the latest order per product to show the most current status
+  // Real-time listener for purchase orders — keeps order status badges up to date
   const subscribeToOrders = () => {
     const ordersQuery = query(
       collection(db, "purchaseOrders"),
@@ -55,7 +55,7 @@ export default function Products() {
       snapshot.docs.forEach((docSnap) => {
         const order = { id: docSnap.id, ...docSnap.data() };
         const pid = order.adminProductId;
-        // Keep only the most recently created order per product
+        // Keep only the most recent order per product
         if (
           !ordersByProduct[pid] ||
           order.createdAt?.toMillis() > ordersByProduct[pid].createdAt?.toMillis()
@@ -67,15 +67,16 @@ export default function Products() {
     });
   };
 
-  // Checks each product's stock and flags it as LOW STOCK if at or below 100
-  // Also sends a notification to the supplier if one is assigned
+  // Flags products with stock <= 100 as LOW STOCK and notifies the supplier
   const autoLowStockCheck = async (items) => {
     for (const p of items) {
       if (p.stock <= 100 && p.availability !== "LOW STOCK") {
+        // Update availability flag in Firestore
         await updateDoc(doc(db, "adminProducts", p.id), {
           availability: "LOW STOCK",
           updatedAt: Timestamp.now(),
         });
+        // Send low stock notification to the supplier
         if (p.supplierId) {
           await addDoc(collection(db, "notifications"), {
             type: "LOW_STOCK",
@@ -95,7 +96,7 @@ export default function Products() {
     }
   };
 
-  // Opens the order form for a product — blocks if no supplier is assigned
+  // Opens the order modal for a given product
   const openOrderForm = (product) => {
     if (!product.supplierId) {
       alert("This product has no supplier assigned");
@@ -106,6 +107,7 @@ export default function Products() {
     setShowOrderForm(true);
   };
 
+  // Submits a restock purchase order to Firestore
   const placeOrder = async () => {
     const qty = Number(orderQty);
     if (!qty || qty <= 0) {
@@ -116,12 +118,12 @@ export default function Products() {
     try {
       setLoading(true);
 
-      // Read the latest minStock from Firestore to avoid stale state
+      // Re-fetch minStock from Firestore to avoid using stale React state
       const adminRef = doc(db, "adminProducts", selectedProduct.id);
       const adminSnap = await getDoc(adminRef);
       const latestMinStock = Number(adminSnap.data()?.minStock) || 0;
 
-      // Prevent ordering more than the supplier has available
+      // Validate quantity against supplier's available stock
       if (qty > latestMinStock) {
         alert(`Supplier only has ${latestMinStock} units remaining. Please order ${latestMinStock} or fewer.`);
         return;
@@ -129,8 +131,9 @@ export default function Products() {
 
       const poId = `PO-${Date.now()}`;
       const totalAmount = qty * Number(selectedProduct.wholesalePrice);
+      const newMinStock = latestMinStock - qty; // Remaining supplier stock after this order
 
-      // Place the purchase order
+      // Create the purchase order document
       const orderRef = await addDoc(collection(db, "purchaseOrders"), {
         poId,
         product: selectedProduct.productName,
@@ -153,12 +156,13 @@ export default function Products() {
         pharmacistAcknowledged: false,
       });
 
+      // Deduct ordered quantity from admin's minStock
       await updateDoc(adminRef, {
         minStock: newMinStock,
         updatedAt: Timestamp.now(),
       });
 
-      // Mirror minStock on supplier's products collection
+      // Keep supplier's products collection in sync with updated minStock
       if (selectedProduct.productId) {
         await updateDoc(doc(db, "products", selectedProduct.productId), {
           minStock: newMinStock,
@@ -187,7 +191,7 @@ export default function Products() {
       alert("Order successfully placed and supplier has been notified");
       setShowOrderForm(false);
       setSelectedProduct(null);
-      loadProducts();
+      loadProducts(); // Refresh product list to reflect updated stock
     } catch (err) {
       console.error(err);
       alert("Failed to place order. Check console.");
@@ -196,7 +200,7 @@ export default function Products() {
     }
   };
 
-  // Returns a styled status badge for the latest order of a product, or null if none
+  // Returns a styled status badge for a product's latest order
   const getOrderStatus = (productId) => {
     const order = pendingOrders[productId];
     if (!order) return null;
@@ -208,6 +212,7 @@ export default function Products() {
     };
 
     const style = statusStyle[order.status] || "bg-gray-100 text-gray-600";
+    // Capitalize first letter only (e.g. "PENDING" → "Pending")
     const label = order.status.charAt(0) + order.status.slice(1).toLowerCase();
 
     return (
@@ -220,7 +225,7 @@ export default function Products() {
     );
   };
 
-  // Filter products by search term (name, manufacturer, supplier) and active category
+  // Filter products by search term and selected category
   const filtered = products.filter((p) => {
     const matchSearch =
       p.productName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -287,8 +292,10 @@ export default function Products() {
                   key={p.id}
                   className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
                 >
+                  {/* Product code */}
                   <td className="px-4 py-4 text-sm font-mono text-slate-600">{p.productCode}</td>
 
+                  {/* Product name and manufacturer */}
                   <td className="px-4 py-4">
                     <p className="font-semibold text-slate-800 text-sm m-0">{p.productName}</p>
                     {p.manufacturer && (
@@ -298,13 +305,14 @@ export default function Products() {
 
                   <td className="px-4 py-4 text-sm text-slate-700">{p.category}</td>
 
+                  {/* Supplier name badge */}
                   <td className="px-4 py-4">
                     <span className="inline-block bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-xs font-medium">
                       {p.supplierName || "—"}
                     </span>
                   </td>
 
-                  {/* Stock cell turns red and shows LOW badge when at or below 100 */}
+                  {/* Stock count — turns red and shows LOW badge when at or below 100 */}
                   <td className={`px-4 py-4 text-sm font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
                     {p.stock}
                     {p.stock <= 100 && (
@@ -314,6 +322,7 @@ export default function Products() {
                     )}
                   </td>
 
+                  {/* Fixed reorder level */}
                   <td className="px-4 py-4 text-sm text-slate-700">100</td>
 
                   <td className="px-4 py-4 text-sm text-slate-700">
@@ -324,13 +333,14 @@ export default function Products() {
                     Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
                   </td>
 
+                  {/* Latest order status badge for this product */}
                   <td className="px-4 py-4">
                     {getOrderStatus(p.id) || (
                       <span className="text-slate-300 italic text-sm">—</span>
                     )}
                   </td>
 
-                  {/* Order button only shown for low stock products; disabled if order already pending */}
+                  {/* Order Now button — only shown for low stock products */}
                   <td className="px-4 py-4">
                     {p.stock <= 100 && (
                       <button
@@ -349,20 +359,21 @@ export default function Products() {
         </div>
       </div>
 
-      {/* Empty state — shown when no products match the current search/filter */}
+      {/* Empty state when no products match the filter */}
       {filtered.length === 0 && (
         <div className="text-center py-16 bg-white rounded-xl mt-5">
           <p className="text-lg text-slate-500">No products found</p>
         </div>
       )}
 
-      {/* Order modal — clicking backdrop closes it; stopPropagation prevents inner click from closing */}
+      {/* Restock order modal — clicking the backdrop closes it */}
       {showOrderForm && selectedProduct && (
         <div
           className="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000] p-5"
           style={{ animation: "fadeIn 0.2s ease-out" }}
           onClick={() => setShowOrderForm(false)}
         >
+          {/* stopPropagation prevents backdrop click from closing when clicking inside */}
           <div
             className="bg-white p-8 rounded-2xl max-w-[500px] w-full shadow-2xl"
             style={{ animation: "slideUp 0.3s ease-out" }}
@@ -372,7 +383,7 @@ export default function Products() {
               Restock Order
             </h3>
 
-            {/* Product summary info rows */}
+            {/* Product summary info */}
             <div className="bg-slate-50 p-4 rounded-lg mb-5">
               {[
                 { label: "Product",            value: selectedProduct.productName },
@@ -388,6 +399,7 @@ export default function Products() {
               ))}
             </div>
 
+            {/* Quantity input — capped at supplier's available stock */}
             <div className="mb-5">
               <label className="block mb-2 font-semibold text-slate-800 text-[15px]">
                 Order Quantity *
@@ -408,7 +420,7 @@ export default function Products() {
               )}
             </div>
 
-            {/* Live total amount preview based on entered quantity */}
+            {/* Live total amount preview */}
             <div className="bg-blue-50 border-2 border-blue-200 px-4 py-4 rounded-lg mb-6">
               <p className="text-sm text-slate-500 mb-1">Total Amount:</p>
               <p className="text-2xl font-bold text-blue-600 m-0">
@@ -416,6 +428,7 @@ export default function Products() {
               </p>
             </div>
 
+            {/* Submit and cancel buttons */}
             <div className="flex gap-3 pt-5 border-t-2 border-slate-100">
               <button
                 onClick={placeOrder}
@@ -435,7 +448,7 @@ export default function Products() {
         </div>
       )}
 
-      {/* Keyframe animations for modal entrance */}
+      {/* Modal animations */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }
