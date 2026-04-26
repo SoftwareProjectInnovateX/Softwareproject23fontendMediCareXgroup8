@@ -47,12 +47,10 @@ import ContactPage from "./pages/customer/ContactPage";
 import PrescriptionPage from "./pages/customer/PrescriptionPage";
 import ReturnPage from "./pages/customer/ReturnPage";
 import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
-import Checkout from './pages/customer/Checkout';
 import Success from './pages/customer/Success';
 import Cancel from './pages/customer/Cancel';
 
 /* PHARMACIST */
-
 import AddProductForm from "./pages/pharmacist/Addproductform";
 import MyProducts from "./pages/pharmacist/MyProducts";
 import Prescriptions from "./pages/pharmacist/Prescriptions";
@@ -64,7 +62,6 @@ import PharmacistDashboard from "./pages/pharmacist/PharmacistDashboard";
 import PharmacistVerification from "./pages/pharmacist/PharmacistVerification";
 import PharmacistDispensing from "./pages/pharmacist/PharmacistDispensing";
 import PharmacistPatients from "./pages/pharmacist/PharmacistPatients";
-import PharmacistInventory from "./pages/pharmacist/PharmacistInventory";
 import PharmacistDrugLookup from "./pages/pharmacist/PharmacistDrugLookup";
 import PharmacistReports from "./pages/pharmacist/PharmacistReports";
 import PharmacistNotifications from "./pages/pharmacist/PharmacistNotifications";
@@ -74,15 +71,6 @@ import PharmacistDispensedToday from "./pages/pharmacist/PharmacistDispensedToda
 import PharmacistExpiringInventory from "./pages/pharmacist/PharmacistExpiringInventory";
 import PharmacistNewPatients from "./pages/pharmacist/PharmacistNewPatients";
 import PharmacistLowStock from "./pages/pharmacist/PharmacistLowStock";
-
-
-// ── My Route Constants ────────────────────────────────────────────────────────
-const ROUTES = {
-  HOME:             "/",
-  CHECKOUT:         "/checkout",
-  CHECKOUT_SUCCESS: "/customer/checkout/success",
-  CHECKOUT_CANCEL:  "/customer/checkout/cancel",
-};
 
 export default function App() {
   return (
@@ -168,32 +156,28 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<PharmacistDashboard />} />
         <Route path="add-product" element={<AddProductForm />} />
         <Route path="my-products" element={<MyProducts />} />
         <Route path="prescriptions" element={<Prescriptions />} />
         <Route path="orders" element={<Orders />} />
-        
         <Route path="returns" element={<Returns />} />
         <Route path="/pharmacist/brands" element={<BrandsManagementPage />} />
         <Route path="/pharmacist/messages" element={<MessagesPage />} />
-        <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<PharmacistDashboard />} />
-          <Route path="verification/:id" element={<PharmacistVerification />} />
-          <Route path="dispensing" element={<PharmacistDispensing />} />
-          <Route path="patients" element={<PharmacistPatients />} />
-          <Route path="inventory" element={<Products />} />
-          <Route path="lookup" element={<PharmacistDrugLookup />} />
-          <Route path="reports" element={<PharmacistReports />} />
-          <Route path="notifications" element={<PharmacistNotifications />} />
-          <Route path="settings" element={<PharmacistSettings />} />
-          <Route path="new-rx" element={<PharmacistNewRxEntry />} />
-          <Route path="dispensed-today" element={<PharmacistDispensedToday />} />
-          <Route path="expiring-inventory" element={<PharmacistExpiringInventory />} />
-          <Route path="new-patients" element={<PharmacistNewPatients />} />
-          <Route path="low-stock" element={<PharmacistLowStock />} />
-          
-        
+        <Route path="verification/:id" element={<PharmacistVerification />} />
+        <Route path="dispensing" element={<PharmacistDispensing />} />
+        <Route path="patients" element={<PharmacistPatients />} />
+        <Route path="inventory" element={<Products />} />
+        <Route path="lookup" element={<PharmacistDrugLookup />} />
+        <Route path="reports" element={<PharmacistReports />} />
+        <Route path="notifications" element={<PharmacistNotifications />} />
+        <Route path="settings" element={<PharmacistSettings />} />
+        <Route path="new-rx" element={<PharmacistNewRxEntry />} />
+        <Route path="dispensed-today" element={<PharmacistDispensedToday />} />
+        <Route path="expiring-inventory" element={<PharmacistExpiringInventory />} />
+        <Route path="new-patients" element={<PharmacistNewPatients />} />
+        <Route path="low-stock" element={<PharmacistLowStock />} />
       </Route>
 
       {/* 404 */}

@@ -20,6 +20,15 @@ import {
 } from "react-icons/md";
 
 /* ================= Stats Card ================= */
+/**
+ * Displays a single summary metric with a title, numeric value, and a colored icon.
+ * Used in the dashboard stats grid to give suppliers a quick overview of their activity.
+ *
+ * @param {string}  title    - Label describing the metric (e.g. "Total Purchase Orders").
+ * @param {number}  value    - The numeric value to display.
+ * @param {JSX}     icon     - React icon element rendered inside the colored badge.
+ * @param {string}  bgColor  - Tailwind background class applied to the icon badge.
+ */
 function StatsCard({ title, value, icon, bgColor }) {
   return (
     <div className="bg-white rounded-xl p-5 shadow-sm transition-all duration-250 hover:-translate-y-1 hover:shadow-md">
@@ -37,9 +46,15 @@ function StatsCard({ title, value, icon, bgColor }) {
 }
 
 /* ================= Quick Actions ================= */
+/**
+ * Renders a row of shortcut buttons that navigate the supplier to key pages.
+ * Each action is defined in the local `actions` array to keep the JSX clean
+ * and make it easy to add or remove shortcuts in the future.
+ */
 function QuickActions() {
   const navigate = useNavigate();
 
+  // Each entry defines the icon, label, background style, and destination route
   const actions = [
     {
       id: 1,
@@ -86,6 +101,11 @@ function QuickActions() {
 }
 
 /* ================= Recent Orders ================= */
+/**
+ * Fetches and displays the five most recent purchase orders for the logged-in supplier.
+ * Orders are queried from Firestore, sorted by creation date descending, and rendered
+ * in a scrollable table with color-coded status badges.
+ */
 function RecentOrders() {
   const { user } = useAuth();
   const supplierId = user?.uid;
@@ -93,6 +113,13 @@ function RecentOrders() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  /**
+   * Returns a Tailwind class string for the status badge based on the order status.
+   * Covers all known statuses; defaults to purple for any unrecognized value.
+   *
+   * @param {string} status - The order status string (e.g. "PENDING", "DELIVERED").
+   * @returns {string} Tailwind background and text color classes.
+   */
   const getStatusStyle = (status) => {
     switch (status) {
       case "PENDING":     return "bg-amber-100 text-amber-800";
@@ -104,6 +131,7 @@ function RecentOrders() {
     }
   };
 
+  // Fetch the latest 5 purchase orders for this supplier on mount or when supplierId changes
   useEffect(() => {
     if (!supplierId) return;
     const fetchOrders = async () => {
@@ -125,6 +153,7 @@ function RecentOrders() {
     fetchOrders();
   }, [supplierId]);
 
+  // Show a placeholder while the Firestore query is in progress
   if (loading)
     return (
       <div className="bg-white p-5 rounded-xl shadow-sm text-slate-400 text-base">
@@ -132,6 +161,7 @@ function RecentOrders() {
       </div>
     );
 
+  // Inform the supplier if no orders exist yet
   if (orders.length === 0)
     return (
       <div className="bg-white p-5 rounded-xl shadow-sm text-slate-400 text-base">
@@ -141,7 +171,7 @@ function RecentOrders() {
 
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm transition-all duration-250 hover:shadow-md">
-      {/* Header */}
+      {/* Header with navigation shortcut to the full orders list */}
       <div className="flex justify-between items-center mb-5">
         <h2 className="text-lg font-semibold text-slate-800">Recent Orders</h2>
         <button
@@ -152,7 +182,7 @@ function RecentOrders() {
         </button>
       </div>
 
-      {/* Table */}
+      {/* Scrollable table — min-width prevents column collapse on small screens */}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse min-w-[600px]">
           <thead>
@@ -173,6 +203,7 @@ function RecentOrders() {
                 key={o.id}
                 className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
               >
+                {/* PO ID displayed in monospace to preserve fixed-width formatting */}
                 <td className="px-3 py-3 font-mono font-semibold text-blue-600 text-sm">
                   {o.poId}
                 </td>
@@ -180,6 +211,7 @@ function RecentOrders() {
                 <td className="px-3 py-3 text-sm text-slate-700">{o.quantity}</td>
                 <td className="px-3 py-3 text-sm text-slate-700">{o.pharmacy}</td>
                 <td className="px-3 py-3">
+                  {/* Color-coded badge derived from getStatusStyle */}
                   <span
                     className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold uppercase transition-transform duration-200 hover:scale-105 ${getStatusStyle(o.status)}`}
                   >
@@ -199,18 +231,31 @@ function RecentOrders() {
 }
 
 /* ================= Dashboard ================= */
+/**
+ * Main supplier dashboard page.
+ *
+ * On mount it runs two parallel Firestore queries:
+ *   1. All purchase orders for the supplier — used to derive total, pending, and delivered counts.
+ *   2. LOW_STOCK notifications — used for the alerts count.
+ *
+ * The aggregated stats are passed to StatsCard components, followed by
+ * the QuickActions shortcuts and the RecentOrders table.
+ */
 export default function Dashboard() {
   const { user } = useAuth();
   const supplierId = user?.uid;
 
+  // Aggregated counts shown in the stats grid
   const [stats, setStats] = useState({
     total: 0, pending: 0, delivered: 0, alerts: 0,
   });
 
+  // Load dashboard stats whenever the authenticated supplier changes
   useEffect(() => {
     if (!supplierId) return;
     const loadStats = async () => {
       try {
+        // Fetch all orders for this supplier to compute status-based counts
         const ordersSnap = await getDocs(
           query(collection(db, "purchaseOrders"), where("supplierId", "==", supplierId))
         );
@@ -221,6 +266,8 @@ export default function Dashboard() {
           if (s === "PENDING") pending++;
           if (s === "DELIVERED") delivered++;
         });
+
+        // Fetch low-stock notifications to populate the alerts counter
         const alertSnap = await getDocs(
           query(
             collection(db, "notifications"),
@@ -236,6 +283,7 @@ export default function Dashboard() {
     loadStats();
   }, [supplierId]);
 
+  // Configuration array for the four summary cards rendered in the stats grid
   const statCards = [
     {
       title: "Total Purchase Orders",
@@ -266,7 +314,7 @@ export default function Dashboard() {
   return (
     <div className="p-5 bg-[#f5f6fa] min-h-screen">
 
-      {/* Stats Grid */}
+      {/* Stats Grid — 2 columns on mobile, 4 on large screens */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         {statCards.map((card) => (
           <StatsCard key={card.title} {...card} />
