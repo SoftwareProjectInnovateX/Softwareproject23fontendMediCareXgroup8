@@ -73,12 +73,27 @@ function UploadForm({ onUploaded, userId }) {
       const res = await fetch('http://localhost:5000/api/prescriptions/upload', { method: 'POST', body: fd });
       if (res.ok) {
         const { prescription } = await res.json();
-        setSuccess(true);
+        
+        // Instant Feedback: Save to localStorage and notify parent
         const localHistory = JSON.parse(localStorage.getItem('my_prescriptions') || '[]');
-        localStorage.setItem('my_prescriptions', JSON.stringify([prescription.id, ...localHistory]));
-        onUploaded(prescription);
+        const updatedHistory = [prescription.id, ...localHistory];
+        localStorage.setItem('my_prescriptions', JSON.stringify(updatedHistory));
+        
+        setSuccess(true);
+        // Call onUploaded with a formatted object for immediate display
+        onUploaded({
+          ...prescription,
+          id: prescription.id,
+          status: 'Pending',
+          createdAt: { toDate: () => new Date() }, // Mock Firestore timestamp
+          customerName: name,
+          customerPhone: phone,
+          customerAddress: address
+        });
+        
         reset();
-        setTimeout(() => { setFile(null); setSuccess(false); }, 3000);
+        setFile(null);
+        setTimeout(() => setSuccess(false), 3000);
       } else {
         const e = await res.json();
         alert(`Upload failed: ${e.message || 'Unknown error'}`);
@@ -150,7 +165,7 @@ function PrescriptionCard({ p }) {
       lname: lastName,
       phone: p.customerPhone,
       addr: p.customerAddress || '',
-      items: (p.orderItems || p.medications || []).map(m => m.name).join(', ')
+      items: JSON.stringify(p.orderItems || p.medications || [])
     });
     
     navigate(`/customer/checkout?${params.toString()}`);
@@ -293,19 +308,41 @@ export default function PrescriptionsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     const q = query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snap) => {
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    
+    const unsub = onSnapshot(q, (snap) => {
+      const allFirestore = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const localIds = JSON.parse(localStorage.getItem('my_prescriptions') || '[]');
-      const filtered = all.filter(p => {
-        if (currentUser?.uid && p.userId === currentUser.uid) return true;
-        if (localIds.includes(p.id)) return true;
-        if (currentUser?.phoneNumber && p.customerPhone === currentUser.phoneNumber) return true;
-        return false;
+      
+      setPrescriptions(prev => {
+        // 1. Get the Firestore items that the user is allowed to see
+        const authorizedFirestore = allFirestore.filter(p => {
+          if (currentUser?.uid && p.userId === currentUser.uid) return true;
+          if (localIds.includes(p.id)) return true;
+          if (currentUser?.phoneNumber && p.customerPhone === currentUser.phoneNumber) return true;
+          return false;
+        });
+
+        // 2. Find any "Optimistic" items in current state that haven't appeared in Firestore yet
+        const pendingOptimistic = prev.filter(p => 
+          p.status === 'Pending' && 
+          localIds.includes(p.id) && 
+          !authorizedFirestore.find(f => f.id === p.id)
+        );
+
+        // 3. Merge them: Firestore items first, then pending optimistic ones
+        return [...authorizedFirestore, ...pendingOptimistic].sort((a, b) => {
+           const timeA = a.createdAt?.seconds || Date.now()/1000;
+           const timeB = b.createdAt?.seconds || Date.now()/1000;
+           return timeB - timeA;
+        });
       });
-      setPrescriptions(filtered);
+      
       setLoading(false);
     });
+
+    return () => unsub();
   }, [currentUser]);
 
   return (

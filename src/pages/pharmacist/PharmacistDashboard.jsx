@@ -132,17 +132,42 @@ const PharmacistDashboard = () => {
       setOnlineDispensedCount(onlinePatients.size);
       setPhysicalDispensedCount(physicalPatients.size);
 
-      const dispatchedOnline = onlineOrders.filter(o => {
-        const orderDate = new Date(o.orderDate || o.timestamp).toDateString();
-        return o.status === 'Dispatched' && orderDate === todayStr;
+      // ── Online Orders Revenue Logic ──────────────────────────────────────────
+      let otherPaidRev = 0, otherCodRev = 0;
+      let prescPaidRev = 0, prescCodRev = 0;
+
+      onlineOrders.forEach(o => {
+        // Handle timestamps consistently
+        const ts = o.createdAt?._seconds ? new Date(o.createdAt._seconds * 1000) :
+                   o.createdAt?.toDate   ? o.createdAt.toDate() :
+                   o.orderDate           ? new Date(o.orderDate) :
+                   o.timestamp           ? new Date(o.timestamp) : null;
+
+        if (!ts || isNaN(ts.getTime()) || !isToday(ts)) return;
+
+        const amt = parseFloat(o.totalAmount || o.total || 0);
+        const isPaid = (o.paymentStatus || "").toLowerCase() === 'paid' || 
+                       (o.paymentMethod || "").toLowerCase() === 'online';
+        const isCOD  = (o.paymentMethod || "").toLowerCase() === 'cod';
+        const isRx   = !!(o.rxId || o.isPrescription);
+
+        if (isRx) {
+          if (isPaid) prescPaidRev += amt;
+          else if (isCOD) prescCodRev += amt;
+        } else {
+          if (isPaid) otherPaidRev += amt;
+          else if (isCOD) otherCodRev += amt;
+        }
       });
-      let paidRev = 0, codRev = 0;
-      dispatchedOnline.forEach(o => {
-        if (o.paymentStatus === 'Paid') paidRev += parseFloat(o.total) || 0;
-        else if (o.paymentMethod === 'COD') codRev += parseFloat(o.total) || 0;
-      });
-      setOnlinePaidRev(paidRev);
-      setOnlineCodRev(codRev);
+
+      // Update states for Online Prescriptions card
+      setDailyRevenue(prescPaidRev + prescCodRev); 
+      setOnlineRevCard(prescPaidRev); // Using this for the blue 'Paid' circle
+      setOnlineRevCod(prescCodRev);  // Using this for the amber 'COD' circle
+
+      // Update states for "Online Other Order" card
+      setOnlinePaidRev(otherPaidRev);
+      setOnlineCodRev(otherCodRev);
 
       // ── Returns count ───────────────────────────────────────────────────────
       const pending = returns.filter(r => r.status === 'Pending').length;
@@ -167,11 +192,15 @@ const PharmacistDashboard = () => {
         });
       });
 
-      onlineOrders.slice(-20).forEach(o => {
-        const ts = o.updatedAt ? new Date(o.updatedAt) :
-                   o.orderDate ? new Date(o.orderDate)  :
-                   o.timestamp ? new Date(o.timestamp)  : null;
-        if (!ts || isNaN(ts) || !isToday(ts)) return;
+      onlineOrders.slice(-30).forEach(o => {
+        // Handle Firestore timestamps (_seconds) or standard Date objects
+        const ts = o.createdAt?._seconds ? new Date(o.createdAt._seconds * 1000) :
+                   o.createdAt?.toDate   ? o.createdAt.toDate() :
+                   o.updatedAt           ? new Date(o.updatedAt) :
+                   o.orderDate           ? new Date(o.orderDate) :
+                   o.timestamp           ? new Date(o.timestamp) : null;
+
+        if (!ts || isNaN(ts.getTime()) || !isToday(ts)) return;
         const patientLabel = o.customerName || o.patient || 'Customer';
         const status = o.status || 'Updated';
         const color = status === 'Dispatched' ? 'bg-blue-500' :
