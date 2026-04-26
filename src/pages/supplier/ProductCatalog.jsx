@@ -6,9 +6,36 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { getAuth } from 'firebase/auth';
+import {
+  Pill, Sparkles, Baby, Droplets, Syringe, FlaskConical,
+  BandageIcon, Droplet, Heart, Eye, Star, Leaf,
+  Dumbbell, HeartHandshake, Package,
+} from 'lucide-react';
 
-// ─── BACKEND URL ─────────────────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// ─── Import categories from data ────────────────────────────────────────────
+import { CATEGORIES } from '../../data/categories';
+
+// ─── Map category id → lucide icon ──────────────────────────────────────────
+const CATEGORY_ICONS = {
+  'medicine':     Pill,
+  'skincare':     Sparkles,
+  'baby':         Baby,
+  'vitamins':     Droplets,
+  'pain-relief':  Syringe,
+  'antibiotics':  FlaskConical,
+  'first-aid':    BandageIcon,
+  'diabetes':     Droplet,
+  'heart':        Heart,
+  'eye-care':     Eye,
+  'dental':       Star,
+  'herbal':       Leaf,
+  'supplements':  Dumbbell,
+  'baby-mother':  HeartHandshake,
+  'other':        Package,
+};
+
+// ─── BACKEND URL — fixed to use /api prefix ──────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const STATUS_BADGE = {
   pending:  { cls: 'bg-amber-100 text-amber-700',    label: 'Pending Approval' },
@@ -32,8 +59,6 @@ const ProductCatalog = () => {
     description: '', manufacturer: '',
   });
 
-  const categories = ['Medicine', 'Baby Item', 'Skincare', 'Medical Equipment', 'Supplements'];
-
   // ── Auth listener ──────────────────────────────────────────────────────────
   useEffect(() => {
     const auth = getAuth();
@@ -44,34 +69,37 @@ const ProductCatalog = () => {
     return () => unsubscribe();
   }, []);
 
+  // ✅ Fixed: reads from suppliers collection to get the real company name
   const fetchUserDetails = async (userId) => {
     try {
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (userDoc.exists()) {
+      const supplierDoc = await getDoc(doc(db, 'suppliers', userId));
+      if (supplierDoc.exists()) {
+        const d = supplierDoc.data();
         setCurrentUser({
-          id: userId,
-          name: userDoc.data().name || userDoc.data().email || 'Supplier',
-          email: userDoc.data().email,
+          id:    userId,
+          name:  d.name || 'Supplier',   // ✅ real company name e.g. "University"
+          email: d.email,
         });
       } else {
+        // Fallback if supplier doc not found
         const auth = getAuth();
         setCurrentUser({
-          id: userId,
-          name: auth.currentUser?.email || 'Supplier',
+          id:    userId,
+          name:  'Supplier',
           email: auth.currentUser?.email,
         });
       }
     } catch {
       const auth = getAuth();
       setCurrentUser({
-        id: userId,
-        name: auth.currentUser?.email || 'Supplier',
+        id:    userId,
+        name:  'Supplier',
         email: auth.currentUser?.email,
       });
     }
   };
 
-  // ── Fetch APPROVED products (one-shot, these only change via edit/delete) ──
+  // ── Fetch APPROVED products ────────────────────────────────────────────────
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -91,13 +119,11 @@ const ProductCatalog = () => {
     }
   };
 
-  // ── One-shot fetch for approved products whenever currentUser is ready ─────
   useEffect(() => {
     if (currentUser) fetchProducts();
   }, [currentUser]);
 
-  // ── Real-time listener for pending/approved/rejected submissions ───────────
-  // Uses onSnapshot so the supplier tab updates instantly when admin approves
+  // ── Real-time listener for pending submissions ─────────────────────────────
   useEffect(() => {
     if (!currentUser?.id) return;
 
@@ -117,11 +143,10 @@ const ProductCatalog = () => {
       },
     );
 
-    // Cleanup on unmount or user change
     return () => unsubscribe();
   }, [currentUser]);
 
-  // ── Add product: submits to backend → saved to pendingProducts ─────────────
+  // ── Add product ────────────────────────────────────────────────────────────
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
@@ -133,9 +158,10 @@ const ProductCatalog = () => {
       if (!currentUser?.id) { alert('Please login to add products'); return; }
 
       const userId   = currentUser.id;
-      const userName = currentUser.name;
+      const userName = currentUser.name; // ✅ now correctly "University" not email
 
       const response = await fetch(
+        // ✅ Fixed: API_BASE already includes /api so no double prefix
         `${API_BASE}/supplier/products?supplierId=${userId}&supplierName=${encodeURIComponent(userName)}`,
         {
           method:  'POST',
@@ -157,7 +183,6 @@ const ProductCatalog = () => {
       alert('Product submitted for admin approval.\nYou will be notified once it is reviewed.');
       setShowModal(false);
       resetForm();
-      // Switch to pending tab — onSnapshot will automatically show the new entry
       setActiveTab('pending');
     } catch (error) {
       console.error('Error adding product:', error);
@@ -276,6 +301,30 @@ const ProductCatalog = () => {
     { label: 'Manufacturer',                key: 'manufacturer',   type: 'text',   placeholder: 'e.g., ABC Pharmaceuticals', required: false, full: true  },
   ];
 
+  // ── Helper: get display name for a category value ──────────────────────────
+  const getCategoryLabel = (categoryValue) => {
+    const match = CATEGORIES.find(
+      (c) => c.id === categoryValue || c.name === categoryValue,
+    );
+    return match ? match.name : categoryValue;
+  };
+
+  // ── Helper: render category with icon ─────────────────────────────────────
+  const CategoryBadge = ({ value }) => {
+    const match = CATEGORIES.find(
+      (c) => c.id === value || c.name === value,
+    );
+    const IconComponent = match ? (CATEGORY_ICONS[match.id] || Package) : Package;
+    const label = match ? match.name : value;
+
+    return (
+      <span className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+        <IconComponent size={14} className="text-slate-400" />
+        {label}
+      </span>
+    );
+  };
+
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
 
@@ -370,7 +419,9 @@ const ProductCatalog = () => {
                         <p className="font-medium text-slate-900 text-sm mb-0.5">{product.productName}</p>
                         <p className="text-xs text-slate-400 font-mono">{product.productCode}</p>
                       </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
+                      <td className="px-4 py-4">
+                        <CategoryBadge value={product.category} />
+                      </td>
                       <td className="px-4 py-4 text-sm font-semibold text-slate-800">
                         Rs.{Number(product.wholesalePrice).toFixed(2)}
                       </td>
@@ -422,7 +473,6 @@ const ProductCatalog = () => {
             <>
               {/* Info banner */}
               <div className="m-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
-                <span className="text-amber-500 text-lg leading-none mt-0.5">⏳</span>
                 <p className="text-[13px] text-amber-800">
                   Products listed here are awaiting admin review. Once approved, they will appear in the{' '}
                   <strong>Active Products</strong> tab and be visible in the admin inventory.
@@ -444,7 +494,6 @@ const ProductCatalog = () => {
                     {filteredPending.map((product) => {
                       const badge = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
 
-                      // Handle both Firestore Timestamp objects and plain { _seconds } objects
                       const formatDate = (val) => {
                         if (!val) return '—';
                         if (typeof val.toDate === 'function') return val.toDate().toLocaleDateString();
@@ -461,7 +510,9 @@ const ProductCatalog = () => {
                               <p className="text-xs text-slate-400">{product.manufacturer}</p>
                             )}
                           </td>
-                          <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
+                          <td className="px-4 py-4">
+                            <CategoryBadge value={product.category} />
+                          </td>
                           <td className="px-4 py-4 text-sm font-semibold text-slate-800">
                             Rs.{Number(product.wholesalePrice).toFixed(2)}
                           </td>
@@ -511,7 +562,6 @@ const ProductCatalog = () => {
 
             {!editingProduct && (
               <div className="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                <span className="text-amber-500 text-base leading-none mt-0.5">⚠️</span>
                 <p className="text-[13px] text-amber-800">
                   This product will be submitted for <strong>admin approval</strong> before it appears in the inventory.
                   A unique product code will be assigned upon approval.
@@ -532,7 +582,7 @@ const ProductCatalog = () => {
             <form onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct}>
               <div className="grid grid-cols-2 gap-x-7 gap-y-8">
 
-                {/* Category */}
+                {/* Category — rendered from CATEGORIES with lucide icons */}
                 <div className="flex flex-col">
                   <label className="block mb-2.5 font-semibold text-slate-900 text-[15px]">
                     Category <span className="text-red-500">*</span>
@@ -544,10 +594,26 @@ const ProductCatalog = () => {
                     className={inputCls}
                   >
                     <option value="">Select Category</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
+                    {CATEGORIES.map((cat) => {
+                      const IconComponent = CATEGORY_ICONS[cat.id] || Package;
+                      return (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      );
+                    })}
                   </select>
+                  {/* Icon preview for selected category */}
+                  {formData.category && (() => {
+                    const match = CATEGORIES.find((c) => c.id === formData.category);
+                    const IconComponent = match ? (CATEGORY_ICONS[match.id] || Package) : null;
+                    return match && IconComponent ? (
+                      <div className="mt-2 flex items-center gap-2 text-[13px] text-slate-500">
+                        <IconComponent size={15} className="text-blue-500" />
+                        <span>{match.name} selected</span>
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
 
                 {/* Dynamic fields */}

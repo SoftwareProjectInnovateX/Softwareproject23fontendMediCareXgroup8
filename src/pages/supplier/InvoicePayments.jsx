@@ -6,10 +6,11 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import {
-  MdAttachMoney, MdCheckCircle, MdHourglassEmpty,
-  MdWarning, MdVisibility, MdDownload, MdCreditCard,
+  MdCheckCircle, MdHourglassEmpty,
+  MdWarning, MdVisibility, MdDownload,
   MdLocalShipping,
 } from 'react-icons/md';
+import Card from '../../components/Card';
 
 // ─── BACKEND URL ─────────────────────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -38,7 +39,6 @@ const InvoicePayments = () => {
     if (!supplierId) return;
     try {
       setLoading(true);
-      // Only fetch invoices belonging to this supplier
       const baseQuery = filterStatus === 'All'
         ? query(
             collection(db, 'invoices'),
@@ -79,7 +79,7 @@ const InvoicePayments = () => {
     overdue: invoices.filter(i => i.paymentStatus === 'Overdue').reduce((s, i) => s + (i.totalAmount || 0), 0),
   });
 
-  /* ================= RECORD PAYMENT (supplier side) ================= */
+  /* ================= RECORD PAYMENT ================= */
   const recordPayment = async () => {
     if (!selectedInvoice || !paymentAmount) { alert('Please enter payment amount'); return; }
     const amount = parseFloat(paymentAmount);
@@ -104,24 +104,10 @@ const InvoicePayments = () => {
     }
   };
 
-  /*  DELIVERY UNLOCK CHECK  */
-  // Supplier can only proceed with delivery if the INITIAL invoice is Paid
-  const canProceedWithDelivery = (invoice) => {
-    return invoice.invoiceType === 'INITIAL' && invoice.paymentStatus === 'Paid';
-  };
-
-  const isInitialPaymentPaidForOrder = (purchaseOrderId) => {
-    const initialInvoice = invoices.find(
-      inv => inv.purchaseOrderId === purchaseOrderId && inv.invoiceType === 'INITIAL'
-    );
-    return initialInvoice?.paymentStatus === 'Paid';
-  };
-
-  // ─── CHANGED: now calls backend instead of opening raw browser window ──────
-  // Backend uses puppeteer to generate a proper PDF and returns it as a download
+  // ─── FIX: added /api prefix to the path ───────────────────────────────────
   const generatePDF = async (invoice) => {
     try {
-      const response = await fetch(`${API_BASE}/supplier/invoices/generate-pdf`, {
+      const response = await fetch(`${API_BASE}/api/supplier/invoices/generate-pdf`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -147,7 +133,6 @@ const InvoicePayments = () => {
 
       if (!response.ok) throw new Error('Failed to generate PDF');
 
-      // Convert response to blob and trigger browser download
       const blob     = await response.blob();
       const url      = window.URL.createObjectURL(blob);
       const link     = document.createElement('a');
@@ -157,13 +142,11 @@ const InvoicePayments = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF: ' + error.message);
     }
   };
-  // ─── END OF CHANGE ──────────────────────────────────────────────────────────
 
   /*  STYLE HELPERS  */
   const getStatusStyle = (status) => {
@@ -185,13 +168,6 @@ const InvoicePayments = () => {
 
   const totals = calculateTotals();
 
-  const summaryCards = [
-    { label: 'Total Revenue', value: totals.total,   count: null,                                                    accent: 'border-blue-500',    icon: <MdAttachMoney size={26} className="text-blue-600" />,    bg: 'bg-blue-50' },
-    { label: 'Received',      value: totals.paid,    count: invoices.filter(i => i.paymentStatus === 'Paid').length,    accent: 'border-emerald-500', icon: <MdCheckCircle size={26} className="text-emerald-600" />, bg: 'bg-emerald-50' },
-    { label: 'Pending',       value: totals.pending, count: invoices.filter(i => i.paymentStatus === 'Pending').length, accent: 'border-amber-400',   icon: <MdHourglassEmpty size={26} className="text-amber-500" />, bg: 'bg-amber-50' },
-    { label: 'Overdue',       value: totals.overdue, count: invoices.filter(i => i.paymentStatus === 'Overdue').length, accent: 'border-red-500',     icon: <MdWarning size={26} className="text-red-500" />,         bg: 'bg-red-50' },
-  ];
-
   /*  SHARED MODAL WRAPPER  */
   const ModalWrap = ({ onClose, children }) => (
     <div
@@ -212,6 +188,10 @@ const InvoicePayments = () => {
   const inputCls = "w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10";
   const disabledCls = "bg-slate-100 cursor-not-allowed";
 
+  const paidCount    = invoices.filter(i => i.paymentStatus === 'Paid').length;
+  const pendingCount = invoices.filter(i => i.paymentStatus === 'Pending').length;
+  const overdueCount = invoices.filter(i => i.paymentStatus === 'Overdue').length;
+
   /*  RENDER  */
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
@@ -224,28 +204,13 @@ const InvoicePayments = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-        {summaryCards.map((card) => (
-          <div
-            key={card.label}
-            className={`bg-white rounded-xl p-5 flex items-center gap-4 shadow-sm border-l-4 ${card.accent} transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
-          >
-            <div className={`${card.bg} w-14 h-14 flex items-center justify-center rounded-lg flex-shrink-0`}>
-              {card.icon}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-slate-500 font-medium mb-1">{card.label}</p>
-              <p className="text-[26px] font-bold text-slate-800 leading-tight">
-                Rs.{card.value.toFixed(2)}
-              </p>
-              {card.count !== null && (
-                <p className="text-xs text-slate-400 mt-0.5">{card.count} invoices</p>
-              )}
-            </div>
-          </div>
-        ))}
+        <Card title="Total Revenue"                          value={`Rs.${totals.total.toFixed(2)}`} />
+        <Card title={`Received (${paidCount} invoices)`}    value={`Rs.${totals.paid.toFixed(2)}`} />
+        <Card title={`Pending (${pendingCount} invoices)`}  value={`Rs.${totals.pending.toFixed(2)}`} />
+        <Card title={`Overdue (${overdueCount} invoices)`}  value={`Rs.${totals.overdue.toFixed(2)}`} />
       </div>
 
-      {/* Delivery Unlock Banner — shown when initial payment is pending */}
+      {/* Delivery Unlock Banner */}
       {invoices.some(inv => inv.invoiceType === 'INITIAL' && inv.paymentStatus === 'Pending') && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6 flex items-center gap-3">
           <MdLocalShipping size={22} className="text-amber-600 flex-shrink-0" />
@@ -313,7 +278,6 @@ const InvoicePayments = () => {
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      {/* Delivery lock/unlock indicator for INITIAL invoices */}
                       {invoice.invoiceType === 'INITIAL' ? (
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
                           ${invoice.paymentStatus === 'Paid'
@@ -355,7 +319,6 @@ const InvoicePayments = () => {
       {/* Invoice Details Modal */}
       {selectedInvoice && !showPaymentModal && (
         <ModalWrap onClose={() => setSelectedInvoice(null)}>
-          {/* Header */}
           <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200">
             <div>
               <h2 className="text-2xl font-bold text-slate-800">Invoice Details</h2>
@@ -366,9 +329,7 @@ const InvoicePayments = () => {
             <button onClick={() => setSelectedInvoice(null)} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 transition-colors">×</button>
           </div>
 
-          {/* Body */}
           <div className="p-6">
-            {/* Detail Grid */}
             <div className="grid grid-cols-2 gap-5 mb-6">
               {[
                 { label: 'Invoice Number', value: selectedInvoice.invoiceNumber },
@@ -418,8 +379,8 @@ const InvoicePayments = () => {
                 : 'bg-blue-50 border-blue-200'}`}>
                 <p className={`text-[13px] font-semibold m-0 ${selectedInvoice.paymentStatus === 'Paid' ? 'text-emerald-800' : 'text-blue-800'}`}>
                   {selectedInvoice.paymentStatus === 'Paid'
-                    ? '✓ Final payment received — all transactions complete'
-                    : '⏳ Final payment pending — MediCareX will pay this after order receipt'}
+                    ? 'Final payment received — all transactions complete'
+                    : 'Final payment pending — MediCareX will pay this after order receipt'}
                 </p>
               </div>
             )}
@@ -486,7 +447,6 @@ const InvoicePayments = () => {
             )}
           </div>
 
-          {/* Footer */}
           <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
             <button onClick={() => generatePDF(selectedInvoice)} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
               Download Receipt
@@ -498,7 +458,7 @@ const InvoicePayments = () => {
         </ModalWrap>
       )}
 
-      {/* Payment Modal (kept for edge cases, not primary flow) */}
+      {/* Payment Modal */}
       {showPaymentModal && selectedInvoice && (
         <ModalWrap onClose={() => setShowPaymentModal(false)}>
           <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200">
@@ -546,7 +506,6 @@ const InvoicePayments = () => {
         </ModalWrap>
       )}
 
-      {/* Keyframe animations */}
       <style>{`
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
         @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
