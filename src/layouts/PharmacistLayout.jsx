@@ -3,28 +3,10 @@ import { Outlet } from 'react-router-dom';
 import PharmacistSidebar from '../components/PharmacistSidebar';
 import PharmacistHeader from '../components/PharmacistHeader';
 
-import { db } from '../services/firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-
 export const AlertContext = createContext();
 
 const PharmacistLayout = () => {
-  const [unreadAlerts, setUnreadAlerts] = useState(0);
-  
-  // Real-time notifications listener for global badge
-  React.useEffect(() => {
-    const q = query(collection(db, 'pharmacistNotifications'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, (snap) => {
-      // Robust filter: ignore case and handle potential undefined status
-      const activeNotifs = snap.docs.filter(d => {
-        const s = (d.data().status || '').toLowerCase();
-        return s !== 'deleted';
-      });
-      setUnreadAlerts(activeNotifs.length);
-    });
-    return () => unsub();
-  }, []);
-
+  const [unreadAlerts, setUnreadAlerts] = useState(4);
   const [userProfile, setUserProfile] = useState(() => {
      try {
         const saved = localStorage.getItem('medicarex_pharmacist_profile');

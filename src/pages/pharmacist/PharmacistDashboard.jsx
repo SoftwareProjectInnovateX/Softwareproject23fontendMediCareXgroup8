@@ -70,37 +70,20 @@ const PharmacistDashboard = () => {
       ]);
 
       // ── Revenue & dispensed counts ──────────────────────────────────────────
-      const todayDispensed = dispensedList.filter(item => {
-        const ds = item.dispensedDate || 
-                   (item.dispensedAt ? new Date(item.dispensedAt).toDateString() : null) || 
-                   (item.createdAt ? new Date(item.createdAt).toDateString() : null) ||
-                   (item.date ? new Date(item.date).toDateString() : null);
-        return ds === todayStr;
-      });
+      const todayDispensed = dispensedList.filter(item => item.dispensedDate === todayStr);
       setDispensedTodayCount(todayDispensed.length);
 
       let wRxRev = 0, wOtcRev = 0, dRev = 0;
       let dRevCard = 0, dRevBank = 0, dRevPayHere = 0, dRevCod = 0;
       let onlineDispCount = 0, physicalDispCount = 0;
-      
-      const uniquePatients = new Set();
-      const onlinePatients = new Set();
-      const physicalPatients = new Set();
 
       todayDispensed.forEach(d => {
-        const amt = parseFloat(d.total) || 0;
-        const patientKey = d.patientId || d.patientName || d.verifiedPatient || d.customerName || d.rxId;
-        if (patientKey) uniquePatients.add(patientKey);
-
-        const isOnline = d.orderType === 'Online' || d.rxId;
-
-        if (isOnline) {
+        if (d.rxId) {
           onlineDispCount++;
-          if (patientKey) onlinePatients.add(patientKey);
-          // Count revenue if it's Paid OR if it's a confirmed COD order
-          if (d.paymentStatus === 'Paid' || d.paymentStatus === 'COD' || d.status === 'Successful') {
+          if (d.paymentStatus === 'Paid') {
+            const amt = parseFloat(d.total) || 0;
             dRev += amt;
-            if (d.paymentMethod === 'Card Payment' || d.paymentMethod === 'ONLINE') dRevCard += amt;
+            if (d.paymentMethod === 'Card Payment') dRevCard += amt;
             else if (d.paymentMethod === 'Bank Transfer') dRevBank += amt;
             else if (d.paymentMethod === 'PayHere') dRevPayHere += amt;
             else if (d.paymentMethod === 'COD') dRevCod += amt;
@@ -108,12 +91,11 @@ const PharmacistDashboard = () => {
           }
         } else {
           physicalDispCount++;
-          if (patientKey) physicalPatients.add(patientKey);
-          if (d.paymentStatus === 'Paid' || d.status === 'Successful') {
+          if (d.paymentStatus === 'Paid') {
             if (d.type === 'prescription' || d.id?.includes('RX')) {
-              wRxRev += amt;
+              wRxRev += parseFloat(d.total) || 0;
             } else {
-              wOtcRev += amt;
+              wOtcRev += parseFloat(d.total) || 0;
             }
           }
         }
@@ -126,11 +108,8 @@ const PharmacistDashboard = () => {
       setOnlineRevCod(dRevCod);
       setWalkinRxRev(wRxRev);
       setWalkinOtcRev(wOtcRev);
-      
-      // Update metrics to represent Unique Customer Count as requested
-      setDispensedTodayCount(uniquePatients.size);
-      setOnlineDispensedCount(onlinePatients.size);
-      setPhysicalDispensedCount(physicalPatients.size);
+      setOnlineDispensedCount(onlineDispCount);
+      setPhysicalDispensedCount(physicalDispCount);
 
       const dispatchedOnline = onlineOrders.filter(o => {
         const orderDate = new Date(o.orderDate || o.timestamp).toDateString();
@@ -321,46 +300,6 @@ const PharmacistDashboard = () => {
       setLastUpdated(new Date());
     }, (err) => console.error('Firestore prescriptions listen error:', err));
 
-    // --- Firebase onSnapshot - general notifications real-time ----------------
-    const notifQ = query(
-      collection(db, 'pharmacistNotifications'),
-      orderBy('createdAt', 'desc'),
-      limit(10)
-    );
-    const unsubNotifications = onSnapshot(notifQ, (snap) => {
-      const notifEntries = snap.docs.map(doc => {
-        const d = doc.data();
-        const ts = d.createdAt?.toDate ? d.createdAt.toDate() :
-                   d.createdAt ? new Date(d.createdAt) : new Date();
-        if (!isToday(ts)) return null;
-        
-        const color = d.colorType === 'emerald' ? 'bg-emerald-500' :
-                      d.colorType === 'red'     ? 'bg-red-400'     :
-                      d.colorType === 'blue'    ? 'bg-blue-400'    : 'bg-slate-400';
-                      
-        const hlColor = d.colorType === 'emerald' ? 'text-emerald-600' :
-                        d.colorType === 'red'     ? 'text-red-500'     :
-                        d.colorType === 'blue'    ? 'text-blue-600'    : 'text-slate-500';
-
-        return {
-          ts, color,
-          text: d.message || d.title,
-          highlight: d.title,
-          highlightColor: hlColor,
-          timeLabel: ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        };
-      }).filter(Boolean);
-
-      setActivityLog(prev => {
-        const merged = [...notifEntries, ...prev.filter(p =>
-          !notifEntries.some(ne => ne && ne.text === p.text && ne.timeLabel === p.timeLabel)
-        )];
-        merged.sort((a, b) => a.ts - b.ts);
-        return merged.slice(-30);
-      });
-      setLastUpdated(new Date());
-    });
-
     return () => {
       window.removeEventListener('revenue_updated',    handleUpdate);
       window.removeEventListener('dispensed_updated',  handleUpdate);
@@ -368,7 +307,6 @@ const PharmacistDashboard = () => {
       window.removeEventListener('patient_registered', updatePatientCount);
       clearInterval(clockTimer);
       unsubPrescriptions();
-      unsubNotifications();
     };
   }, []);
 

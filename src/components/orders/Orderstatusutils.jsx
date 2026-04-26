@@ -1,17 +1,15 @@
-import { CheckCircle, Clock, XCircle, AlertCircle, Truck } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, AlertCircle } from 'lucide-react';
 
 // ── Style helpers ─────────────────────────────────────────────────────────────
+
 // Returns background, text, and border colour tokens based on order status
 export const statusColor = (status) => {
   switch ((status || '').toLowerCase()) {
-    case 'delivered':        return { bg: '#f0fdf4',               color: '#16a34a', border: '#bbf7d0' };
-    case 'approved':         return { bg: 'rgba(26,135,225,0.08)', color: '#1a87e1', border: 'rgba(26,135,225,0.25)' };
-    case 'paid':             return { bg: '#f0fdf4',               color: '#16a34a', border: '#bbf7d0' };
-    case 'ready to collect': return { bg: '#ecfdf5',               color: '#059669', border: '#a7f3d0' };
-    case 'out for delivery': return { bg: '#eff6ff',               color: '#2563eb', border: '#bfdbfe' };
-    case 'processing':       return { bg: '#f5f3ff',               color: '#7c3aed', border: '#ddd6fe' };
-    case 'cancelled':        return { bg: '#fef2f2',               color: '#dc2626', border: '#fecaca' };
-    default:                 return { bg: '#fffbeb',               color: '#d97706', border: '#fde68a' }; // pending
+    case 'delivered':  return { bg: '#f0fdf4',               color: '#16a34a', border: '#bbf7d0' };
+    case 'approved':   return { bg: 'rgba(26,135,225,0.08)', color: '#1a87e1', border: 'rgba(26,135,225,0.25)' };
+    case 'processing': return { bg: '#f5f3ff',               color: '#7c3aed', border: '#ddd6fe' };
+    case 'cancelled':  return { bg: '#fef2f2',               color: '#dc2626', border: '#fecaca' };
+    default:           return { bg: '#fffbeb',               color: '#d97706', border: '#fde68a' }; // pending
   }
 };
 
@@ -40,13 +38,10 @@ export const refundStatusColor = (status) => {
 export function StatusIcon({ status }) {
   switch ((status || '').toLowerCase()) {
     case 'delivered':
-    case 'approved':
-    case 'paid':
-    case 'ready to collect': return <CheckCircle size={12} />;
-    case 'out for delivery': return <Truck size={12} />;
-    case 'processing':       return <Clock size={12} />;
-    case 'cancelled':        return <XCircle size={12} />;
-    default:                 return <AlertCircle size={12} />; // pending / unknown
+    case 'approved':   return <CheckCircle size={12} />;
+    case 'processing': return <Clock size={12} />;
+    case 'cancelled':  return <XCircle size={12} />;
+    default:           return <AlertCircle size={12} />; // pending / unknown
   }
 }
 

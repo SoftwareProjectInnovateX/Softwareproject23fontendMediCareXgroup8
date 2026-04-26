@@ -1,5 +1,5 @@
 import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Bell, Plus, User, FileText, Pill, Settings, LogOut } from 'lucide-react';
+import { Search, Bell, Plus, User, FileText, Pill } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlertContext } from '../layouts/PharmacistLayout';
 import { getPatients, getPrescriptions, getInventory } from '../services/pharmacistService';
@@ -250,35 +250,6 @@ const PharmacistHeader = () => {
             <span className="text-sm font-bold text-gray-900 leading-tight">{userProfile?.name || 'Pharmacist'}</span>
             <span className="text-[10px] text-gray-700 font-black uppercase tracking-wider">{userProfile?.role || 'Pharmacist'}</span>
           </div>
-        </div>
-
-        {/* Global Quick Actions */}
-        <div className="flex items-center gap-2 border-l border-white/50 pl-4 ml-4">
-           {/* Settings */}
-           <div className="relative group">
-              <button 
-                onClick={() => navigate('/pharmacist/settings')}
-                className="p-2 rounded-xl hover:bg-white/40 transition-all text-gray-800 hover:text-blue-700 active:scale-95"
-              >
-                <Settings size={20} />
-              </button>
-              <div className="absolute right-0 top-full mt-3 hidden group-hover:flex bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-2xl z-[100] whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95 duration-200">
-                 Settings
-              </div>
-           </div>
-
-           {/* Logout */}
-           <div className="relative group">
-              <button 
-                onClick={() => navigate('/login')}
-                className="p-2 rounded-xl hover:bg-red-500/20 transition-all text-gray-800 hover:text-red-600 active:scale-95"
-              >
-                <LogOut size={20} />
-              </button>
-              <div className="absolute right-0 top-full mt-3 hidden group-hover:flex bg-red-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-2xl z-[100] whitespace-nowrap pointer-events-none animate-in fade-in zoom-in-95 duration-200">
-                 Logout
-              </div>
-           </div>
         </div>
       </div>
     </div>

@@ -9,35 +9,45 @@ import {
   Plus,
   Lock,
   Save,
-  AlertTriangle,
-  Eye,
-  EyeOff
+  AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import { AlertContext } from '../../layouts/PharmacistLayout';
 import { getPharmacistProfile, updatePharmacistProfile, resetSystemData } from '../../services/pharmacistService';
-import { auth, db } from '../../services/firebase';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
-import { updatePassword as firebaseUpdatePassword } from 'firebase/auth';
 
 const PharmacistSettings = () => {
   const navigate = useNavigate();
   const { userProfile, setUserProfile } = useContext(AlertContext);
-  const { currentUser } = useAuth();
 
   const fileInputRef = useRef(null);
   const [profileImage, setProfileImage] = useState(userProfile?.avatarUrl || null);
-  const [showPassword, setShowPassword] = useState(false);
 
   // Profile State
   const [profile, setProfile] = useState({
-    name: userProfile?.name || '',
-    role: userProfile?.role || 'Pharmacist',
-    slmc: 'Loading...',
-    email: currentUser?.email || '',
-    contact: ''
+    name: userProfile?.name || 'Sarah Jenkins', // Removed "Dr." prefix
+    role: userProfile?.role || 'Lead Pharmacist',
+    slmc: 'PH-99283-SLMC',
+    email: 'sarah.j@medicarex.lk',
+    contact: '+94 77 123 4567'
   });
+
+  // Keep local state in sync with context if it changes elsewhere
+  useEffect(() => {
+    if (userProfile?.avatarUrl) {
+       setProfileImage(userProfile.avatarUrl);
+    }
+    if (userProfile?.name) {
+       setProfile(prev => ({ ...prev, name: userProfile.name, role: userProfile.role || prev.role }));
+    }
+  }, [userProfile]);
+
+  // Goals State
+  const [goals, setGoals] = useState([
+    { id: 1, text: 'Maintain 100% dispensing accuracy this week', completed: true },
+    { id: 2, text: 'Clear all pending verifications before end of shift', completed: false },
+    { id: 3, text: 'Review low stock alerts and submit purchase order', completed: false },
+  ]);
+  const [newGoal, setNewGoal] = useState('');
 
   // Password State
   const [passwords, setPasswords] = useState({
@@ -49,34 +59,16 @@ const PharmacistSettings = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchRealProfile = async () => {
-      if (!currentUser) {
-         setIsLoading(false);
-         return;
-      }
-
+    const fetchProfile = async () => {
       try {
-        // Fetch from pharmacists collection
-        const phDoc = await getDoc(doc(db, 'pharmacists', currentUser.uid));
-        if (phDoc.exists()) {
-           const data = phDoc.data();
-           setProfile({
-              name: data.fullName || data.name || userProfile?.name || '',
-              role: data.role || 'Pharmacist',
-              slmc: data.licenseNumber || data.slmc || 'N/A',
-              email: data.email || currentUser.email,
-              contact: data.phone || data.contact || ''
-           });
-           
-           // If we have a password saved in Firestore (dev/simulation purposes)
-           if (data.password) {
-              setPasswords(prev => ({ ...prev, current: data.password }));
-           }
-        }
-
-        // Also fetch simulated/extended profile data if exists
-        const data = await getPharmacistProfile(currentUser.uid);
+        const data = await getPharmacistProfile();
         if (data) {
+          if (data.profile) {
+             setProfile(data.profile);
+             if (data.profile.password) {
+                setPasswords(prev => ({ ...prev, current: data.profile.password }));
+             }
+          }
           if (data.goals) setGoals(data.goals);
           if (data.profileImage) setProfileImage(data.profileImage);
         }
@@ -86,15 +78,8 @@ const PharmacistSettings = () => {
         setIsLoading(false);
       }
     };
-    fetchRealProfile();
-  }, [currentUser]);
-
-  const [goals, setGoals] = useState([
-    { id: 1, text: 'Maintain 100% dispensing accuracy this week', completed: true },
-    { id: 2, text: 'Clear all pending verifications before end of shift', completed: false },
-    { id: 3, text: 'Review low stock alerts and submit purchase order', completed: false },
-  ]);
-  const [newGoal, setNewGoal] = useState('');
+    fetchProfile();
+  }, []);
 
   const handleProfileChange = (e) => {
     setProfile({...profile, [e.target.name]: e.target.value});
@@ -181,57 +166,42 @@ const PharmacistSettings = () => {
   };
 
   const saveSettings = async () => {
-    if (!currentUser) return;
+    // Save updated name/role as well
+    setUserProfile(prev => {
+       const updated = { ...prev, name: profile.name, role: profile.role, avatarUrl: profileImage };
+       localStorage.setItem('medicarex_pharmacist_profile', JSON.stringify(updated));
+       return updated;
+    });
 
-    // Handle password updates in Firebase Auth + Firestore
+    const updatedProfile = { ...profile };
+    // Handle password updates
     if (passwords.newPass) {
-       if (passwords.newPass !== passwords.confirm) {
+       if (passwords.newPass === passwords.confirm) {
+           updatedProfile.password = passwords.newPass;
+       } else {
            alert("New Password and Confirm Password do not match!");
            return;
        }
-       
-       try {
-          // 1. Update Firebase Auth Password
-          const authUser = auth.currentUser;
-          if (authUser) {
-             await firebaseUpdatePassword(authUser, passwords.newPass);
-          }
-
-          // 2. Update Firestore Password (if tracking it)
-          await updateDoc(doc(db, 'pharmacists', currentUser.uid), {
-             password: passwords.newPass,
-             fullName: profile.name,
-             phone: profile.contact
-          });
-          
-          alert("Password updated successfully across system!");
-          setPasswords({ current: passwords.newPass, newPass: '', confirm: '' });
-       } catch (error) {
-          console.error("Password change failed:", error);
-          alert(`Failed to update password. You may need to logout and login again for security reasons. Error: ${error.message}`);
-          return;
-       }
+    } else {
+       updatedProfile.password = passwords.current;
     }
 
-    // Save other preferences to our mock/dev service
     try {
-      await updatePharmacistProfile(currentUser.uid, {
-        profile,
+      const currentUserId = sessionStorage.getItem('userId') || 'default_pharmacist';
+      await updatePharmacistProfile(currentUserId, {
+        profile: updatedProfile,
         goals,
         profileImage
       });
-
-      // Update UI Context
-      setUserProfile(prev => {
-         const updated = { ...prev, name: profile.name, role: profile.role, avatarUrl: profileImage };
-         localStorage.setItem('medicarex_pharmacist_profile', JSON.stringify(updated));
-         return updated;
-      });
-
-      alert("All preferences saved successfully!");
+      alert("Profile and Security settings saved successfully to Database!");
+      
+      // Update local state to reflect new saved password
+      if (passwords.newPass) {
+          setPasswords({ current: passwords.newPass, newPass: '', confirm: '' });
+      }
     } catch (e) {
       console.error("Save Error:", e);
-      alert(`Failed to save settings. Error: ${e.message}`);
+      alert(`Failed to save settings to Database. Error: ${e.message}`);
     }
   };
 
@@ -257,14 +227,7 @@ const PharmacistSettings = () => {
     }
   };
 
-  if (isLoading) return (
-    <div className="min-h-[400px] flex items-center justify-center">
-       <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
-          <p className="text-slate-500 font-bold animate-pulse">Synchronizing Security Credentials...</p>
-       </div>
-    </div>
-  );
+  if (isLoading) return <div className="p-10 text-center text-slate-500 font-bold">Loading settings...</div>;
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
@@ -470,24 +433,15 @@ const PharmacistSettings = () => {
                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
                   <div className="md:col-span-2">
                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Current Password</label>
-                     <div className="relative md:w-1/2">
-                        <input 
-                           type={showPassword ? "text" : "password"} 
-                           name="current"
-                           value={passwords.current}
-                           onChange={handlePasswordChange}
-                           placeholder="Current Password"
-                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none font-mono"
-                           readOnly
-                        />
-                        <button 
-                           type="button"
-                           onClick={() => setShowPassword(!showPassword)}
-                           className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                           {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                     </div>
+                     <input 
+                        type="text" 
+                        name="current"
+                        value={passwords.current}
+                        onChange={handlePasswordChange}
+                        placeholder="Current Password"
+                        className="w-full md:w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none font-mono"
+                        readOnly
+                     />
                   </div>
                   <div>
                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">New Password</label>
@@ -506,20 +460,8 @@ const PharmacistSettings = () => {
                         name="confirm"
                         value={passwords.confirm}
                         onChange={handlePasswordChange}
-                        className={`w-full bg-white border rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none transition-all font-mono ${
-                           passwords.confirm && passwords.newPass !== passwords.confirm 
-                           ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
-                           : passwords.confirm && passwords.newPass === passwords.confirm
-                           ? 'border-emerald-500 focus:ring-emerald-500 focus:border-emerald-500'
-                           : 'border-slate-300 focus:border-amber-500 focus:ring-amber-500'
-                        }`}
+                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono"
                      />
-                     {passwords.confirm && passwords.newPass !== passwords.confirm && (
-                        <p className="text-[10px] text-red-500 font-bold mt-1 animate-pulse">⚠️ Passwords do not match</p>
-                     )}
-                     {passwords.confirm && passwords.newPass === passwords.confirm && (
-                        <p className="text-[10px] text-emerald-600 font-bold mt-1">✓ Passwords match</p>
-                     )}
                   </div>
                </div>
            </div>
