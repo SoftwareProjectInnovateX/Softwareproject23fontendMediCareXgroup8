@@ -399,6 +399,9 @@ export default function Orders() {
   const withReturn = orders.filter(o => !!getReturnForOrder(o.id)).length;
 
   const visible = orders.filter(o => {
+    const isRx = !!(o.rxId || o.isPrescription);
+    if (isRx) return false;
+
     const matchFilter =
       filter === "all"        ? true :
       filter === "pending"    ? (o.orderStatus || "pending") === "pending" :

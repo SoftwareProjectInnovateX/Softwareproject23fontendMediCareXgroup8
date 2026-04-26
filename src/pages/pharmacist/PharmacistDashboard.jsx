@@ -19,15 +19,13 @@ const PharmacistDashboard = () => {
   const [clockDisplay, setClockDisplay] = useState('');
   const scrollRef = useRef(null);
   
-  const [dailyRevenue, setDailyRevenue] = useState(0);
+  const [prescTotalRev, setPrescTotalRev] = useState(0);
+  const [prescPaidRev, setPrescPaidRev] = useState(0);
+  const [prescCodRev, setPrescCodRev] = useState(0);
+  const [otherPaidRev, setOtherPaidRev] = useState(0);
+  const [otherCodRev, setOtherCodRev] = useState(0);
   const [walkinRxRev, setWalkinRxRev] = useState(0);
   const [walkinOtcRev, setWalkinOtcRev] = useState(0);
-  const [onlinePaidRev, setOnlinePaidRev] = useState(0);
-  const [onlineCodRev, setOnlineCodRev] = useState(0);
-  const [onlineRevCard, setOnlineRevCard] = useState(0);
-  const [onlineRevBank, setOnlineRevBank] = useState(0);
-  const [onlineRevPayHere, setOnlineRevPayHere] = useState(0);
-  const [onlineRevCod, setOnlineRevCod] = useState(0);
   const [dispensedTodayCount, setDispensedTodayCount] = useState(0);
   const [physicalDispensedCount, setPhysicalDispensedCount] = useState(0);
   const [onlineDispensedCount, setOnlineDispensedCount] = useState(0);
@@ -119,11 +117,6 @@ const PharmacistDashboard = () => {
         }
       });
 
-      setDailyRevenue(dRev);
-      setOnlineRevCard(dRevCard);
-      setOnlineRevBank(dRevBank);
-      setOnlineRevPayHere(dRevPayHere);
-      setOnlineRevCod(dRevCod);
       setWalkinRxRev(wRxRev);
       setWalkinOtcRev(wOtcRev);
       
@@ -132,12 +125,12 @@ const PharmacistDashboard = () => {
       setOnlineDispensedCount(onlinePatients.size);
       setPhysicalDispensedCount(physicalPatients.size);
 
-      // ── Online Orders Revenue Logic ──────────────────────────────────────────
-      let otherPaidRev = 0, otherCodRev = 0;
-      let prescPaidRev = 0, prescCodRev = 0;
+      // ── Unified Revenue Calculation (Online + Dispensed) ──────────────────
+      let opPaid = 0, opCod = 0;
+      let orPaid = 0, orCod = 0;
 
+      // 1. First, process Online Orders (Incoming/Recent)
       onlineOrders.forEach(o => {
-        // Handle timestamps consistently
         const ts = o.createdAt?._seconds ? new Date(o.createdAt._seconds * 1000) :
                    o.createdAt?.toDate   ? o.createdAt.toDate() :
                    o.orderDate           ? new Date(o.orderDate) :
@@ -149,25 +142,53 @@ const PharmacistDashboard = () => {
         const isPaid = (o.paymentStatus || "").toLowerCase() === 'paid' || 
                        (o.paymentMethod || "").toLowerCase() === 'online';
         const isCOD  = (o.paymentMethod || "").toLowerCase() === 'cod';
-        const isRx   = !!(o.rxId || o.isPrescription);
+        const hasRxItems = o.types?.some(item => 
+          (item.id && item.id.toString().toLowerCase().includes('rx')) || 
+          (item.name && item.name.toLowerCase().includes('prescription'))
+        );
+        const isRx = !!(o.rxId || o.isPrescription || hasRxItems);
 
         if (isRx) {
-          if (isPaid) prescPaidRev += amt;
-          else if (isCOD) prescCodRev += amt;
+          if (isPaid) opPaid += amt;
+          else if (isCOD) opCod += amt;
         } else {
-          if (isPaid) otherPaidRev += amt;
-          else if (isCOD) otherCodRev += amt;
+          if (isPaid) orPaid += amt;
+          else if (isCOD) orCod += amt;
         }
       });
 
-      // Update states for Online Prescriptions card
-      setDailyRevenue(prescPaidRev + prescCodRev); 
-      setOnlineRevCard(prescPaidRev); // Using this for the blue 'Paid' circle
-      setOnlineRevCod(prescCodRev);  // Using this for the amber 'COD' circle
+      // 2. Second, merge with today's Dispensed items (Ensures real-time sync during dispensing)
+      todayDispensed.forEach(d => {
+        const amt = parseFloat(d.total || d.totalAmount || 0);
+        const isOnline = d.orderType === 'Online' || !!d.rxId || !!d.isPrescription;
+        if (!isOnline) return; // Only process online/prescription related dispensed items here
 
-      // Update states for "Online Other Order" card
-      setOnlinePaidRev(otherPaidRev);
-      setOnlineCodRev(otherCodRev);
+        const isPaid = (d.paymentStatus || "").toLowerCase() === 'paid' || 
+                       (d.paymentMethod || "").toLowerCase() === 'online';
+        const isCOD  = (d.paymentMethod || "").toLowerCase() === 'cod';
+        const isRx   = !!(d.rxId || d.isPrescription || d.id?.toString().includes('RX'));
+
+        // Avoid double counting if it's already in onlineOrders (usually they are different collections)
+        // But for safety, we treat them as complementary
+        if (isRx) {
+          if (isPaid) opPaid += amt;
+          else if (isCOD) opCod += amt;
+        } else {
+          if (isPaid) orPaid += amt;
+          else if (isCOD) orCod += amt;
+        }
+      });
+
+      // Update states for "Online Prescriptions" card (Left)
+      // Note: We take the MAX or a clever merge to avoid double counting if the collections overlap
+      // For now, let's assume they are unique entries in the business flow
+      setPrescTotalRev(opPaid + opCod); 
+      setPrescPaidRev(opPaid); 
+      setPrescCodRev(opCod);  
+
+      // Update states for "Online Other Order" card (Middle)
+      setOtherPaidRev(orPaid);
+      setOtherCodRev(orCod);
 
       // ── Returns count ───────────────────────────────────────────────────────
       const pending = returns.filter(r => r.status === 'Pending').length;
@@ -281,7 +302,7 @@ const PharmacistDashboard = () => {
 
   // --- Helper: is this timestamp from today? ---
   const isToday = (ts) => {
-    if (!ts || isNaN(ts)) return false;
+    if (!ts || isNaN(ts.getTime())) return false;
     const now = new Date();
     return ts.getFullYear() === now.getFullYear() &&
            ts.getMonth()    === now.getMonth()    &&
@@ -296,6 +317,9 @@ const PharmacistDashboard = () => {
     fetchAllDashboardData();
     fetchInventoryData();
     updatePatientCount();
+
+    // Auto-refresh main dashboard data every 30 seconds
+    const dataTimer = setInterval(fetchAllDashboardData, 30000);
 
     // 1-second live clock (no API calls, local only)
     const clockTimer = setInterval(() => {
@@ -356,6 +380,7 @@ const PharmacistDashboard = () => {
       orderBy('createdAt', 'desc'),
       limit(10)
     );
+
     const unsubNotifications = onSnapshot(notifQ, (snap) => {
       const notifEntries = snap.docs.map(doc => {
         const d = doc.data();
@@ -391,11 +416,12 @@ const PharmacistDashboard = () => {
     });
 
     return () => {
+      clearInterval(dataTimer);
+      clearInterval(clockTimer);
       window.removeEventListener('revenue_updated',    handleUpdate);
       window.removeEventListener('dispensed_updated',  handleUpdate);
       window.removeEventListener('inventory_updated',  fetchInventoryData);
       window.removeEventListener('patient_registered', updatePatientCount);
-      clearInterval(clockTimer);
       unsubPrescriptions();
       unsubNotifications();
     };
@@ -416,24 +442,17 @@ const PharmacistDashboard = () => {
   }).format(new Date());
 
   const walkinTotal = walkinRxRev + walkinOtcRev;
-  const onlineTotal = onlinePaidRev + onlineCodRev;
+  const onlineTotal = otherPaidRev + otherCodRev;
   const circ = 314.16; // 2 * PI * 50
   
   const walkinRxDash = walkinTotal > 0 ? (walkinRxRev / walkinTotal) * circ : 0;
   const walkinOtcDash = walkinTotal > 0 ? (walkinOtcRev / walkinTotal) * circ : 0;
 
-  const cardDashQueue = dailyRevenue > 0 ? (onlineRevCard / dailyRevenue) * circ : 0;
-  const bankDashQueue = dailyRevenue > 0 ? (onlineRevBank / dailyRevenue) * circ : 0;
-  const payHereDashQueue = dailyRevenue > 0 ? (onlineRevPayHere / dailyRevenue) * circ : 0;
-  const codDashQueue = dailyRevenue > 0 ? (onlineRevCod / dailyRevenue) * circ : 0;
+  const prescPaidDash = prescTotalRev > 0 ? (prescPaidRev / prescTotalRev) * circ : 0;
+  const prescCodDash  = prescTotalRev > 0 ? (prescCodRev / prescTotalRev) * circ : 0;
 
-  // Online Prescriptions simplified: Paid = Card+Bank+PayHere grouped, COD separate
-  const onlinePrescPaidRev = onlineRevCard + onlineRevBank + onlineRevPayHere;
-  const prescPaidDash = dailyRevenue > 0 ? (onlinePrescPaidRev / dailyRevenue) * circ : 0;
-  const prescCodDash  = dailyRevenue > 0 ? (onlineRevCod / dailyRevenue) * circ : 0;
-
-  const paidDash = onlineTotal > 0 ? (onlinePaidRev / onlineTotal) * circ : 0;
-  const codDash = onlineTotal > 0 ? (onlineCodRev / onlineTotal) * circ : 0;
+  const otherPaidDash = onlineTotal > 0 ? (otherPaidRev / onlineTotal) * circ : 0;
+  const otherCodDash  = onlineTotal > 0 ? (otherCodRev / onlineTotal) * circ : 0;
 
   const physicalWidth = dispensedTodayCount > 0 ? (physicalDispensedCount / dispensedTodayCount) * 100 : 0;
   const onlineWidth = dispensedTodayCount > 0 ? (onlineDispensedCount / dispensedTodayCount) * 100 : 0;
@@ -610,7 +629,7 @@ const PharmacistDashboard = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-800">Today's Revenue Overview</h3>
               <span className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
-                Total: Rs. {(dailyRevenue + walkinTotal + onlineTotal).toFixed(0)}
+                Total: Rs. {(prescTotalRev + otherPaidRev + otherCodRev + walkinRxRev + walkinOtcRev).toFixed(0)}
               </span>
             </div>
 
@@ -630,13 +649,13 @@ const PharmacistDashboard = () => {
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center text-center">
                     <span className="text-[11px] font-semibold text-slate-400">Rs.</span>
-                    <span className="text-xl font-black text-slate-800">{dailyRevenue.toFixed(0)}</span>
+                    <span className="text-xl font-black text-slate-800">{prescTotalRev.toFixed(0)}</span>
                   </div>
                 </div>
                 <div className="w-full flex justify-center gap-8 pt-4 border-t border-slate-100">
                   {[
-                    { color: 'bg-blue-600',  label: 'Paid', val: onlinePrescPaidRev },
-                    { color: 'bg-amber-400', label: 'COD',  val: onlineRevCod },
+                    { color: 'bg-blue-600',  label: 'Paid', val: prescPaidRev },
+                    { color: 'bg-amber-400', label: 'COD',  val: prescCodRev },
                   ].map(({ color, label, val }) => (
                     <div key={label} className="flex flex-col items-center text-center gap-0.5">
                       <div className="flex items-center gap-1">
@@ -656,8 +675,8 @@ const PharmacistDashboard = () => {
                 <div className="flex items-center justify-center relative mb-5">
                   <svg className="w-32 h-32 transform -rotate-90">
                     <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-slate-100" />
-                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${paidDash} ${circ}`} strokeDashoffset={0} className="text-emerald-500" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
-                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${codDash} ${circ}`} strokeDashoffset={-paidDash} className="text-amber-400" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${otherPaidDash} ${circ}`} strokeDashoffset={0} className="text-emerald-500" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
+                    <circle cx="64" cy="64" r="50" stroke="currentColor" strokeWidth="10" fill="transparent" strokeDasharray={`${otherCodDash} ${circ}`} strokeDashoffset={-otherPaidDash} className="text-amber-400" strokeLinecap="round" style={{ transition: 'stroke-dasharray 1s ease-in-out' }} />
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center text-center">
                     <span className="text-[11px] font-semibold text-slate-400">Rs.</span>
@@ -666,8 +685,8 @@ const PharmacistDashboard = () => {
                 </div>
                 <div className="w-full flex justify-center gap-8 pt-4 border-t border-slate-100">
                   {[
-                    { color: 'bg-emerald-500', label: 'Paid', val: onlinePaidRev },
-                    { color: 'bg-amber-400',   label: 'COD',  val: onlineCodRev },
+                    { color: 'bg-emerald-500', label: 'Paid', val: otherPaidRev },
+                    { color: 'bg-amber-400',   label: 'COD',  val: otherCodRev },
                   ].map(({ color, label, val }) => (
                     <div key={label} className="flex flex-col items-center text-center gap-0.5">
                       <div className="flex items-center gap-1">

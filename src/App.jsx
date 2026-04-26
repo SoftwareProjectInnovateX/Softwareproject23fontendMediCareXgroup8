@@ -50,6 +50,7 @@ import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
 import Checkout from './pages/customer/Checkout';
 import Success from './pages/customer/Success';
 import Cancel from './pages/customer/Cancel';
+import BlogDetail from './pages/customer/BlogDetail';
 
 /* PHARMACIST */
 
@@ -166,6 +167,7 @@ export default function App() {
         <Route path="prescription" element={<PrescriptionPage />} />
         <Route path="returns" element={<ReturnPage />} />
         <Route path="/customer/profile" element={<CustomerProfilePage />} />
+        <Route path="blog/:id" element={<BlogDetail />} />
       </Route>
 
       {/* PHARMACIST */}
