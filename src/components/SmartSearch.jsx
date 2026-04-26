@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from "react";
-import API_BASE_URL from "../config/api";
 import { auth } from "../services/firebase";
+
+// Base URL for all API calls — mirrors the same constant used across the app
+const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 
 export default function SmartSearch({ onResults, onLoading }) {
   const [query, setQuery] = useState("");
@@ -34,7 +36,7 @@ export default function SmartSearch({ onResults, onLoading }) {
       try {
         const token = await getFirebaseToken();
         const response = await fetch(
-          `${API_BASE_URL}/search?q=${encodeURIComponent(searchQuery)}`,
+          `${API_BASE}/products/search?q=${encodeURIComponent(searchQuery)}`,
           {
             headers: {
               "Content-Type": "application/json",
@@ -99,7 +101,7 @@ export default function SmartSearch({ onResults, onLoading }) {
           </svg>
         </div>
 
-        {/* Input — styled to match Products.jsx existing input */}
+        {/* Input */}
         <input
           type="text"
           value={query}

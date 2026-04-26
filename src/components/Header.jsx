@@ -4,63 +4,63 @@ import { useEffect, useState } from "react";
 import { auth, db } from '../services/firebase';
 import { doc, getDoc } from "firebase/firestore";
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Includes /api so all fetch paths below are just the resource name (e.g. /notifications)
+const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 
 export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
 
   const [showProfile, setShowProfile] = useState(false);
-  const [adminData, setAdminData] = useState(null);
+  const [adminData, setAdminData]     = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const getPageTitle = () => {
     switch (location.pathname) {
       case "/":
-        return { title: "Dashboard", subtitle: "Admin overview & insights" };
+        return { title: "Dashboard",        subtitle: "Admin overview & insights" };
       case "/admin/usermanagement":
-        return { title: "User Management", subtitle: "Manage registered customers" };
+        return { title: "User Management",  subtitle: "Manage registered customers" };
       case "/admin/suppliers":
-        return { title: "Suppliers", subtitle: "Manage supplier partners" };
+        return { title: "Suppliers",         subtitle: "Manage supplier partners" };
       case "/admin/products":
-        return { title: "Products", subtitle: "View pharmacy products" };
+        return { title: "Products",          subtitle: "View pharmacy products" };
       case "/admin/ordermanagement":
-        return { title: "Orders", subtitle: "Manage purchase orders" };
+        return { title: "Orders",            subtitle: "Manage purchase orders" };
       case "/admin/financialAnalytics":
-        return { title: "Analytics", subtitle: "Sales & profit analysis" };
+        return { title: "Analytics",         subtitle: "Sales & profit analysis" };
       case "/admin/notifications":
-        return { title: "Notifications", subtitle: "System alerts & updates" };
+        return { title: "Notifications",     subtitle: "System alerts & updates" };
       case "/admin/analytics":
-        return { title: "Sales Analytics", subtitle: "Analyse sales & updates" };
+        return { title: "Sales Analytics",   subtitle: "Analyse sales & updates" };
       case "/admin/adminpayments":
-        return { title: "Payments", subtitle: "Manage payments" };
+        return { title: "Payments",          subtitle: "Manage payments" };
       default:
-        return { title: "Registration", subtitle: "Manage user registrations" };
+        return { title: "Registration",      subtitle: "Manage user registrations" };
     }
   };
 
   const { title, subtitle } = getPageTitle();
 
-  // Fetch unread notification count
+  // Fetch unread notification count from the backend
   const fetchUnreadCount = async () => {
     try {
       const res = await fetch(`${API_BASE}/notifications?recipientType=admin`);
       if (!res.ok) return;
       const data = await res.json();
-      const count = data.filter((n) => !n.read).length;
-      setUnreadCount(count);
+      setUnreadCount(data.filter((n) => !n.read).length);
     } catch (error) {
       console.error("Error fetching notification count:", error);
     }
   };
 
-  // Fetch admin data from Firebase
+  // Fetch admin profile data from Firestore on mount
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
         const user = auth.currentUser;
         if (user) {
-          const docRef = doc(db, "users", user.uid);
+          const docRef  = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             setAdminData(docSnap.data());
@@ -72,7 +72,6 @@ export default function Header() {
         console.error("Error fetching admin data:", error);
       }
     };
-
     fetchAdminData();
   }, []);
 
@@ -88,11 +87,9 @@ export default function Header() {
     fetchUnreadCount();
   }, [location.pathname]);
 
-  // Close dropdown when clicking outside
+  // Close profile dropdown when clicking anywhere outside it
   useEffect(() => {
-    const handleClickOutside = () => {
-      setShowProfile(false);
-    };
+    const handleClickOutside = () => setShowProfile(false);
     window.addEventListener("click", handleClickOutside);
     return () => window.removeEventListener("click", handleClickOutside);
   }, []);
@@ -100,7 +97,7 @@ export default function Header() {
   return (
     <header className="h-[70px] bg-[#9fbaf2] border-b border-gray-200 px-6 flex justify-between items-center relative">
 
-      {/* LEFT — Title */}
+      {/* LEFT — Page title */}
       <div>
         <h1 className="text-[22px] font-semibold text-gray-900">{title}</h1>
         <p className="text-[13px] text-gray-500">{subtitle}</p>
@@ -125,10 +122,7 @@ export default function Header() {
         {/* Profile */}
         <div className="relative">
           <div
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowProfile(!showProfile);
-            }}
+            onClick={(e) => { e.stopPropagation(); setShowProfile(!showProfile); }}
             className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition"
           >
             <div className="w-9 h-9 rounded-full bg-white/40 flex items-center justify-center">
@@ -144,7 +138,7 @@ export default function Header() {
             </div>
           </div>
 
-          {/* PROFILE CARD */}
+          {/* Profile dropdown card */}
           {showProfile && (
             <div
               onClick={(e) => e.stopPropagation()}
@@ -152,18 +146,10 @@ export default function Header() {
             >
               {adminData ? (
                 <>
-                  <p className="font-semibold text-gray-800">
-                    {adminData.fullName}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {adminData.email}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    📞 {adminData.phone || "No phone"}
-                  </p>
-                  <p className="text-xs text-blue-500 mt-2">
-                    Role: {adminData.role}
-                  </p>
+                  <p className="font-semibold text-gray-800">{adminData.fullName}</p>
+                  <p className="text-sm text-gray-600">{adminData.email}</p>
+                  <p className="text-sm text-gray-600">📞 {adminData.phone || "No phone"}</p>
+                  <p className="text-xs text-blue-500 mt-2">Role: {adminData.role}</p>
                   <button
                     onClick={() => navigate("/login")}
                     className="mt-3 w-full bg-red-500 text-white py-1.5 rounded hover:bg-red-600"
