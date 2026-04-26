@@ -1,5 +1,8 @@
+import React, { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { auth } from "./services/firebase";
+import { signInAnonymously } from "firebase/auth";
 
 /* AUTH */
 import Login from "./pages/auth/Login";
@@ -33,8 +36,8 @@ import UserManagement from "./pages/admin/UserManagement";
 import OrderManagement from "./pages/admin/OrderManagement";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AccountRequests from "./pages/admin/AccountRequests";
-import SearchAnalytics from './pages/admin/SearchAnalytics';
-import AdminProductApproval from './pages/admin/AdminProductApproval';
+import SearchAnalytics from "./pages/admin/SearchAnalytics";
+import AdminProductApproval from "./pages/admin/AdminProductApproval";
 
 /* CUSTOMER */
 import HomePage from "./pages/customer/HomePage";
@@ -47,24 +50,22 @@ import ContactPage from "./pages/customer/ContactPage";
 import PrescriptionPage from "./pages/customer/PrescriptionPage";
 import ReturnPage from "./pages/customer/ReturnPage";
 import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
-import Checkout from './pages/customer/Checkout';
-import Success from './pages/customer/Success';
-import Cancel from './pages/customer/Cancel';
+import Success from "./pages/customer/Success";
+import Cancel from "./pages/customer/Cancel";
+import CustomerSettings from "./pages/customer/CustomerSettings";
 
 /* PHARMACIST */
-
 import AddProductForm from "./pages/pharmacist/Addproductform";
 import MyProducts from "./pages/pharmacist/MyProducts";
 import Prescriptions from "./pages/pharmacist/Prescriptions";
 import Orders from "./pages/pharmacist/Orders";
 import Returns from "./pages/pharmacist/Returns";
-import BrandsManagementPage from './pages/pharmacist/BrandsManagementPage';
-import MessagesPage from './pages/pharmacist/MessagesPage';
+import BrandsManagementPage from "./pages/pharmacist/BrandsManagementPage";
+import MessagesPage from "./pages/pharmacist/MessagesPage";
 import PharmacistDashboard from "./pages/pharmacist/PharmacistDashboard";
 import PharmacistVerification from "./pages/pharmacist/PharmacistVerification";
 import PharmacistDispensing from "./pages/pharmacist/PharmacistDispensing";
 import PharmacistPatients from "./pages/pharmacist/PharmacistPatients";
-import PharmacistInventory from "./pages/pharmacist/PharmacistInventory";
 import PharmacistDrugLookup from "./pages/pharmacist/PharmacistDrugLookup";
 import PharmacistReports from "./pages/pharmacist/PharmacistReports";
 import PharmacistNotifications from "./pages/pharmacist/PharmacistNotifications";
@@ -75,23 +76,12 @@ import PharmacistExpiringInventory from "./pages/pharmacist/PharmacistExpiringIn
 import PharmacistNewPatients from "./pages/pharmacist/PharmacistNewPatients";
 import PharmacistLowStock from "./pages/pharmacist/PharmacistLowStock";
 
-
-// ── My Route Constants ────────────────────────────────────────────────────────
-const ROUTES = {
-  HOME:             "/",
-  CHECKOUT:         "/checkout",
-  CHECKOUT_SUCCESS: "/customer/checkout/success",
-  CHECKOUT_CANCEL:  "/customer/checkout/cancel",
-};
-
-import React, { useEffect } from 'react';
-import { auth } from "./services/firebase";
-import { signInAnonymously } from "firebase/auth";
-
 export default function App() {
   useEffect(() => {
     // Ensure we have a Firebase session for Firestore rules
-    signInAnonymously(auth).catch(err => console.error("Firebase Anonymous Auth Failed:", err));
+    signInAnonymously(auth).catch((err) =>
+      console.error("Firebase Anonymous Auth Failed:", err)
+    );
   }, []);
 
   return (
@@ -166,6 +156,7 @@ export default function App() {
         <Route path="prescription" element={<PrescriptionPage />} />
         <Route path="returns" element={<ReturnPage />} />
         <Route path="/customer/profile" element={<CustomerProfilePage />} />
+        <Route path="/customer/settings" element={<CustomerSettings />} />
       </Route>
 
       {/* PHARMACIST */}
@@ -177,32 +168,28 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<PharmacistDashboard />} />
         <Route path="add-product" element={<AddProductForm />} />
         <Route path="my-products" element={<MyProducts />} />
         <Route path="prescriptions" element={<Prescriptions />} />
         <Route path="orders" element={<Orders />} />
-        
         <Route path="returns" element={<Returns />} />
         <Route path="/pharmacist/brands" element={<BrandsManagementPage />} />
         <Route path="/pharmacist/messages" element={<MessagesPage />} />
-        <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<PharmacistDashboard />} />
-          <Route path="verification/:id" element={<PharmacistVerification />} />
-          <Route path="dispensing" element={<PharmacistDispensing />} />
-          <Route path="patients" element={<PharmacistPatients />} />
-          <Route path="inventory" element={<Products />} />
-          <Route path="lookup" element={<PharmacistDrugLookup />} />
-          <Route path="reports" element={<PharmacistReports />} />
-          <Route path="notifications" element={<PharmacistNotifications />} />
-          <Route path="settings" element={<PharmacistSettings />} />
-          <Route path="new-rx" element={<PharmacistNewRxEntry />} />
-          <Route path="dispensed-today" element={<PharmacistDispensedToday />} />
-          <Route path="expiring-inventory" element={<PharmacistExpiringInventory />} />
-          <Route path="new-patients" element={<PharmacistNewPatients />} />
-          <Route path="low-stock" element={<PharmacistLowStock />} />
-          
-        
+        <Route path="verification/:id" element={<PharmacistVerification />} />
+        <Route path="dispensing" element={<PharmacistDispensing />} />
+        <Route path="patients" element={<PharmacistPatients />} />
+        <Route path="inventory" element={<Products />} />
+        <Route path="lookup" element={<PharmacistDrugLookup />} />
+        <Route path="reports" element={<PharmacistReports />} />
+        <Route path="notifications" element={<PharmacistNotifications />} />
+        <Route path="settings" element={<PharmacistSettings />} />
+        <Route path="new-rx" element={<PharmacistNewRxEntry />} />
+        <Route path="dispensed-today" element={<PharmacistDispensedToday />} />
+        <Route path="expiring-inventory" element={<PharmacistExpiringInventory />} />
+        <Route path="new-patients" element={<PharmacistNewPatients />} />
+        <Route path="low-stock" element={<PharmacistLowStock />} />
       </Route>
 
       {/* 404 */}

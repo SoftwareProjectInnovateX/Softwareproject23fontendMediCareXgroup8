@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { db } from "../../lib/firebase";
+import { db } from "../../services/firebase";
 import { collection, onSnapshot, orderBy, query, doc, deleteDoc } from "firebase/firestore";
 import {
   Plus, X, Tag, Trash2, Star, Package, Calendar, Globe,

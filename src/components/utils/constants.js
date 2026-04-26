@@ -21,6 +21,6 @@ export const COLLECTIONS = {
 };
 
 // Hero Carousel
-export const HERO_BADGE_LABEL     = "Smart Pharmacy";
+export const HERO_BADGE_LABEL     = "MediCareX";
 export const HERO_CAROUSEL_HEIGHT = "520px";
 export const HERO_IMAGE_HEIGHT    = "460px";

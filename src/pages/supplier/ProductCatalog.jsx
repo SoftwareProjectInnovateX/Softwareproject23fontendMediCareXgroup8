@@ -6,60 +6,55 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { getAuth } from 'firebase/auth';
-import {
-  Pill, Sparkles, Baby, Droplets, Syringe, FlaskConical,
-  BandageIcon, Droplet, Heart, Eye, Star, Leaf,
-  Dumbbell, HeartHandshake, Package,
-} from 'lucide-react';
 
-// ─── Import categories from data ────────────────────────────────────────────
-import { CATEGORIES } from '../../data/categories';
-
-// ─── Map category id → lucide icon ──────────────────────────────────────────
-const CATEGORY_ICONS = {
-  'medicine':     Pill,
-  'skincare':     Sparkles,
-  'baby':         Baby,
-  'vitamins':     Droplets,
-  'pain-relief':  Syringe,
-  'antibiotics':  FlaskConical,
-  'first-aid':    BandageIcon,
-  'diabetes':     Droplet,
-  'heart':        Heart,
-  'eye-care':     Eye,
-  'dental':       Star,
-  'herbal':       Leaf,
-  'supplements':  Dumbbell,
-  'baby-mother':  HeartHandshake,
-  'other':        Package,
-};
+// ─── Sub-components ──────────────────────────────────────────────────────────
+import ProductCatalogHeader from '../../components/supplier/ProductCatalogHeader';
+import SearchAndAdd         from '../../components/supplier/SearchAndAdd';
+import TabBar               from '../../components/supplier/TabBar';
+import ProductTable         from '../../components/supplier/ProductTable';
+import PendingTable         from '../../components/supplier/PendingTable';
+import ProductModal         from '../../components/supplier/ProductModal';
 
 // ─── BACKEND URL — fixed to use /api prefix ──────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-const STATUS_BADGE = {
-  pending:  { cls: 'bg-amber-100 text-amber-700',    label: 'Pending Approval' },
-  approved: { cls: 'bg-emerald-100 text-emerald-700', label: 'Approved' },
-  rejected: { cls: 'bg-red-100 text-red-700',         label: 'Rejected' },
-};
-
+/**
+ * ProductCatalog page — the primary product management screen for suppliers.
+ *
+ * Responsibilities:
+ *   - Listens to Firebase Auth to identify the logged-in supplier.
+ *   - Fetches approved products from the `products` collection (one-time query).
+ *   - Subscribes in real-time to the `pendingProducts` collection so the pending
+ *     count badge updates without a page refresh.
+ *   - Provides add, edit, and delete operations that keep the supplier's `products`
+ *     collection and the shared `adminProducts` collection in sync.
+ *   - Delegates all rendering to focused sub-components; this file owns state and
+ *     data logic only.
+ */
 const ProductCatalog = () => {
   const [products, setProducts]               = useState([]);
   const [pendingProducts, setPendingProducts] = useState([]);
   const [activeTab, setActiveTab]             = useState('approved');
   const [loading, setLoading]                 = useState(true);
   const [showModal, setShowModal]             = useState(false);
-  const [editingProduct, setEditingProduct]   = useState(null);
+  const [editingProduct, setEditingProduct]   = useState(null); // null = add mode, object = edit mode
   const [searchTerm, setSearchTerm]           = useState('');
   const [currentUser, setCurrentUser]         = useState(null);
 
+  // Controlled form state shared between the add and edit modal flows
   const [formData, setFormData] = useState({
     productName: '', category: '',
     wholesalePrice: '', stock: '', minStock: '',
     description: '', manufacturer: '',
+    expireDate: '',
   });
 
   // ── Auth listener ──────────────────────────────────────────────────────────
+  /**
+   * Subscribes to Firebase Auth state changes.
+   * When a user signs in, their supplier profile is fetched to get the real
+   * company name. When signed out, state is cleared and loading is stopped.
+   */
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -69,7 +64,14 @@ const ProductCatalog = () => {
     return () => unsubscribe();
   }, []);
 
-  // ✅ Fixed: reads from suppliers collection to get the real company name
+  /**
+   * Reads the supplier's document from the `suppliers` collection to retrieve
+   * the real company name used when submitting products to the backend.
+   * Falls back to a generic "Supplier" label if the document is missing or
+   * if the Firestore read fails.
+   *
+   * @param {string} userId - Firebase Auth UID of the logged-in supplier.
+   */
   const fetchUserDetails = async (userId) => {
     try {
       const supplierDoc = await getDoc(doc(db, 'suppliers', userId));
@@ -77,7 +79,7 @@ const ProductCatalog = () => {
         const d = supplierDoc.data();
         setCurrentUser({
           id:    userId,
-          name:  d.name || 'Supplier',   // ✅ real company name e.g. "University"
+          name:  d.name || 'Supplier',   // real company name e.g. "University"
           email: d.email,
         });
       } else {
@@ -100,6 +102,11 @@ const ProductCatalog = () => {
   };
 
   // ── Fetch APPROVED products ────────────────────────────────────────────────
+  /**
+   * Performs a one-time Firestore query to load all approved products belonging
+   * to the current supplier, ordered by creation date descending.
+   * Called on initial load and after any add, update, or delete operation.
+   */
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -119,11 +126,18 @@ const ProductCatalog = () => {
     }
   };
 
+  // Trigger the approved products fetch once the supplier identity is resolved
   useEffect(() => {
     if (currentUser) fetchProducts();
   }, [currentUser]);
 
   // ── Real-time listener for pending submissions ─────────────────────────────
+  /**
+   * Opens a real-time Firestore listener on `pendingProducts` for the current supplier.
+   * Using onSnapshot instead of a one-time getDocs ensures the pending count badge
+   * and table stay up to date as admin reviews submissions without requiring a refresh.
+   * The listener is cleaned up when the component unmounts or currentUser changes.
+   */
   useEffect(() => {
     if (!currentUser?.id) return;
 
@@ -147,6 +161,15 @@ const ProductCatalog = () => {
   }, [currentUser]);
 
   // ── Add product ────────────────────────────────────────────────────────────
+  /**
+   * Submits a new product to the backend API, which routes it to `pendingProducts`
+   * for admin approval. On success, the modal is closed and the view switches to
+   * the pending tab so the supplier can track the submission status.
+   *
+   * Required fields: productName, category, wholesalePrice.
+   *
+   * @param {React.FormEvent} e - Form submit event; default is prevented.
+   */
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
@@ -158,10 +181,10 @@ const ProductCatalog = () => {
       if (!currentUser?.id) { alert('Please login to add products'); return; }
 
       const userId   = currentUser.id;
-      const userName = currentUser.name; // ✅ now correctly "University" not email
+      const userName = currentUser.name;
 
+      // API_BASE already includes /api, so no additional prefix is needed here
       const response = await fetch(
-        // ✅ Fixed: API_BASE already includes /api so no double prefix
         `${API_BASE}/supplier/products?supplierId=${userId}&supplierName=${encodeURIComponent(userName)}`,
         {
           method:  'POST',
@@ -174,6 +197,10 @@ const ProductCatalog = () => {
             minStock:       parseInt(formData.minStock) || 0,
             description:    formData.description,
             manufacturer:   formData.manufacturer,
+            // Convert the date string to a Firestore Timestamp; null if not provided
+            expireDate:     formData.expireDate
+              ? Timestamp.fromDate(new Date(formData.expireDate))
+              : null,
           }),
         },
       );
@@ -191,6 +218,14 @@ const ProductCatalog = () => {
   };
 
   // ── Update approved product ────────────────────────────────────────────────
+  /**
+   * Updates an existing approved product in both the supplier's `products` collection
+   * and the shared `adminProducts` collection to keep inventories in sync.
+   * Availability is derived from minStock: zero stock marks the product as "out of stock".
+   * The admin's retail price is automatically recalculated as wholesale price × 1.2.
+   *
+   * @param {React.FormEvent} e - Form submit event; default is prevented.
+   */
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
     try {
@@ -205,12 +240,18 @@ const ProductCatalog = () => {
         minStock:       remainingStock,
         description:    formData.description,
         manufacturer:   formData.manufacturer,
+        expireDate:     formData.expireDate
+          ? Timestamp.fromDate(new Date(formData.expireDate))
+          : null,
+        // Derive availability status from remaining stock
         availability:   remainingStock > 0 ? 'in stock' : 'out of stock',
         updatedAt:      Timestamp.now(),
       };
 
+      // Update supplier's own product document
       await updateDoc(doc(db, 'products', editingProduct.id), updatedData);
 
+      // Mirror the changes to the admin inventory, with a 20% retail markup applied
       const adminSnap = await getDocs(
         query(collection(db, 'adminProducts'), where('productId', '==', editingProduct.id)),
       );
@@ -233,13 +274,24 @@ const ProductCatalog = () => {
   };
 
   // ── Delete approved product ────────────────────────────────────────────────
+  /**
+   * Deletes a product from both the supplier's `products` collection and the
+   * shared `adminProducts` collection after the supplier confirms the action.
+   * A refresh is triggered afterwards to reflect the removal in the table.
+   *
+   * @param {string} productId   - Firestore document ID of the product to delete.
+   * @param {string} productName - Human-readable name shown in the confirmation dialog.
+   */
   const handleDeleteProduct = async (productId, productName) => {
     if (!window.confirm(
       `Are you sure you want to delete "${productName}"?\n\nThis will also remove it from admin inventory.`,
     )) return;
 
     try {
+      // Remove from supplier inventory
       await deleteDoc(doc(db, 'products', productId));
+
+      // Remove the matching admin inventory entry if it exists
       const adminSnap = await getDocs(
         query(collection(db, 'adminProducts'), where('productId', '==', productId)),
       );
@@ -252,6 +304,14 @@ const ProductCatalog = () => {
     }
   };
 
+  /**
+   * Populates the form with the selected product's current values and opens the
+   * modal in edit mode. Firestore Timestamps are converted to "YYYY-MM-DD" strings
+   * compatible with the HTML date input, handling both Timestamp instances and
+   * raw second-based objects returned by some Firestore SDK versions.
+   *
+   * @param {Object} product - The product document to edit.
+   */
   const startEditProduct = (product) => {
     setEditingProduct(product);
     setFormData({
@@ -262,414 +322,133 @@ const ProductCatalog = () => {
       minStock:       product.minStock,
       description:    product.description  || '',
       manufacturer:   product.manufacturer || '',
+      // Convert Firestore Timestamp → "YYYY-MM-DD" for the date input
+      expireDate: product.expireDate
+        ? (typeof product.expireDate.toDate === 'function'
+            ? product.expireDate.toDate().toISOString().split('T')[0]
+            : new Date(product.expireDate._seconds * 1000).toISOString().split('T')[0])
+        : '',
     });
     setShowModal(true);
   };
 
+  /**
+   * Clears all form fields and exits edit mode.
+   * Called after a successful submit or when the modal is dismissed.
+   */
   const resetForm = () => {
     setFormData({
       productName: '', category: '', wholesalePrice: '',
       stock: '', minStock: '', description: '', manufacturer: '',
+      expireDate: '',
     });
     setEditingProduct(null);
   };
 
+  /**
+   * Closes the modal and resets the form to its blank state.
+   * Ensures no stale edit data persists if the supplier opens the add form next.
+   */
+  const handleModalClose = () => {
+    setShowModal(false);
+    resetForm();
+  };
+
   // ── Filtered views ─────────────────────────────────────────────────────────
+  /**
+   * Filters approved products by the current search term, matching against
+   * product name, product code, and category (all case-insensitive).
+   */
   const filteredProducts = products.filter((p) =>
     p.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.productCode?.toLowerCase().includes(searchTerm.toLowerCase())  ||
     p.category?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
+  /**
+   * Filters pending products by the current search term, matching against
+   * product name and category.
+   */
   const filteredPending = pendingProducts.filter((p) =>
     p.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.category?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
+  // Count only submissions that are still awaiting admin review for the tab badge
   const pendingCount = pendingProducts.filter((p) => p.status === 'pending').length;
 
-  const inputCls =
-    'w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-[15px] text-slate-800 bg-white ' +
-    'transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 ' +
-    'focus:ring-blue-500/10 focus:bg-slate-50 placeholder:text-slate-400';
-
-  const formFields = [
-    { label: 'Product Name',                key: 'productName',    type: 'text',   placeholder: 'e.g., Paracetamol 500mg',   required: true,  full: false },
-    { label: 'Wholesale Price (Rs.)',        key: 'wholesalePrice', type: 'number', placeholder: '0.00',                      required: true,  full: false, extra: { step: '0.01' } },
-    { label: 'Stock Supplied to MediCareX', key: 'stock',          type: 'number', placeholder: '0',                         required: false, full: false },
-    { label: 'Remaining Stock (with You)',  key: 'minStock',       type: 'number', placeholder: '0',                         required: false, full: false },
-    { label: 'Manufacturer',                key: 'manufacturer',   type: 'text',   placeholder: 'e.g., ABC Pharmaceuticals', required: false, full: true  },
-  ];
-
-  // ── Helper: get display name for a category value ──────────────────────────
-  const getCategoryLabel = (categoryValue) => {
-    const match = CATEGORIES.find(
-      (c) => c.id === categoryValue || c.name === categoryValue,
-    );
-    return match ? match.name : categoryValue;
-  };
-
-  // ── Helper: render category with icon ─────────────────────────────────────
-  const CategoryBadge = ({ value }) => {
-    const match = CATEGORIES.find(
-      (c) => c.id === value || c.name === value,
-    );
-    const IconComponent = match ? (CATEGORY_ICONS[match.id] || Package) : Package;
-    const label = match ? match.name : value;
-
-    return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-slate-700">
-        <IconComponent size={14} className="text-slate-400" />
-        {label}
-      </span>
-    );
+  // ── Helper: format Firestore Timestamp or raw value to readable date ───────
+  /**
+   * Converts a variety of date representations to a locale-formatted string.
+   * Handles Firestore Timestamp objects, raw `_seconds` objects from the REST API,
+   * ISO strings, and plain Date-constructable values. Returns "—" for null/invalid input.
+   *
+   * @param {Timestamp|Object|string|number|null} val - The date value to format.
+   * @returns {string} A locale date string or "—" if the value is absent or invalid.
+   */
+  const formatDate = (val) => {
+    if (!val) return '—';
+    if (typeof val.toDate === 'function') return val.toDate().toLocaleDateString();
+    if (val._seconds) return new Date(val._seconds * 1000).toLocaleDateString();
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
   };
 
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
 
-      {/* Page Header */}
-      <div className="mb-6 bg-gradient-to-r from-blue-600 to-blue-700 p-6 rounded-2xl text-white shadow-md">
-        <h1 className="text-[28px] font-bold mb-1">Product Catalog</h1>
-        <p className="text-blue-100 text-sm">Manage your products supplied to MediCareX</p>
-        {currentUser && (
-          <span className="inline-block mt-3 bg-white/10 text-amber-100 text-[13px] font-medium px-3 py-1 rounded-full">
-            Logged in as: {currentUser.name}
-          </span>
-        )}
-      </div>
+      {/* Page Header — displays the supplier's company name and page title */}
+      <ProductCatalogHeader currentUser={currentUser} />
 
-      {/* Search + Add */}
-      <div className="bg-white p-5 rounded-xl shadow-sm mb-6 flex justify-between items-center gap-4 flex-wrap">
-        <input
-          type="text"
-          placeholder="Search by name, code or category..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1 min-w-[280px] px-4 py-3 border-2 border-slate-200 rounded-lg text-[15px] transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-        />
-        <button
-          onClick={() => { resetForm(); setShowModal(true); }}
-          className="px-6 py-3 bg-white text-blue-600 border-2 border-blue-600 font-semibold rounded-lg cursor-pointer text-[15px] transition-all duration-200 hover:bg-blue-600 hover:text-white hover:-translate-y-px hover:shadow-md whitespace-nowrap"
-        >
-          + Add New Product
-        </button>
-      </div>
+      {/* Search bar and "Add Product" button */}
+      <SearchAndAdd
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        onAddClick={() => { resetForm(); setShowModal(true); }}
+      />
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-5">
-        <button
-          onClick={() => setActiveTab('approved')}
-          className={`px-5 py-2.5 rounded-lg text-[14px] font-semibold transition-all duration-200 border-2 ${
-            activeTab === 'approved'
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
-          }`}
-        >
-          Active Products ({products.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-5 py-2.5 rounded-lg text-[14px] font-semibold transition-all duration-200 border-2 relative ${
-            activeTab === 'pending'
-              ? 'bg-amber-500 text-white border-amber-500'
-              : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300'
-          }`}
-        >
-          Pending Approval
-          {pendingCount > 0 && (
-            <span className="ml-2 inline-flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[11px] font-bold rounded-full">
-              {pendingCount}
-            </span>
-          )}
-        </button>
-      </div>
+      {/* Tab switcher between approved products and pending submissions */}
+      <TabBar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        productsCount={products.length}
+        pendingCount={pendingCount}
+      />
 
       {/* ── ACTIVE PRODUCTS TABLE ─────────────────────────────────────────────── */}
       {activeTab === 'approved' && (
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-          {loading ? (
-            <div className="py-16 text-center text-slate-500 text-lg">Loading products...</div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="py-16 text-center flex flex-col items-center gap-5">
-              <p className="text-lg text-slate-500">No approved products yet</p>
-              <button
-                onClick={() => setShowModal(true)}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
-              >
-                Submit Your First Product
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse min-w-[700px]">
-                <thead className="bg-slate-50 border-b-2 border-slate-200">
-                  <tr>
-                    {['Product Name', 'Category', 'Wholesale Price', 'Stock Supplied', 'Availability', 'Actions'].map((h) => (
-                      <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProducts.map((product) => (
-                    <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
-                      <td className="px-4 py-4">
-                        <p className="font-medium text-slate-900 text-sm mb-0.5">{product.productName}</p>
-                        <p className="text-xs text-slate-400 font-mono">{product.productCode}</p>
-                      </td>
-                      <td className="px-4 py-4">
-                        <CategoryBadge value={product.category} />
-                      </td>
-                      <td className="px-4 py-4 text-sm font-semibold text-slate-800">
-                        Rs.{Number(product.wholesalePrice).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          product.availability === 'in stock'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}>
-                          {product.availability}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => startEditProduct(product)}
-                            className="px-3.5 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProduct(product.id, product.productName)}
-                            className="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <ProductTable
+          loading={loading}
+          filteredProducts={filteredProducts}
+          onAddClick={() => setShowModal(true)}
+          onEdit={startEditProduct}
+          onDelete={handleDeleteProduct}
+          formatDate={formatDate}
+        />
       )}
 
       {/* ── PENDING PRODUCTS TABLE ────────────────────────────────────────────── */}
       {activeTab === 'pending' && (
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-          {loading ? (
-            <div className="py-16 text-center text-slate-500 text-lg">Loading...</div>
-          ) : filteredPending.length === 0 ? (
-            <div className="py-16 text-center">
-              <p className="text-lg text-slate-500">No pending submissions</p>
-            </div>
-          ) : (
-            <>
-              {/* Info banner */}
-              <div className="m-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
-                <p className="text-[13px] text-amber-800">
-                  Products listed here are awaiting admin review. Once approved, they will appear in the{' '}
-                  <strong>Active Products</strong> tab and be visible in the admin inventory.
-                  This list updates in real-time — no need to refresh.
-                </p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse min-w-[700px]">
-                  <thead className="bg-slate-50 border-b-2 border-slate-200">
-                    <tr>
-                      {['Product Name', 'Category', 'Wholesale Price', 'Stock', 'Submitted', 'Status'].map((h) => (
-                        <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredPending.map((product) => {
-                      const badge = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
-
-                      const formatDate = (val) => {
-                        if (!val) return '—';
-                        if (typeof val.toDate === 'function') return val.toDate().toLocaleDateString();
-                        if (val._seconds) return new Date(val._seconds * 1000).toLocaleDateString();
-                        const d = new Date(val);
-                        return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
-                      };
-
-                      return (
-                        <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
-                          <td className="px-4 py-4">
-                            <p className="font-medium text-slate-900 text-sm mb-0.5">{product.productName}</p>
-                            {product.manufacturer && (
-                              <p className="text-xs text-slate-400">{product.manufacturer}</p>
-                            )}
-                          </td>
-                          <td className="px-4 py-4">
-                            <CategoryBadge value={product.category} />
-                          </td>
-                          <td className="px-4 py-4 text-sm font-semibold text-slate-800">
-                            Rs.{Number(product.wholesalePrice).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
-                          <td className="px-4 py-4 text-xs text-slate-400">
-                            {formatDate(product.createdAt)}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div>
-                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>
-                                {badge.label}
-                              </span>
-                              {product.status === 'rejected' && product.rejectionReason && (
-                                <p className="text-[11px] text-red-500 mt-1">{product.rejectionReason}</p>
-                              )}
-                              {product.status === 'approved' && product.productCode && (
-                                <p className="text-[11px] text-emerald-600 mt-1 font-mono">{product.productCode}</p>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
+        <PendingTable
+          loading={loading}
+          filteredPending={filteredPending}
+          formatDate={formatDate}
+        />
       )}
 
       {/* ── ADD / EDIT MODAL ──────────────────────────────────────────────────── */}
-      {showModal && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
-          style={{ animation: 'fadeIn 0.2s ease-out' }}
-          onClick={() => { setShowModal(false); resetForm(); }}
-        >
-          <div
-            className="bg-white rounded-2xl p-10 w-full max-w-[800px] max-h-[90vh] overflow-y-auto shadow-2xl"
-            style={{ animation: 'slideUp 0.3s ease-out' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-[28px] font-bold text-slate-900 mb-2 pb-4 border-b-[3px] border-blue-600">
-              {editingProduct ? 'Edit Product' : 'Add New Product'}
-            </h2>
+      {/* Modal is rendered in add mode when editingProduct is null, edit mode otherwise */}
+      <ProductModal
+        showModal={showModal}
+        editingProduct={editingProduct}
+        formData={formData}
+        setFormData={setFormData}
+        onSubmitAdd={handleAddProduct}
+        onSubmitUpdate={handleUpdateProduct}
+        onClose={handleModalClose}
+      />
 
-            {!editingProduct && (
-              <div className="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                <p className="text-[13px] text-amber-800">
-                  This product will be submitted for <strong>admin approval</strong> before it appears in the inventory.
-                  A unique product code will be assigned upon approval.
-                </p>
-              </div>
-            )}
-
-            {editingProduct && (
-              <div className="mb-6 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-3">
-                <span className="text-[13px] text-slate-500">Product Code</span>
-                <span className="font-mono text-[13px] font-semibold text-slate-700 tracking-wide">
-                  {editingProduct.productCode}
-                </span>
-                <span className="ml-auto text-[11px] text-slate-400 italic">auto-generated · read-only</span>
-              </div>
-            )}
-
-            <form onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct}>
-              <div className="grid grid-cols-2 gap-x-7 gap-y-8">
-
-                {/* Category — rendered from CATEGORIES with lucide icons */}
-                <div className="flex flex-col">
-                  <label className="block mb-2.5 font-semibold text-slate-900 text-[15px]">
-                    Category <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    required
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className={inputCls}
-                  >
-                    <option value="">Select Category</option>
-                    {CATEGORIES.map((cat) => {
-                      const IconComponent = CATEGORY_ICONS[cat.id] || Package;
-                      return (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {/* Icon preview for selected category */}
-                  {formData.category && (() => {
-                    const match = CATEGORIES.find((c) => c.id === formData.category);
-                    const IconComponent = match ? (CATEGORY_ICONS[match.id] || Package) : null;
-                    return match && IconComponent ? (
-                      <div className="mt-2 flex items-center gap-2 text-[13px] text-slate-500">
-                        <IconComponent size={15} className="text-blue-500" />
-                        <span>{match.name} selected</span>
-                      </div>
-                    ) : null;
-                  })()}
-                </div>
-
-                {/* Dynamic fields */}
-                {formFields.map((field) => (
-                  <div key={field.key} className={`flex flex-col ${field.full ? 'col-span-2' : ''}`}>
-                    <label className="block mb-2.5 font-semibold text-slate-900 text-[15px]">
-                      {field.label} {field.required && <span className="text-red-500">*</span>}
-                    </label>
-                    <input
-                      type={field.type}
-                      required={field.required}
-                      placeholder={field.placeholder}
-                      value={formData[field.key]}
-                      onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                      className={inputCls}
-                      {...(field.extra || {})}
-                    />
-                  </div>
-                ))}
-
-                {/* Description */}
-                <div className="flex flex-col col-span-2">
-                  <label className="block mb-2.5 font-semibold text-slate-900 text-[15px]">
-                    Description
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Product description..."
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className={`${inputCls} resize-y min-h-[100px] leading-relaxed`}
-                  />
-                </div>
-              </div>
-
-              {/* Form Actions */}
-              <div className="flex gap-4 mt-10 pt-7 border-t-2 border-slate-200">
-                <button
-                  type="submit"
-                  className="flex-1 py-4 px-7 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  {editingProduct ? 'Update Product' : 'Submit for Approval'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowModal(false); resetForm(); }}
-                  className="flex-1 py-4 px-7 bg-slate-100 hover:bg-slate-200 text-slate-800 border-2 border-slate-300 hover:border-slate-400 font-semibold text-base rounded-lg cursor-pointer transition-all duration-200"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+      {/* Keyframe animations used by modal and table transition styles */}
       <style>{`
         @keyframes fadeIn  { from{opacity:0}                            to{opacity:1} }
         @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }

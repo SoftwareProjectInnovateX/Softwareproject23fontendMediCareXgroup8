@@ -7,6 +7,7 @@ import {
   Truck, Settings, Check, X, Banknote, RotateCcw
 } from "lucide-react";
 
+// Base URL for all pharmacist order API calls
 const API_BASE = "http://localhost:5000/api/pharmacist/orders";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -21,12 +22,15 @@ const C = {
   textSoft:    "#475569",
 };
 
+// ── Typography ────────────────────────────────────────────────────────────────
 const FONT = {
   display: "'Playfair Display', serif",
   body:    "'DM Sans', sans-serif",
 };
 
 // ── Style helpers ─────────────────────────────────────────────────────────────
+
+// Returns background, text, and border colour based on order status
 function orderStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "delivered":  return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
@@ -37,6 +41,7 @@ function orderStatusStyle(status) {
   }
 }
 
+// Returns colour tokens based on payment status (paid / failed / pending)
 function paymentStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "paid":    return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
@@ -45,6 +50,7 @@ function paymentStatusStyle(status) {
   }
 }
 
+// Returns colour tokens based on return request status (approved / rejected / pending)
 function returnStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "approved": return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
@@ -54,9 +60,12 @@ function returnStatusStyle(status) {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
+
+// Summary card shown at the top of the page (e.g. Total Orders, Pending, Delivered)
 function StatCard({ icon: Icon, label, value, iconBg, iconColor }) {
   return (
     <div className="bg-white border border-[rgba(26,135,225,0.18)] rounded-[14px] px-5 py-[18px] flex items-center gap-[14px] shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
+      {/* Coloured icon container */}
       <div className="w-11 h-11 rounded-[11px] shrink-0 flex items-center justify-center" style={{ background: iconBg }}>
         <Icon size={20} color={iconColor} strokeWidth={2} />
       </div>
@@ -68,6 +77,7 @@ function StatCard({ icon: Icon, label, value, iconBg, iconColor }) {
   );
 }
 
+// Pill-shaped status label used throughout the order and return rows
 function Badge({ label, style: s }) {
   return (
     <span
@@ -79,6 +89,7 @@ function Badge({ label, style: s }) {
   );
 }
 
+// Generic action button used for Approve / Delivered / Processing / Cancel
 function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) {
   return (
     <button
@@ -100,14 +111,24 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
 }
 
 // ── OrderRow ──────────────────────────────────────────────────────────────────
+
+// Renders a single order as a collapsible row.
+// If a matching return document exists it shows a highlighted return banner.
 function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
+  // Controls whether the detail panel is visible
   const [expanded, setExpanded] = useState(false);
+
   const oStyle    = orderStatusStyle(order.orderStatus);
   const pStyle    = paymentStatusStyle(order.paymentStatus);
+
+  // Cash-on-delivery orders get a special COD badge
   const isCOD     = (order.paymentMethod || "").toLowerCase() === "cod";
+
+  // Whether this order has an associated return request
   const hasReturn = !!returnDoc;
   const rStyle    = hasReturn ? returnStatusStyle(returnDoc.returnStatus) : null;
 
+  // Convert Firestore timestamp (_seconds) to a readable date string
   const createdAt = order.createdAt?._seconds
     ? new Date(order.createdAt._seconds * 1000).toLocaleString("en-GB", {
         day: "2-digit", month: "short", year: "numeric",
@@ -116,6 +137,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
     : "—";
 
   return (
+    // Orders with a return request get an orange highlight border
     <div
       className="bg-white rounded-[12px] overflow-hidden"
       style={{
@@ -123,6 +145,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
         boxShadow:  hasReturn ? "0 2px 8px rgba(234,88,12,0.08)" : "0 1px 3px rgba(26,135,225,0.06)",
       }}
     >
+      {/* Return request banner — only shown when a return doc is linked */}
       {hasReturn && (
         <div
           className="flex items-center justify-between px-[18px] py-[9px]"
@@ -144,13 +167,16 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
         </div>
       )}
 
+      {/* ── Collapsed summary row ── */}
       <div
         className="grid px-[18px] py-[14px] items-center gap-3"
         style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto" }}
       >
+        {/* Customer info: name, phone, address */}
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-[13px] font-semibold text-[#1e293b]">{order.customerName || "—"}</p>
+            {/* COD badge alongside customer name */}
             {isCOD && (
               <span
                 className="text-[9px] font-bold px-[8px] py-[2px] rounded-[6px] uppercase tracking-[0.08em]"
@@ -168,19 +194,24 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
           </p>
         </div>
 
+        {/* Order creation date */}
         <div className="text-[11px] text-[#475569]">{createdAt}</div>
 
+        {/* Number of distinct item types in the order */}
         <div className="text-[13px] font-semibold text-[#1e293b]">
           {order.types?.length ?? 0} item{order.types?.length !== 1 ? "s" : ""}
         </div>
 
+        {/* Payment method and payment status badges */}
         <div className="flex flex-col gap-[5px]">
           <Badge label={order.paymentMethod || "—"} style={{ bg: "rgba(26,135,225,0.08)", color: "#1a87e1", border: "rgba(26,135,225,0.2)" }} />
           <Badge label={order.paymentStatus || "pending"} style={pStyle} />
         </div>
 
+        {/* Order status badge */}
         <Badge label={order.orderStatus || "pending"} style={oStyle} />
 
+        {/* Toggle details panel */}
         <button
           onClick={() => setExpanded(e => !e)}
           className="bg-[#f1f5f9] border border-[rgba(26,135,225,0.18)] rounded-lg px-3 py-[6px] cursor-pointer text-[#475569] text-[12px] flex items-center gap-[5px] font-semibold"
@@ -191,9 +222,11 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
         </button>
       </div>
 
+      {/* ── Expanded detail panel ── */}
       {expanded && (
         <div className="border-t border-[rgba(26,135,225,0.18)] px-[18px] py-4 bg-[#f8fafc]">
 
+          {/* COD notice — reminds pharmacist that payment is collected on delivery */}
           {isCOD && (
             <div
               className="flex items-center gap-2 mb-4 px-[14px] py-[10px] rounded-lg"
@@ -206,6 +239,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
             </div>
           )}
 
+          {/* Return request detail block — items, refund amount, and customer note */}
           {hasReturn && (
             <div className="mb-4 rounded-[10px] overflow-hidden"
               style={{ border: "1.5px solid rgba(234,88,12,0.3)" }}>
@@ -223,6 +257,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
               </div>
 
               <div className="px-[14px] py-3 bg-white flex flex-col gap-2">
+                {/* Individual returned items */}
                 {returnDoc.items?.map((item, i) => (
                   <div
                     key={i}
@@ -235,12 +270,14 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
                         Code: {item.id} · Qty: {item.quantity} · Reason: {item.reason}
                       </p>
                     </div>
+                    {/* Line total for this returned item */}
                     <p className="text-[12px] font-bold" style={{ color: "#ea580c" }}>
                       Rs. {((item.price || 0) * (item.quantity || 1)).toFixed(2)}
                     </p>
                   </div>
                 ))}
 
+                {/* Total refund amount for the return */}
                 <div className="flex justify-between items-center pt-1">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: C.textMuted }}>
                     Refund Amount
@@ -250,6 +287,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
                   </span>
                 </div>
 
+                {/* Optional note left by the customer when submitting the return */}
                 {returnDoc.adjustmentNote && (
                   <div
                     className="rounded-lg px-3 py-[8px] mt-1"
@@ -263,6 +301,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
             </div>
           )}
 
+          {/* Order items list with image, name, code, quantity, and unit price */}
           {order.types && order.types.length > 0 && (
             <div className="mb-4">
               <p className="text-[11px] font-bold text-[#64748b] uppercase tracking-[0.08em] mb-[10px]">Order Items</p>
@@ -270,6 +309,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
                 {order.types.map((item, i) => (
                   <div key={i} className="flex justify-between items-center bg-white rounded-lg px-[14px] py-[10px] border border-[rgba(26,135,225,0.18)]">
                     <div className="flex items-center gap-[10px]">
+                      {/* Product thumbnail — falls back gracefully if missing */}
                       {item.imageUrl && (
                         <img src={item.imageUrl} alt={item.name}
                           className="w-10 h-10 rounded-[6px] object-cover border border-[rgba(26,135,225,0.18)]" />
@@ -280,7 +320,9 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
                       </div>
                     </div>
                     <div className="text-right">
+                      {/* Quantity ordered */}
                       <p className="text-[13px] font-semibold text-[#1a87e1]">{item.quantity ? `x${item.quantity}` : ""}</p>
+                      {/* Unit price */}
                       {item.price && <p className="text-[11px] text-[#64748b]">Rs. {item.price}</p>}
                     </div>
                   </div>
@@ -289,6 +331,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
             </div>
           )}
 
+          {/* Total item count across all types in the order */}
           {order.totalnumber !== undefined && (
             <div className="flex justify-end mb-4">
               <div className="bg-white border border-[rgba(26,135,225,0.18)] rounded-lg px-4 py-2 text-[13px] font-semibold text-[#1a87e1]">
@@ -297,6 +340,7 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
             </div>
           )}
 
+          {/* Customer feedback submitted with the order, if any */}
           {order.feedback && (
             <div className="bg-[rgba(26,135,225,0.04)] border border-[rgba(26,135,225,0.15)] rounded-lg px-[14px] py-[10px] mb-4">
               <p className="text-[11px] font-bold text-[#64748b] mb-1 uppercase tracking-[0.08em]">Customer Feedback</p>
@@ -304,6 +348,9 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
             </div>
           )}
 
+          {/* ── Status action buttons ──
+              Buttons are disabled based on the current order status
+              to prevent invalid state transitions                      */}
           <div className="flex gap-2 flex-wrap">
             <ActionBtn
               label="Approve" icon={Check}
@@ -337,13 +384,17 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
+
+// Orders page — fetches all orders and their associated return requests,
+// displays summary stats, filter tabs, search, and a list of OrderRow components.
 export default function Orders() {
   const [orders, setOrders]     = useState([]);
   const [returns, setReturns]   = useState([]);
   const [filter, setFilter]     = useState("all");
   const [search, setSearch]     = useState("");
-  const [updating, setUpdating] = useState(false);
+  const [updating, setUpdating] = useState(false); // prevents double-submission during API calls
 
+  // Fetches both orders and returns in parallel, then sorts orders newest-first
   const fetchAll = useCallback(async () => {
     try {
       const [ordersRes, returnsRes] = await Promise.all([
@@ -353,6 +404,7 @@ export default function Orders() {
       const ordersData  = await ordersRes.json();
       const returnsData = await returnsRes.json();
 
+      // Sort descending by Firestore _seconds timestamp
       ordersData.sort((a, b) => {
         const aS = a.createdAt?._seconds ?? 0;
         const bS = b.createdAt?._seconds ?? 0;
@@ -366,14 +418,17 @@ export default function Orders() {
     }
   }, []);
 
+  // Initial fetch + poll every 30 seconds for live order updates
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 30000); // auto-refresh every 30s
+    const interval = setInterval(fetchAll, 30000);
     return () => clearInterval(interval);
   }, [fetchAll]);
 
+  // Looks up the return document that belongs to a given order, if one exists
   const getReturnForOrder = (orderId) => returns.find(r => r.orderId === orderId);
 
+  // Sends a status update (PUT) for a single order then refreshes the list
   const handleStatusUpdate = async (id, status) => {
     setUpdating(true);
     try {
@@ -391,6 +446,7 @@ export default function Orders() {
     }
   };
 
+  // ── Derived counts for stat cards and filter tab labels ───────────────────
   const total      = orders.length;
   const pending    = orders.filter(o => (o.orderStatus || "pending") === "pending").length;
   const delivered  = orders.filter(o => o.orderStatus === "delivered").length;
@@ -398,6 +454,7 @@ export default function Orders() {
   const cod        = orders.filter(o => (o.paymentMethod || "").toLowerCase() === "cod").length;
   const withReturn = orders.filter(o => !!getReturnForOrder(o.id)).length;
 
+  // Apply active filter tab and search query to produce the visible subset
   const visible = orders.filter(o => {
     const matchFilter =
       filter === "all"        ? true :
@@ -409,6 +466,7 @@ export default function Orders() {
       filter === "cod"        ? (o.paymentMethod || "").toLowerCase() === "cod" :
       filter === "returns"    ? !!getReturnForOrder(o.id) : true;
 
+    // Search matches against customer name, phone, or delivery address
     const matchSearch =
       !search ||
       o.customerName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -420,22 +478,26 @@ export default function Orders() {
 
   return (
     <div className="font-['DM_Sans',sans-serif]">
+      {/* ── Page heading ── */}
       <div className="mb-6">
         <h1 className="font-['Playfair_Display',serif] text-[26px] text-[#1e293b] font-semibold">Orders</h1>
         <p className="text-[13px] text-[#64748b] mt-[5px]">Manage orders, approve delivery, and handle feedback.</p>
       </div>
 
+      {/* ── Stat cards — row 1 ── */}
       <div className="grid grid-cols-3 gap-[14px] mb-3">
         <StatCard icon={ShoppingCart} label="Total Orders" value={total}      iconBg="rgba(26,135,225,0.1)"  iconColor="#1a87e1" />
         <StatCard icon={Clock}        label="Pending"       value={pending}    iconBg="rgba(245,158,11,0.1)"  iconColor="#d97706" />
         <StatCard icon={CheckCircle}  label="Delivered"     value={delivered}  iconBg="rgba(16,185,129,0.1)"  iconColor="#059669" />
       </div>
+      {/* ── Stat cards — row 2 ── */}
       <div className="grid grid-cols-3 gap-[14px] mb-6">
         <StatCard icon={XCircle}   label="Cancelled"    value={cancelled}  iconBg="rgba(239,68,68,0.1)"   iconColor="#dc2626" />
         <StatCard icon={Banknote}  label="COD Orders"   value={cod}        iconBg="rgba(245,158,11,0.08)" iconColor="#d97706" />
         <StatCard icon={RotateCcw} label="With Returns" value={withReturn} iconBg="rgba(234,88,12,0.08)"  iconColor="#ea580c" />
       </div>
 
+      {/* ── Filter tabs + search bar ── */}
       <div className="flex gap-2 mb-[18px] flex-wrap items-center">
         {[
           { key: "all",        label: `All (${total})`           },
@@ -453,6 +515,7 @@ export default function Orders() {
             className="text-[12px] font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer transition-all duration-150 border"
             style={{
               fontFamily: FONT.body,
+              // Active tab gets a coloured tint; COD and Returns use their own accent colours
               background:
                 filter === f.key
                   ? f.key === "cod"     ? "rgba(245,158,11,0.12)"
@@ -477,6 +540,7 @@ export default function Orders() {
           </button>
         ))}
 
+        {/* Live search — filters by name, phone, or address */}
         <input
           placeholder="Search by name, phone, address..."
           value={search}
@@ -486,6 +550,7 @@ export default function Orders() {
         />
       </div>
 
+      {/* ── Table header row ── */}
       <div
         className="grid px-[18px] py-[10px] gap-3 bg-[#e0f2fe] border border-[rgba(26,135,225,0.18)] rounded-[10px_10px_0_0]"
         style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto" }}
@@ -495,8 +560,10 @@ export default function Orders() {
         ))}
       </div>
 
+      {/* ── Order list ── */}
       <div className="flex flex-col gap-[2px] mt-[2px]">
         {visible.length === 0 ? (
+          // Empty state when no orders match the current filter/search
           <div className="text-center py-[60px] bg-white border border-[rgba(26,135,225,0.18)] rounded-[0_0_10px_10px]">
             <ShoppingCart size={40} color={C.textMuted} className="mx-auto mb-3" />
             <p className="text-[14px] text-[#475569]">No orders found.</p>
@@ -514,6 +581,7 @@ export default function Orders() {
         )}
       </div>
 
+      {/* Pagination-style count shown below the list */}
       <div className="text-[12px] text-[#64748b] mt-3 text-right">
         Showing {visible.length} of {total} orders
       </div>

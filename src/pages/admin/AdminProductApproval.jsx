@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/Card';
+import { getAuthHeaders } from "../../services/firebase";
 import { db } from '../../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -32,7 +33,10 @@ export default function AdminProductApproval() {
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const res  = await fetch(`${API_BASE}/admin/pending-products`);
+      const authHeaders = await getAuthHeaders();
+      const res  = await fetch(`${API_BASE}/admin/pending-products`, {
+        headers: authHeaders
+      });
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : []);
       if (!res.ok) console.error('API error:', data);
@@ -48,9 +52,13 @@ export default function AdminProductApproval() {
     if (!window.confirm(`Approve "${product.productName}"?\nA product code will be auto-generated.`)) return;
     try {
       setActionLoading(product.id);
+      const authHeaders = await getAuthHeaders();
 
       // 1. Approve on backend
-      const res = await fetch(`${API_BASE}/admin/pending-products/${product.id}/approve`, { method: 'PATCH' });
+      const res = await fetch(`${API_BASE}/admin/pending-products/${product.id}/approve`, {
+        method: 'PATCH',
+        headers: authHeaders
+      });
       if (!res.ok) throw new Error('Approval failed');
       const { productCode } = await res.json();
 
@@ -94,9 +102,13 @@ export default function AdminProductApproval() {
     if (!rejectModal) return;
     try {
       setActionLoading(rejectModal.id);
+      const authHeaders = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/admin/pending-products/${rejectModal.id}/reject`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
         body: JSON.stringify({ reason: rejectReason }),
       });
       if (!res.ok) throw new Error('Rejection failed');

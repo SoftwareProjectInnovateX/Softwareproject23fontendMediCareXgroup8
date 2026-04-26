@@ -99,8 +99,11 @@ export default function ChatBot({ onClose }) {
 
   return (
     <div
-      className="flex flex-col h-full bg-white rounded-xl shadow-sm
-                    border border-slate-100 overflow-hidden"
+      className="flex flex-col h-full rounded-xl shadow-sm overflow-hidden"
+      style={{
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--navbar-border)",
+      }}
     >
       {/* Header */}
       <div className="bg-[#0b5ed7] px-4 py-3 flex items-center gap-3">
@@ -173,7 +176,10 @@ export default function ChatBot({ onClose }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-200">
+      <div
+        className="flex-1 overflow-y-auto p-4 space-y-3"
+        style={{ background: "var(--bg-primary)" }}
+      >
         {messages.map((msg, index) => (
           <div
             key={index}
@@ -189,17 +195,25 @@ export default function ChatBot({ onClose }) {
             )}
             <div
               className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl text-sm
-                             whitespace-pre-wrap leading-relaxed
+                             whitespace-pre-wrap leading-relaxed shadow-sm
                              ${
                                msg.role === "user"
                                  ? "bg-[#0b5ed7] text-white rounded-br-none"
-                                 : "bg-white text-slate-700 shadow-sm border border-slate-100 rounded-bl-none"
+                                 : "rounded-bl-none"
                              }`}
+              style={{
+                background: msg.role === "user" ? "#0b5ed7" : "var(--bg-secondary)",
+                color: msg.role === "user" ? "white" : "var(--text-primary)",
+                border: msg.role === "user" ? "none" : "1px solid var(--navbar-border)",
+              }}
             >
               {msg.role === "bot" && msg.text.includes("⚕️") ? (
                 <>
                   <span>{msg.text.replace(/⚕️.*$/, "")}</span>
-                  <p className="mt-2 text-[10px] italic text-slate-400 border-t border-slate-100 pt-1">
+                  <p
+                    className="mt-2 text-[10px] italic border-t pt-1"
+                    style={{ color: "var(--text-secondary)", borderColor: "var(--navbar-border)" }}
+                  >
                     ⚕️ This is general health information only. It is not a
                     substitute for professional medical advice.
                   </p>
@@ -221,8 +235,8 @@ export default function ChatBot({ onClose }) {
               <span className="text-[#0b5ed7] text-xs font-bold">+</span>
             </div>
             <div
-              className="bg-white px-4 py-3 rounded-2xl rounded-bl-none
-                            shadow-sm border border-slate-100"
+              className="px-4 py-3 rounded-2xl rounded-bl-none shadow-sm"
+              style={{ background: "var(--bg-secondary)", border: "1px solid var(--navbar-border)" }}
             >
               <div className="flex gap-1">
                 <div
@@ -245,7 +259,10 @@ export default function ChatBot({ onClose }) {
       </div>
 
       {/* Input */}
-      <div className="p-3 bg-white border-t border-slate-100">
+      <div
+        className="p-3 border-t"
+        style={{ background: "var(--bg-secondary)", borderColor: "var(--navbar-border)" }}
+      >
         <div className="flex gap-2">
           <textarea
             value={input}
@@ -253,9 +270,12 @@ export default function ChatBot({ onClose }) {
             onKeyDown={handleKeyDown}
             placeholder="Describe your symptoms..."
             rows={1}
-            className="flex-1 px-4 py-2.5 border-2 border-[#cbd6ee] rounded-xl
-                       text-sm resize-none focus:outline-none focus:border-[#0b5ed7]
-                       transition-all"
+            className="flex-1 px-4 py-2.5 border-2 rounded-xl text-sm resize-none focus:outline-none transition-all"
+            style={{
+              background: "var(--bg-primary)",
+              color: "var(--text-primary)",
+              borderColor: "var(--navbar-border)",
+            }}
           />
           <button
             onClick={sendMessage}
@@ -278,7 +298,7 @@ export default function ChatBot({ onClose }) {
             </svg>
           </button>
         </div>
-        <p className="text-xs text-slate-400 mt-1.5 text-center">
+        <p className="text-xs mt-1.5 text-center" style={{ color: "var(--text-secondary)" }}>
           For emergencies, call your local emergency number immediately
         </p>
       </div>
