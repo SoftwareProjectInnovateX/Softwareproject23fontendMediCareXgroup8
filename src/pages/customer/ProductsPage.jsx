@@ -5,34 +5,34 @@ import ProductCard from '../../components/products/ProductCard';
 import { C, FONT } from '../../components/profile/profileTheme';
 import { Tag } from 'lucide-react';
 
-// Base URL for all API calls — falls back to localhost in development
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 
 export default function ProductsPage() {
-  // Active category filter — 'all' shows every product
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [products, setProducts]                 = useState([]);
-  // null means no smart/AI search is active; array means smart results are shown
   const [smartResults, setSmartResults]         = useState(null);
   const [loading, setLoading]                   = useState(true);
+  // ── ADDED: error state to show user-friendly message ──
+  const [error, setError]                       = useState(null);
 
-  // Wrapped in useCallback so it can be safely listed as a useEffect dependency
   const fetchProducts = useCallback(async () => {
+    // ── ADDED: reset error on each fetch attempt ──
+    setError(null);
     try {
       const res  = await fetch(`${API_BASE}/products`);
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch products:', err);
+      // ── ADDED: set error message for UI display ──
+      setError('Failed to load products. Please try again.');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch all products from backend on initial mount
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
-  // Smart search results take priority over category filtering
   const filteredProducts =
     smartResults !== null
       ? smartResults
@@ -43,7 +43,6 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
 
-      {/* Page header banner with gradient background */}
       <div
         className="px-6 pt-14 pb-12 text-center"
         style={{ background: `linear-gradient(135deg, ${C.accentDark} 0%, ${C.accent} 100%)` }}
@@ -56,7 +55,6 @@ export default function ProductsPage() {
         </p>
       </div>
 
-      {/* Filter bar — handles both category tabs and smart search */}
       <FilterBar
         selectedCategory={selectedCategory}
         onCategory={setSelectedCategory}
@@ -64,15 +62,27 @@ export default function ProductsPage() {
         onSmartResults={setSmartResults}
       />
 
-      {/* Product grid — handles loading, empty, and populated states */}
       <div className="max-w-[1200px] mx-auto px-6 py-9">
-        {loading ? (
-          // Loading state while backend request is in flight
+        {/* ── ADDED: show error message if fetch failed ── */}
+        {error ? (
+          <div
+            className="rounded-2xl py-[72px] text-center"
+            style={{ background: C.surface, border: `1px solid #fca5a5` }}
+          >
+            <p className="text-[15px] font-bold text-red-500">{error}</p>
+            <button
+              onClick={fetchProducts}
+              className="mt-4 px-5 py-2 rounded-xl text-sm font-semibold text-white"
+              style={{ background: C.accent }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : loading ? (
           <div className="text-center py-[72px]" style={{ color: C.textMuted, fontFamily: FONT.body }}>
             Loading products…
           </div>
         ) : filteredProducts.length === 0 ? (
-          // Empty state when no products match the current filter or search
           <div
             className="rounded-2xl py-[72px] text-center"
             style={{ background: C.surface, border: `1px solid ${C.border}` }}
@@ -84,7 +94,6 @@ export default function ProductsPage() {
             </p>
           </div>
         ) : (
-          // 3-column product grid
           <div className="grid grid-cols-3 gap-5">
             {filteredProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
