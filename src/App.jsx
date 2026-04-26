@@ -1,8 +1,6 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { auth } from "./services/firebase";
-import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
 
 /* AUTH */
 import Login from "./pages/auth/Login";
@@ -77,21 +75,6 @@ import PharmacistNewPatients from "./pages/pharmacist/PharmacistNewPatients";
 import PharmacistLowStock from "./pages/pharmacist/PharmacistLowStock";
 
 export default function App() {
-  useEffect(() => {
-    // Only attempt anonymous sign-in if no user session already exists.
-    // This prevents the auth/admin-restricted-operation error from firing
-    // repeatedly when anonymous auth is disabled in the Firebase console.
-    // To enable it: Firebase Console → Authentication → Sign-in method → Anonymous → Enable
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        signInAnonymously(auth).catch((err) => {
-          console.warn("Anonymous auth unavailable:", err.code);
-        });
-      }
-    });
-    return () => unsub();
-  }, []);
-
   return (
     <Routes>
 

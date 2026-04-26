@@ -5,11 +5,13 @@ import { useCartStore } from '../../stores/cartStore';
 import BillingDetails from '../../components/checkout/BillingDetails';
 import OrderSummary from '../../components/checkout/OrderSummary';
 import { getAuthHeaders } from '../../services/firebase';
+import { useAuth } from '../../context/AuthContext';
 import { updateDispensedRecord, getDispensedHistory } from '../../services/pharmacistService';
 
 const Checkout = () => {
     const [isLoading, setIsLoading] = useState(false);
     const { getTotal, clearCart, items } = useCartStore();
+    const { currentUser } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
@@ -21,7 +23,7 @@ const Checkout = () => {
         MERCHANT_SECRET: "NDUxMTU1MDYxNDEyNDEyMTgyMjM3MTEzMTYyMjMwMzQ0OTc1MjM=",
         CURRENCY: "LKR",
         TOTAL_AMOUNT: (rxId ? rxAmount : getTotal()).toFixed(2),
-        NOTIFY_URL: "http://localhost:5000/api/orders/notify",
+        NOTIFY_URL: "http://localhost:5000/api/customer-orders/notify",
         RETURN_URL: `${window.location.origin}/customer/checkout/success`,
         CANCEL_URL: `${window.location.origin}/customer/checkout/cancel`,
     };
@@ -120,92 +122,92 @@ const Checkout = () => {
 
     const handleOrderSubmission = async (referenceId, shouldClearCart = false) => {
         try {
-            const authHeaders = await getAuthHeaders();
-            const response = await fetch('http://localhost:5000/api/orders', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    ...authHeaders
-                },
-                body: JSON.stringify({
-                    ...orderData,
-                    orderId:      referenceId,
-                    totalAmount:  parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
-                    orderStatus:  orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Pending-COD',
-                    items:        items.map(item => ({
-                        id:       item.id,
-                        name:     item.name,
-                        price:    item.price,
-                        quantity: item.qty,
-                        imageUrl: item.imageUrl || '',
-                    })),
-                }),
-            });
+            // Skip creating a CustomerOrders record when paying for a prescription
+            if (!rxId) {
+                const authHeaders = await getAuthHeaders();
+                const response = await fetch('http://localhost:5000/api/customer-orders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...authHeaders
+                    },
+                    body: JSON.stringify({
+                        ...orderData,
+                        userId:       currentUser?.uid || null,
+                        orderId:      referenceId,
+                        totalAmount:  parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
+                        orderStatus:  orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Pending-COD',
+                        items:        items.map(item => ({
+                            id:       item.id,
+                            name:     item.name,
+                            price:    item.price,
+                            quantity: item.qty,
+                            imageUrl: item.imageUrl || '',
+                        })),
+                    }),
+                });
 
-            if (response.ok) {
-                // If this was a prescription order, sync with Dispensing Queue and Firestore
-                if (rxId) {
-                    try {
-                        const { db } = await import('../../lib/firebase');
-                        const { doc, getDoc, updateDoc, Timestamp } = await import('firebase/firestore');
-                        
-                        // 1. Fetch full prescription details from Firestore
-                        const rxRef = doc(db, 'prescriptions', rxId);
-                        const rxSnap = await getDoc(rxRef);
-                        const rxData = rxSnap.exists() ? rxSnap.data() : null;
-
-                        if (rxData) {
-                            // 2. Update/Create Dispensing Queue Record (Backend API)
-                            const history = await getDispensedHistory();
-                            const existingRecord = history.find(h => h.rxId === rxId);
-                            
-                            const dispensePayload = {
-                                rxId: rxId,
-                                patientName: `${orderData.firstName} ${orderData.lastName}`,
-                                verifiedPatient: `${orderData.firstName} ${orderData.lastName}`,
-                                phone: orderData.phone,
-                                address: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`,
-                                orderItems: rxData.orderItems || rxData.medications || [],
-                                total: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
-                                paymentStatus: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'COD',
-                                paymentMethod: orderData.paymentMethod,
-                                createdAt: new Date().toISOString(),
-                                finalized: false
-                            };
-
-                            if (existingRecord) {
-                                await updateDispensedRecord(existingRecord.firebaseId || existingRecord.id, dispensePayload);
-                            } else {
-                                const { addDispensedRecord } = await import('../../services/pharmacistService');
-                                await addDispensedRecord(dispensePayload);
-                            }
-
-                            // 3. Update Prescription Status in Firestore
-                            await updateDoc(rxRef, {
-                                status: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Ready to Collect',
-                                customerConfirmed: true,
-                                paymentMethod: orderData.paymentMethod,
-                                confirmedAt: Timestamp.now(),
-                                // Update address in Firestore too
-                                customerAddress: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`
-                            });
-                            
-                            console.log("Prescription and Dispensing records synchronized for RX:", rxId);
-                        }
-                    } catch (err) {
-                        console.error("Critical: Failed to sync prescription/dispensing data:", err);
-                    }
+                if (!response.ok) {
+                    const errorLog = await response.json();
+                    console.error("Backend Error:", errorLog);
+                    throw new Error("Order persistence failed");
                 }
 
-                if (shouldClearCart && !rxId) clearCart();
-                navigate('/customer/checkout/success', {
-                    state: { totalAmount: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT) }
-                });
-            } else {
-                const errorLog = await response.json();
-                console.error("Backend Error:", errorLog);
-                throw new Error("Order persistence failed");
+                if (shouldClearCart) clearCart();
             }
+
+            if (rxId) {
+                try {
+                    const { db } = await import('../../lib/firebase');
+                    const { doc, getDoc, updateDoc, Timestamp } = await import('firebase/firestore');
+
+                    const rxRef = doc(db, 'prescriptions', rxId);
+                    const rxSnap = await getDoc(rxRef);
+                    const rxData = rxSnap.exists() ? rxSnap.data() : null;
+
+                    if (rxData) {
+                        const history = await getDispensedHistory();
+                        const existingRecord = history.find(h => h.rxId === rxId);
+
+                        const dispensePayload = {
+                            rxId: rxId,
+                            patientName: `${orderData.firstName} ${orderData.lastName}`,
+                            verifiedPatient: `${orderData.firstName} ${orderData.lastName}`,
+                            phone: orderData.phone,
+                            address: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`,
+                            orderItems: rxData.orderItems || rxData.medications || [],
+                            total: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
+                            paymentStatus: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'COD',
+                            paymentMethod: orderData.paymentMethod,
+                            createdAt: new Date().toISOString(),
+                            finalized: false
+                        };
+
+                        if (existingRecord) {
+                            await updateDispensedRecord(existingRecord.firebaseId || existingRecord.id, dispensePayload);
+                        } else {
+                            const { addDispensedRecord } = await import('../../services/pharmacistService');
+                            await addDispensedRecord(dispensePayload);
+                        }
+
+                        await updateDoc(rxRef, {
+                            status: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Ready to Collect',
+                            customerConfirmed: true,
+                            paymentMethod: orderData.paymentMethod,
+                            confirmedAt: Timestamp.now(),
+                            customerAddress: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`
+                        });
+
+                        console.log("Prescription and Dispensing records synchronized for RX:", rxId);
+                    }
+                } catch (err) {
+                    console.error("Critical: Failed to sync prescription/dispensing data:", err);
+                }
+            }
+
+            navigate('/customer/checkout/success', {
+                state: { totalAmount: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT) }
+            });
         } catch (error) {
             console.error("Submission error:", error);
             alert("Connectivity issue: Unable to save your order to the server.");

@@ -77,11 +77,11 @@ export const updatePatient = async (id, data) => {
 /* ================= PRESCRIPTIONS ================= */
 
 export const getPrescriptions = async () => {
-  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions`));
+  return handleResponse(await fetch(`http://localhost:5000/api/prescriptions`));
 };
 
 export const addPrescription = async (data) => {
-  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions`, {
+  return handleResponse(await fetch(`http://localhost:5000/api/prescriptions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -89,8 +89,8 @@ export const addPrescription = async (data) => {
 };
 
 export const updatePrescription = async (id, data) => {
-  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions/${id}`, {
-    method: 'PUT',
+  return handleResponse(await fetch(`http://localhost:5000/api/prescriptions/${id}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   }));

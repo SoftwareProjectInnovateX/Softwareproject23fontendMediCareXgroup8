@@ -2,25 +2,21 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Phone, MapPin, Package, CreditCard,
-  RotateCcw, CheckCircle, ChevronRight,
+  CheckCircle, ChevronRight,
   Truck, Receipt, Clock, ShoppingCart
 } from 'lucide-react';
 import { C, FONT } from '../profile/profileTheme';
 import { StatusBadge } from './orderStatusUtils';
-import ReturnPanel from './ReturnPanel';
 import Card from '../Card';
 
 // Renders a single customer order as a styled card.
-// Shows delivery info, ordered items, an optional return panel, and a footer
-// with payment details and a return-request button for eligible orders.
-export default function OrderCard({ order, returnDoc, onReturnClick }) {
+// Shows delivery info, ordered items, and a footer
+// with payment details.
+export default function OrderCard({ order }) {
   const [showBill, setShowBill] = useState(false);
   const navigate = useNavigate();
 
-  // Whether this order has an associated return request
-  const hasReturn = !!returnDoc;
-
-  // Cash-on-delivery orders are the only type eligible for returns
+  // Cash-on-delivery orders
   const isCOD = (order.paymentMethod || '').toLowerCase() === 'cod';
 
   const handleGoToCheckout = () => {
@@ -41,6 +37,20 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
     });
 
     navigate(`/customer/checkout?${params.toString()}`);
+  };
+
+  // Marks the order as received by calling the pharmacist orders API
+  const handleMarkReceived = async () => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/pharmacist/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderStatus: 'received' }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (err) {
+      alert(`Failed to update: ${err.message}`);
+    }
   };
 
   // Convert Firestore Timestamp to a readable date string
@@ -133,9 +143,6 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
           </div>
         </div>
       )}
-
-      {/* Return details panel — only rendered when a return document is linked */}
-      {hasReturn && <ReturnPanel returnDoc={returnDoc} />}
 
       {/* Prescription-specific Detailed Status Blocks (Dynamic) */}
       {order.type === 'prescription' && (
@@ -246,7 +253,7 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
         </div>
       )}
 
-      {/* ── Card footer: payment info and conditional action buttons ── */}
+      {/* ── Card footer: payment info ── */}
       <div className="flex justify-between items-center flex-wrap gap-2 pt-4">
         {/* Payment method and payment status */}
         <div className="flex gap-2.5 items-center">
@@ -267,24 +274,24 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
           </span>
         </div>
 
-        {/* Return button — only shown for delivered COD orders without an existing return */}
-        {order.orderStatus === 'delivered' && !hasReturn && isCOD && (
+        {/* Mark as Received button — only shown for delivered orders not yet confirmed */}
+        {order.orderStatus === 'delivered' && (
           <button
-            onClick={onReturnClick}
+            onClick={handleMarkReceived}
             className="flex items-center gap-[6px] text-[12px] font-semibold px-[18px] py-[9px] rounded-[10px] cursor-pointer"
-            style={{ background: "rgba(234, 88, 12, 0.1)", color: '#ea580c', border: '1.5px solid rgba(234, 88, 12, 0.3)', fontFamily: FONT.body }}
+            style={{ background: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1.5px solid rgba(22, 163, 74, 0.3)', fontFamily: FONT.body }}
           >
-            <RotateCcw size={14} /> Return Items <ChevronRight size={13} />
+            <CheckCircle size={14} /> Mark as Received
           </button>
         )}
 
-        {/* Confirmation badge — shown once a return has been submitted */}
-        {hasReturn && (
+        {/* Confirmation badge — shown once the customer has confirmed receipt */}
+        {order.orderStatus === 'received' && (
           <span
             className="flex items-center gap-2 text-[13px] font-semibold px-4 py-2 rounded-xl"
-            style={{ background: C.accentFaint, color: C.accent, border: `1px solid ${C.border}` }}
+            style={{ background: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1px solid rgba(22, 163, 74, 0.3)' }}
           >
-            <CheckCircle size={14} /> Return Requested
+            <CheckCircle size={14} /> Order Received
           </span>
         )}
       </div>

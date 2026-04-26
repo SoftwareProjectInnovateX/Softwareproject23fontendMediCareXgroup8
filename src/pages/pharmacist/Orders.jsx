@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   ShoppingCart, Clock, CheckCircle, XCircle,
   Phone, MapPin, ChevronDown, ChevronUp,
-  Truck, Settings, Check, X, Banknote, RotateCcw
+  Truck, Settings, Check, X, Banknote
 } from "lucide-react";
 
 // Base URL for all pharmacist order API calls
@@ -34,6 +34,7 @@ const FONT = {
 function orderStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "delivered":  return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
+    case "received":   return { bg: "rgba(20,184,166,0.1)",  color: "#0d9488", border: "rgba(20,184,166,0.25)" };
     case "approved":   return { bg: "rgba(26,135,225,0.1)",  color: "#1a87e1", border: "rgba(26,135,225,0.25)" };
     case "cancelled":  return { bg: "rgba(239,68,68,0.1)",   color: "#dc2626", border: "rgba(239,68,68,0.25)"  };
     case "processing": return { bg: "rgba(139,92,246,0.1)",  color: "#7c3aed", border: "rgba(139,92,246,0.25)" };
@@ -47,15 +48,6 @@ function paymentStatusStyle(status) {
     case "paid":    return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
     case "failed":  return { bg: "rgba(239,68,68,0.1)",   color: "#dc2626", border: "rgba(239,68,68,0.25)"  };
     default:        return { bg: "rgba(245,158,11,0.1)",  color: "#d97706", border: "rgba(245,158,11,0.25)" };
-  }
-}
-
-// Returns colour tokens based on return request status (approved / rejected / pending)
-function returnStatusStyle(status) {
-  switch ((status || "").toLowerCase()) {
-    case "approved": return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
-    case "rejected": return { bg: "rgba(239,68,68,0.1)",   color: "#dc2626", border: "rgba(239,68,68,0.25)"  };
-    default:         return { bg: "rgba(245,158,11,0.1)",  color: "#d97706", border: "rgba(245,158,11,0.25)" };
   }
 }
 
@@ -77,7 +69,7 @@ function StatCard({ icon: Icon, label, value, iconBg, iconColor }) {
   );
 }
 
-// Pill-shaped status label used throughout the order and return rows
+// Pill-shaped status label used throughout the order rows
 function Badge({ label, style: s }) {
   return (
     <span
@@ -113,8 +105,7 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
 // ── OrderRow ──────────────────────────────────────────────────────────────────
 
 // Renders a single order as a collapsible row.
-// If a matching return document exists it shows a highlighted return banner.
-function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
+function OrderRow({ order, onStatusUpdate, updating }) {
   // Controls whether the detail panel is visible
   const [expanded, setExpanded] = useState(false);
 
@@ -123,10 +114,6 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
 
   // Cash-on-delivery orders get a special COD badge
   const isCOD     = (order.paymentMethod || "").toLowerCase() === "cod";
-
-  // Whether this order has an associated return request
-  const hasReturn = !!returnDoc;
-  const rStyle    = hasReturn ? returnStatusStyle(returnDoc.returnStatus) : null;
 
   // Convert Firestore timestamp (_seconds) to a readable date string
   const createdAt = order.createdAt?._seconds
@@ -137,36 +124,13 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
     : "—";
 
   return (
-    // Orders with a return request get an orange highlight border
     <div
       className="bg-white rounded-[12px] overflow-hidden"
       style={{
-        border:     hasReturn ? "1.5px solid rgba(234,88,12,0.4)" : "1px solid rgba(26,135,225,0.18)",
-        boxShadow:  hasReturn ? "0 2px 8px rgba(234,88,12,0.08)" : "0 1px 3px rgba(26,135,225,0.06)",
+        border:     "1px solid rgba(26,135,225,0.18)",
+        boxShadow:  "0 1px 3px rgba(26,135,225,0.06)",
       }}
     >
-      {/* Return request banner — only shown when a return doc is linked */}
-      {hasReturn && (
-        <div
-          className="flex items-center justify-between px-[18px] py-[9px]"
-          style={{ background: "rgba(234,88,12,0.06)", borderBottom: "1px solid rgba(234,88,12,0.2)" }}
-        >
-          <div className="flex items-center gap-2">
-            <RotateCcw size={13} color="#ea580c" />
-            <span className="text-[12px] font-semibold" style={{ color: "#ea580c" }}>
-              Return Request —&nbsp;
-              <span className="capitalize">{returnDoc.returnStatus || "pending"}</span>
-            </span>
-            {returnDoc.items?.length > 0 && (
-              <span className="text-[11px]" style={{ color: "#9a3412" }}>
-                · {returnDoc.items.length} item{returnDoc.items.length !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
-          <Badge label={returnDoc.returnStatus || "pending"} style={rStyle} />
-        </div>
-      )}
-
       {/* ── Collapsed summary row ── */}
       <div
         className="grid px-[18px] py-[14px] items-center gap-3"
@@ -236,68 +200,6 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
               <p className="text-[12px] font-semibold" style={{ color: "#d97706" }}>
                 Cash on Delivery — payment collected upon delivery. Returns eligible for this order.
               </p>
-            </div>
-          )}
-
-          {/* Return request detail block — items, refund amount, and customer note */}
-          {hasReturn && (
-            <div className="mb-4 rounded-[10px] overflow-hidden"
-              style={{ border: "1.5px solid rgba(234,88,12,0.3)" }}>
-              <div
-                className="flex items-center justify-between px-[14px] py-[10px]"
-                style={{ background: "rgba(234,88,12,0.07)", borderBottom: "1px solid rgba(234,88,12,0.2)" }}
-              >
-                <div className="flex items-center gap-2">
-                  <RotateCcw size={13} color="#ea580c" />
-                  <p className="text-[12px] font-bold uppercase tracking-[0.07em]" style={{ color: "#ea580c" }}>
-                    Return Request Details
-                  </p>
-                </div>
-                <Badge label={returnDoc.returnStatus || "pending"} style={rStyle} />
-              </div>
-
-              <div className="px-[14px] py-3 bg-white flex flex-col gap-2">
-                {/* Individual returned items */}
-                {returnDoc.items?.map((item, i) => (
-                  <div
-                    key={i}
-                    className="flex justify-between items-center rounded-lg px-3 py-[8px]"
-                    style={{ background: "#fff7ed", border: "1px solid rgba(234,88,12,0.15)" }}
-                  >
-                    <div>
-                      <p className="text-[12px] font-semibold" style={{ color: C.textPrimary }}>{item.name}</p>
-                      <p className="text-[11px]" style={{ color: C.textMuted }}>
-                        Code: {item.id} · Qty: {item.quantity} · Reason: {item.reason}
-                      </p>
-                    </div>
-                    {/* Line total for this returned item */}
-                    <p className="text-[12px] font-bold" style={{ color: "#ea580c" }}>
-                      Rs. {((item.price || 0) * (item.quantity || 1)).toFixed(2)}
-                    </p>
-                  </div>
-                ))}
-
-                {/* Total refund amount for the return */}
-                <div className="flex justify-between items-center pt-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: C.textMuted }}>
-                    Refund Amount
-                  </span>
-                  <span className="text-[13px] font-bold" style={{ color: "#059669" }}>
-                    Rs. {(returnDoc.refundAmount || 0).toFixed(2)}
-                  </span>
-                </div>
-
-                {/* Optional note left by the customer when submitting the return */}
-                {returnDoc.adjustmentNote && (
-                  <div
-                    className="rounded-lg px-3 py-[8px] mt-1"
-                    style={{ background: "rgba(26,135,225,0.04)", border: "1px solid rgba(26,135,225,0.15)" }}
-                  >
-                    <p className="text-[10px] font-bold uppercase mb-1" style={{ color: C.textMuted }}>Customer Note</p>
-                    <p className="text-[12px]" style={{ color: C.textSoft }}>{returnDoc.adjustmentNote}</p>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -385,24 +287,19 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-// Orders page — fetches all orders and their associated return requests,
-// displays summary stats, filter tabs, search, and a list of OrderRow components.
+// Orders page — fetches all orders, displays summary stats,
+// filter tabs, search, and a list of OrderRow components.
 export default function Orders() {
   const [orders, setOrders]     = useState([]);
-  const [returns, setReturns]   = useState([]);
   const [filter, setFilter]     = useState("all");
   const [search, setSearch]     = useState("");
   const [updating, setUpdating] = useState(false); // prevents double-submission during API calls
 
-  // Fetches both orders and returns in parallel, then sorts orders newest-first
+  // Fetches orders then sorts newest-first
   const fetchAll = useCallback(async () => {
     try {
-      const [ordersRes, returnsRes] = await Promise.all([
-        fetch(API_BASE),
-        fetch(`${API_BASE}/returns`),
-      ]);
-      const ordersData  = await ordersRes.json();
-      const returnsData = await returnsRes.json();
+      const ordersRes = await fetch(API_BASE);
+      const ordersData = await ordersRes.json();
 
       // Sort descending by Firestore _seconds timestamp
       ordersData.sort((a, b) => {
@@ -412,9 +309,8 @@ export default function Orders() {
       });
 
       setOrders(ordersData);
-      setReturns(returnsData);
     } catch (err) {
-      console.error("Failed to fetch orders/returns:", err);
+      console.error("Failed to fetch orders:", err);
     }
   }, []);
 
@@ -424,9 +320,6 @@ export default function Orders() {
     const interval = setInterval(fetchAll, 30000);
     return () => clearInterval(interval);
   }, [fetchAll]);
-
-  // Looks up the return document that belongs to a given order, if one exists
-  const getReturnForOrder = (orderId) => returns.find(r => r.orderId === orderId);
 
   // Sends a status update (PUT) for a single order then refreshes the list
   const handleStatusUpdate = async (id, status) => {
@@ -452,7 +345,7 @@ export default function Orders() {
   const delivered  = orders.filter(o => o.orderStatus === "delivered").length;
   const cancelled  = orders.filter(o => o.orderStatus === "cancelled").length;
   const cod        = orders.filter(o => (o.paymentMethod || "").toLowerCase() === "cod").length;
-  const withReturn = orders.filter(o => !!getReturnForOrder(o.id)).length;
+  const received   = orders.filter(o => o.orderStatus === "received").length;
 
   // Apply active filter tab and search query to produce the visible subset
   const visible = orders.filter(o => {
@@ -462,9 +355,9 @@ export default function Orders() {
       filter === "approved"   ? o.orderStatus === "approved"   :
       filter === "processing" ? o.orderStatus === "processing" :
       filter === "delivered"  ? o.orderStatus === "delivered"  :
+      filter === "received"   ? o.orderStatus === "received"   :
       filter === "cancelled"  ? o.orderStatus === "cancelled"  :
-      filter === "cod"        ? (o.paymentMethod || "").toLowerCase() === "cod" :
-      filter === "returns"    ? !!getReturnForOrder(o.id) : true;
+      filter === "cod"        ? (o.paymentMethod || "").toLowerCase() === "cod" : true;
 
     // Search matches against customer name, phone, or delivery address
     const matchSearch =
@@ -491,10 +384,11 @@ export default function Orders() {
         <StatCard icon={CheckCircle}  label="Delivered"     value={delivered}  iconBg="rgba(16,185,129,0.1)"  iconColor="#059669" />
       </div>
       {/* ── Stat cards — row 2 ── */}
-      <div className="grid grid-cols-3 gap-[14px] mb-6">
-        <StatCard icon={XCircle}   label="Cancelled"    value={cancelled}  iconBg="rgba(239,68,68,0.1)"   iconColor="#dc2626" />
-        <StatCard icon={Banknote}  label="COD Orders"   value={cod}        iconBg="rgba(245,158,11,0.08)" iconColor="#d97706" />
-        <StatCard icon={RotateCcw} label="With Returns" value={withReturn} iconBg="rgba(234,88,12,0.08)"  iconColor="#ea580c" />
+      
+      <div className="grid grid-cols-3 gap-[14px] mb-3">
+        <StatCard icon={XCircle}  label="Cancelled"  value={cancelled} iconBg="rgba(239,68,68,0.1)"   iconColor="#dc2626" />
+        <StatCard icon={Banknote} label="COD Orders" value={cod}       iconBg="rgba(245,158,11,0.08)" iconColor="#d97706" />
+         <StatCard icon={Check} label="Received" value={received} iconBg="rgba(20,184,166,0.1)" iconColor="#0d9488" />
       </div>
 
       {/* ── Filter tabs + search bar ── */}
@@ -505,9 +399,9 @@ export default function Orders() {
           { key: "approved",   label: "Approved"                 },
           { key: "processing", label: "Processing"               },
           { key: "delivered",  label: `Delivered (${delivered})` },
+          { key: "received",   label: `Received (${received})`   },
           { key: "cancelled",  label: `Cancelled (${cancelled})` },
           { key: "cod",        label: `COD (${cod})`             },
-          { key: "returns",    label: `Returns (${withReturn})`  },
         ].map(f => (
           <button
             key={f.key}
@@ -515,23 +409,23 @@ export default function Orders() {
             className="text-[12px] font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer transition-all duration-150 border"
             style={{
               fontFamily: FONT.body,
-              // Active tab gets a coloured tint; COD and Returns use their own accent colours
+              // Active tab gets a coloured tint; COD and Received use their own accent colours
               background:
                 filter === f.key
-                  ? f.key === "cod"     ? "rgba(245,158,11,0.12)"
-                  : f.key === "returns" ? "rgba(234,88,12,0.10)"
+                  ? f.key === "cod"      ? "rgba(245,158,11,0.12)"
+                  : f.key === "received" ? "rgba(20,184,166,0.12)"
                   : "rgba(26,135,225,0.12)"
                   : C.surface,
               color:
                 filter === f.key
-                  ? f.key === "cod"     ? "#d97706"
-                  : f.key === "returns" ? "#ea580c"
+                  ? f.key === "cod"      ? "#d97706"
+                  : f.key === "received" ? "#0d9488"
                   : "#1a87e1"
                   : C.textSoft,
               border:
                 filter === f.key
-                  ? f.key === "cod"     ? "1px solid rgba(245,158,11,0.35)"
-                  : f.key === "returns" ? "1px solid rgba(234,88,12,0.35)"
+                  ? f.key === "cod"      ? "1px solid rgba(245,158,11,0.35)"
+                  : f.key === "received" ? "1px solid rgba(20,184,166,0.35)"
                   : "1px solid rgba(26,135,225,0.35)"
                   : `1px solid ${C.border}`,
             }}
@@ -573,7 +467,6 @@ export default function Orders() {
             <OrderRow
               key={order.id}
               order={order}
-              returnDoc={getReturnForOrder(order.id)}
               onStatusUpdate={handleStatusUpdate}
               updating={updating}
             />
