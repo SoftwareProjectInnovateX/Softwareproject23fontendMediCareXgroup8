@@ -17,15 +17,17 @@ import {
 } from "recharts";
 
 /* ================= SAFE DATE HELPER ================= */
+// Extracts month index (0-11) from various date formats (Firestore Timestamp, JS Date, or string)
 const getMonth = (val) => {
   if (!val) return -1;
-  if (typeof val.toDate === "function") return val.toDate().getMonth();
-  if (val instanceof Date) return val.getMonth();
+  if (typeof val.toDate === "function") return val.toDate().getMonth(); // Firestore Timestamp
+  if (val instanceof Date) return val.getMonth();                       // JS Date object
   const d = new Date(val);
-  return isNaN(d) ? -1 : d.getMonth();
+  return isNaN(d) ? -1 : d.getMonth();                                 // Fallback: parse string
 };
 
 /* ================= CUSTOM TOOLTIPS ================= */
+// Tooltip shown when hovering over bars in the bar chart
 const CustomBarTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -46,6 +48,7 @@ const CustomBarTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+// Tooltip shown when hovering over slices in the pie/donut chart
 const CustomPieTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const d = payload[0].payload;
@@ -64,11 +67,13 @@ const CustomPieTooltip = ({ active, payload }) => {
 
 /* ================= MAIN COMPONENT ================= */
 export default function FinancialAnalytics() {
+  // State for raw data fetched from Firestore
   const [orders, setOrders] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Fetch all three collections from Firestore on mount
   useEffect(() => {
     const fetchData = async () => {
       const orderSnap = await getDocs(collection(db, "orders"));
@@ -93,14 +98,16 @@ export default function FinancialAnalytics() {
     );
 
   /* ================= SUMMARY ================= */
+  // Calculate top-level financial totals across all records
   const totalCost = purchaseOrders.reduce((sum, p) => sum + (p.amount || 0), 0);
   const totalRevenue = customerOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
   const profit = totalRevenue - totalCost;
-  const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0;
+  const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0; // Avoid division by zero
 
   /* ================= MONTHLY TREND ================= */
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
+  // Build monthly revenue and cost data by matching each record's month to the index
   const trendData = months.map((month, i) => {
     const revenue = customerOrders
       .filter((o) => getMonth(o.createdAt) === i)
@@ -114,8 +121,10 @@ export default function FinancialAnalytics() {
   });
 
   /* ================= CATEGORY DATA ================= */
+  // Collect unique categories from purchase orders
   const supplierCategories = [...new Set(purchaseOrders.map((p) => p.category))].filter(Boolean);
 
+  // Flatten line items from all customer orders for category-level revenue calculation
   const customerLineItems = [];
   customerOrders.forEach((order) => {
     if (Array.isArray(order.types)) {
@@ -129,6 +138,7 @@ export default function FinancialAnalytics() {
     }
   });
 
+  // Merge all unique categories from all three data sources
   const allCategories = [
     ...new Set([
       ...supplierCategories,
@@ -137,6 +147,7 @@ export default function FinancialAnalytics() {
     ]),
   ].filter(Boolean);
 
+  // For each category, compute revenue (from both sources), cost, profit, and margin
   const categoryData = allCategories.map((cat) => {
     const revenueFromCustomers = customerLineItems
       .filter((i) => i.category === cat)
@@ -162,6 +173,7 @@ export default function FinancialAnalytics() {
     };
   });
 
+  // Colors cycled for chart slices and category dot indicators
   const CHART_COLORS = [
     "#f59e0b",
     "#10b981",
@@ -201,7 +213,7 @@ export default function FinancialAnalytics() {
         {/* ── Charts Row ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-5 mb-6">
 
-          {/* Bar Chart */}
+          {/* Bar Chart - monthly revenue vs cost */}
           <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -225,7 +237,7 @@ export default function FinancialAnalytics() {
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: "#94a3b8", fontSize: 11 }}
-                  tickFormatter={(v) => `Rs.${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={(v) => `Rs.${(v / 1000).toFixed(0)}k`} // Format Y-axis as "Rs. Xk"
                 />
                 <Tooltip content={<CustomBarTooltip />} cursor={{ fill: "#f8fafc" }} />
                 <Legend wrapperStyle={{ paddingTop: 14, fontSize: 12, color: "#64748b" }} />
@@ -235,7 +247,7 @@ export default function FinancialAnalytics() {
             </ResponsiveContainer>
           </div>
 
-          {/* Pie Chart */}
+          {/* Pie/Donut Chart - profit share by category */}
           <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -256,6 +268,7 @@ export default function FinancialAnalytics() {
                   outerRadius={105}
                   paddingAngle={3}
                 >
+                  {/* Assign a color to each slice by cycling through CHART_COLORS */}
                   {categoryData.map((_, index) => (
                     <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} stroke="transparent" />
                   ))}
@@ -295,6 +308,7 @@ export default function FinancialAnalytics() {
               </thead>
               <tbody>
                 {categoryData.map((c, i) => {
+                  // Color-code margin badge: green >= 30%, amber >= 15%, red below 15%
                   const marginNum = parseFloat(c.margin);
                   const marginColor =
                     marginNum >= 30 ? "text-emerald-600 bg-emerald-50"
@@ -330,6 +344,7 @@ export default function FinancialAnalytics() {
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
+                          {/* Mini progress bar showing margin visually, capped at 100% */}
                           <div className="w-16 h-1.5 rounded-full bg-gray-100">
                             <div
                               className={`h-full rounded-full ${barColor}`}
@@ -346,7 +361,7 @@ export default function FinancialAnalytics() {
                 })}
               </tbody>
 
-              {/* Totals footer */}
+              {/* Totals footer - aggregated row across all categories */}
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-200">
                   <td className="px-4 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider">

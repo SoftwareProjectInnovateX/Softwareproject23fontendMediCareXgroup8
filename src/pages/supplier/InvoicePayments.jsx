@@ -8,25 +8,74 @@ import { db, auth } from '../../services/firebase';
 import {
   MdCheckCircle, MdHourglassEmpty,
   MdWarning, MdVisibility, MdDownload,
-  MdLocalShipping,
+  MdLocalShipping, MdClose, MdError, MdInfo,
 } from 'react-icons/md';
 import Card from '../../components/Card';
 
-// ─── BACKEND URL ─────────────────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Uses /api base so fetch paths don't need to repeat /api
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+// Toast notification component
+const Toast = ({ toasts, removeToast }) => (
+  <div className="fixed top-5 right-5 z-[2000] flex flex-col gap-2">
+    {toasts.map((t) => {
+      // Pick colors based on toast type
+      const styles = {
+        success: 'bg-emerald-50 border-emerald-400 text-emerald-800',
+        error:   'bg-red-50 border-red-400 text-red-800',
+        warning: 'bg-amber-50 border-amber-400 text-amber-800',
+        info:    'bg-blue-50 border-blue-400 text-blue-800',
+      };
+      const icons = {
+        success: <MdCheckCircle size={20} className="text-emerald-500 flex-shrink-0" />,
+        error:   <MdError size={20} className="text-red-500 flex-shrink-0" />,
+        warning: <MdWarning size={20} className="text-amber-500 flex-shrink-0" />,
+        info:    <MdInfo size={20} className="text-blue-500 flex-shrink-0" />,
+      };
+      return (
+        <div
+          key={t.id}
+          className={`flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg min-w-[280px] max-w-[360px] ${styles[t.type]}`}
+          style={{ animation: 'slideInRight 0.3s ease' }}
+        >
+          {icons[t.type]}
+          <p className="text-sm font-medium m-0 flex-1">{t.message}</p>
+          <button
+            onClick={() => removeToast(t.id)}
+            className="bg-transparent border-none cursor-pointer p-0 opacity-60 hover:opacity-100 transition-opacity"
+          >
+            <MdClose size={16} />
+          </button>
+        </div>
+      );
+    })}
+  </div>
+);
 
 const InvoicePayments = () => {
-  const [supplierId, setSupplierId]               = useState(null);
-  const [invoices, setInvoices]                   = useState([]);
-  const [loading, setLoading]                     = useState(true);
-  const [filterStatus, setFilterStatus]           = useState('All');
-  const [selectedInvoice, setSelectedInvoice]     = useState(null);
-  const [showPaymentModal, setShowPaymentModal]   = useState(false);
-  const [paymentAmount, setPaymentAmount]         = useState('');
-  const [paymentMethod, setPaymentMethod]         = useState('Bank Transfer');
-  const [paymentNote, setPaymentNote]             = useState('');
+  const [supplierId, setSupplierId]             = useState(null);
+  const [invoices, setInvoices]                 = useState([]);
+  const [loading, setLoading]                   = useState(true);
+  const [filterStatus, setFilterStatus]         = useState('All');
+  const [selectedInvoice, setSelectedInvoice]   = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount]       = useState('');
+  const [paymentMethod, setPaymentMethod]       = useState('Bank Transfer');
+  const [paymentNote, setPaymentNote]           = useState('');
 
-  /* ================= AUTH ================= */
+  // Toast state: array of { id, type, message }
+  const [toasts, setToasts] = useState([]);
+
+  // Add a toast and auto-remove after 4 seconds
+  const showToast = (message, type = 'info') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => removeToast(id), 4000);
+  };
+
+  const removeToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+
+  /* ── AUTH ── */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setSupplierId(user ? user.uid : null);
@@ -34,7 +83,7 @@ const InvoicePayments = () => {
     return () => unsub();
   }, []);
 
-  /* ================= FETCH ================= */
+  /* ── FETCH INVOICES ── */
   const fetchInvoices = async () => {
     if (!supplierId) return;
     try {
@@ -57,6 +106,7 @@ const InvoicePayments = () => {
         const data = d.data();
         return {
           id: d.id, ...data,
+          // Convert Firestore timestamps to readable date strings
           invoiceDate: data.invoiceDate?.toDate ? data.invoiceDate.toDate().toISOString().split('T')[0] : data.invoiceDate,
           dueDate:     data.dueDate?.toDate     ? data.dueDate.toDate().toISOString().split('T')[0]     : data.dueDate,
           paidDate:    data.paidDate?.toDate    ? data.paidDate.toDate().toISOString().split('T')[0]    : null,
@@ -65,13 +115,14 @@ const InvoicePayments = () => {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching invoices:', error);
-      alert('Failed to load invoices: ' + error.message);
+      showToast('Failed to load invoices: ' + error.message, 'error');
       setLoading(false);
     }
   };
 
   useEffect(() => { fetchInvoices(); }, [filterStatus, supplierId]);
 
+  // Compute summary totals from invoice list
   const calculateTotals = () => ({
     total:   invoices.reduce((s, i) => s + (i.totalAmount || 0), 0),
     paid:    invoices.filter(i => i.paymentStatus === 'Paid').reduce((s, i) => s + (i.totalAmount || 0), 0),
@@ -79,12 +130,20 @@ const InvoicePayments = () => {
     overdue: invoices.filter(i => i.paymentStatus === 'Overdue').reduce((s, i) => s + (i.totalAmount || 0), 0),
   });
 
-  /* ================= RECORD PAYMENT ================= */
+  /* ── RECORD PAYMENT ── */
   const recordPayment = async () => {
-    if (!selectedInvoice || !paymentAmount) { alert('Please enter payment amount'); return; }
+    // Validate inputs before submitting
+    if (!selectedInvoice || !paymentAmount) {
+      showToast('Please enter payment amount', 'warning');
+      return;
+    }
     const amount = parseFloat(paymentAmount);
-    if (amount <= 0 || amount > selectedInvoice.totalAmount) { alert('Invalid payment amount'); return; }
+    if (amount <= 0 || amount > selectedInvoice.totalAmount) {
+      showToast('Invalid payment amount', 'error');
+      return;
+    }
     try {
+      // Update invoice doc and create a payment record
       await updateDoc(doc(db, 'invoices', selectedInvoice.id), {
         paymentStatus: 'Paid', paidAmount: amount, paidDate: Timestamp.now(),
         paymentMethod, paymentNote, updatedAt: Timestamp.now(),
@@ -94,20 +153,21 @@ const InvoicePayments = () => {
         amount, paymentMethod, paymentDate: Timestamp.now(),
         note: paymentNote, pharmacy: selectedInvoice.pharmacy, createdAt: Timestamp.now(),
       });
-      alert('Payment recorded successfully!');
+      showToast('Payment recorded successfully!', 'success');
       setShowPaymentModal(false); setPaymentAmount('');
       setPaymentNote(''); setSelectedInvoice(null);
       fetchInvoices();
     } catch (error) {
       console.error('Error recording payment:', error);
-      alert('Failed to record payment: ' + error.message);
+      showToast('Failed to record payment: ' + error.message, 'error');
     }
   };
 
-  // ─── FIX: added /api prefix to the path ───────────────────────────────────
+  /* ── GENERATE & DOWNLOAD PDF ── */
   const generatePDF = async (invoice) => {
     try {
-      const response = await fetch(`${API_BASE}/api/supplier/invoices/generate-pdf`, {
+      // /api is already in API_BASE so path starts directly with /supplier
+      const response = await fetch(`${API_BASE}/supplier/invoices/generate-pdf`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -133,22 +193,23 @@ const InvoicePayments = () => {
 
       if (!response.ok) throw new Error('Failed to generate PDF');
 
-      const blob     = await response.blob();
-      const url      = window.URL.createObjectURL(blob);
-      const link     = document.createElement('a');
-      link.href      = url;
-      link.download  = `Invoice-${invoice.invoiceNumber}.pdf`;
+      // Trigger browser file download
+      const blob    = await response.blob();
+      const url     = window.URL.createObjectURL(blob);
+      const link    = document.createElement('a');
+      link.href     = url;
+      link.download = `Invoice-${invoice.invoiceNumber}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF: ' + error.message);
+      showToast('Failed to generate PDF: ' + error.message, 'error');
     }
   };
 
-  /*  STYLE HELPERS  */
+  // Badge color helpers
   const getStatusStyle = (status) => {
     switch (status) {
       case 'Paid':    return 'bg-emerald-100 text-emerald-800';
@@ -168,7 +229,7 @@ const InvoicePayments = () => {
 
   const totals = calculateTotals();
 
-  /*  SHARED MODAL WRAPPER  */
+  // Shared modal backdrop + container
   const ModalWrap = ({ onClose, children }) => (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-5"
@@ -185,16 +246,18 @@ const InvoicePayments = () => {
     </div>
   );
 
-  const inputCls = "w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10";
+  const inputCls    = "w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10";
   const disabledCls = "bg-slate-100 cursor-not-allowed";
 
   const paidCount    = invoices.filter(i => i.paymentStatus === 'Paid').length;
   const pendingCount = invoices.filter(i => i.paymentStatus === 'Pending').length;
   const overdueCount = invoices.filter(i => i.paymentStatus === 'Overdue').length;
 
-  /*  RENDER  */
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
+
+      {/* Toast notifications (top-right) */}
+      <Toast toasts={toasts} removeToast={removeToast} />
 
       {/* Page Header */}
       <div className="mb-6">
@@ -210,7 +273,7 @@ const InvoicePayments = () => {
         <Card title={`Overdue (${overdueCount} invoices)`}  value={`Rs.${totals.overdue.toFixed(2)}`} />
       </div>
 
-      {/* Delivery Unlock Banner */}
+      {/* Delivery unlock banner — shown when INITIAL invoices are unpaid */}
       {invoices.some(inv => inv.invoiceType === 'INITIAL' && inv.paymentStatus === 'Pending') && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6 flex items-center gap-3">
           <MdLocalShipping size={22} className="text-amber-600 flex-shrink-0" />
@@ -234,7 +297,7 @@ const InvoicePayments = () => {
         </select>
       </div>
 
-      {/* Table */}
+      {/* Invoice Table */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="py-20 text-center">
@@ -351,7 +414,7 @@ const InvoicePayments = () => {
               </div>
             </div>
 
-            {/* Delivery gate notice */}
+            {/* Delivery gate notice for INITIAL invoices */}
             {selectedInvoice.invoiceType === 'INITIAL' && (
               <div className={`rounded-lg p-4 mb-6 border ${selectedInvoice.paymentStatus === 'Paid'
                 ? 'bg-emerald-50 border-emerald-200'
@@ -372,7 +435,7 @@ const InvoicePayments = () => {
               </div>
             )}
 
-            {/* Final payment notice */}
+            {/* Status notice for FINAL invoices */}
             {selectedInvoice.invoiceType === 'FINAL' && (
               <div className={`rounded-lg p-4 mb-6 border ${selectedInvoice.paymentStatus === 'Paid'
                 ? 'bg-emerald-50 border-emerald-200'
@@ -385,7 +448,7 @@ const InvoicePayments = () => {
               </div>
             )}
 
-            {/* Items */}
+            {/* Line items table */}
             <h3 className="text-lg font-semibold text-slate-800 mb-4">Items</h3>
             <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
               <table className="w-full border-collapse">
@@ -409,7 +472,7 @@ const InvoicePayments = () => {
               </table>
             </div>
 
-            {/* Totals */}
+            {/* Price breakdown */}
             <div className="bg-slate-50 rounded-lg p-4 mb-6">
               <div className="flex justify-between py-2 text-sm text-slate-700">
                 <span>Subtotal:</span>
@@ -429,7 +492,7 @@ const InvoicePayments = () => {
               )}
             </div>
 
-            {/* Payment info box (when paid) */}
+            {/* Payment info — only shown when paid */}
             {selectedInvoice.paymentStatus === 'Paid' && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-blue-800 mb-3">Payment Information</h4>
@@ -458,7 +521,7 @@ const InvoicePayments = () => {
         </ModalWrap>
       )}
 
-      {/* Payment Modal */}
+      {/* Record Payment Modal */}
       {showPaymentModal && selectedInvoice && (
         <ModalWrap onClose={() => setShowPaymentModal(false)}>
           <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200">
@@ -507,8 +570,9 @@ const InvoicePayments = () => {
       )}
 
       <style>{`
-        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-        @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes fadeIn      { from{opacity:0}                              to{opacity:1} }
+        @keyframes slideUp     { from{transform:translateY(20px);opacity:0}   to{transform:translateY(0);opacity:1} }
+        @keyframes slideInRight{ from{transform:translateX(60px);opacity:0}   to{transform:translateX(0);opacity:1} }
       `}</style>
     </div>
   );
