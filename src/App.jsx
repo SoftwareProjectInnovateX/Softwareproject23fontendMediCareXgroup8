@@ -1,5 +1,8 @@
+import React, { useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { auth } from "./services/firebase";
+import { signInAnonymously } from "firebase/auth";
 
 /* AUTH */
 import Login from "./pages/auth/Login";
@@ -33,8 +36,8 @@ import UserManagement from "./pages/admin/UserManagement";
 import OrderManagement from "./pages/admin/OrderManagement";
 import AdminPayments from "./pages/admin/AdminPayments";
 import AccountRequests from "./pages/admin/AccountRequests";
-import SearchAnalytics from './pages/admin/SearchAnalytics';
-import AdminProductApproval from './pages/admin/AdminProductApproval';
+import SearchAnalytics from "./pages/admin/SearchAnalytics";
+import AdminProductApproval from "./pages/admin/AdminProductApproval";
 
 /* CUSTOMER */
 import HomePage from "./pages/customer/HomePage";
@@ -47,10 +50,9 @@ import ContactPage from "./pages/customer/ContactPage";
 import PrescriptionPage from "./pages/customer/PrescriptionPage";
 import ReturnPage from "./pages/customer/ReturnPage";
 import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
-import Success from './pages/customer/Success';
-import Cancel from './pages/customer/Cancel';
-import CustomerSettings from './pages/customer/CustomerSettings';
-
+import Success from "./pages/customer/Success";
+import Cancel from "./pages/customer/Cancel";
+import CustomerSettings from "./pages/customer/CustomerSettings";
 
 /* PHARMACIST */
 import AddProductForm from "./pages/pharmacist/Addproductform";
@@ -58,8 +60,8 @@ import MyProducts from "./pages/pharmacist/MyProducts";
 import Prescriptions from "./pages/pharmacist/Prescriptions";
 import Orders from "./pages/pharmacist/Orders";
 import Returns from "./pages/pharmacist/Returns";
-import BrandsManagementPage from './pages/pharmacist/BrandsManagementPage';
-import MessagesPage from './pages/pharmacist/MessagesPage';
+import BrandsManagementPage from "./pages/pharmacist/BrandsManagementPage";
+import MessagesPage from "./pages/pharmacist/MessagesPage";
 import PharmacistDashboard from "./pages/pharmacist/PharmacistDashboard";
 import PharmacistVerification from "./pages/pharmacist/PharmacistVerification";
 import PharmacistDispensing from "./pages/pharmacist/PharmacistDispensing";
@@ -75,6 +77,13 @@ import PharmacistNewPatients from "./pages/pharmacist/PharmacistNewPatients";
 import PharmacistLowStock from "./pages/pharmacist/PharmacistLowStock";
 
 export default function App() {
+  useEffect(() => {
+    // Ensure we have a Firebase session for Firestore rules
+    signInAnonymously(auth).catch((err) =>
+      console.error("Firebase Anonymous Auth Failed:", err)
+    );
+  }, []);
+
   return (
     <Routes>
 

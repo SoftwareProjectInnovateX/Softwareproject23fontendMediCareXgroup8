@@ -1,9 +1,11 @@
 import React from 'react';
 import { useCartStore } from '../../stores/cartStore';
 
-const OrderSummary = ({ formData, handleInputChange, handlePlaceOrder, isLoading }) => {
+const OrderSummary = ({ formData, handleInputChange, handlePlaceOrder, isLoading, prescriptionTotal, prescriptionItems }) => {
     const { getTotal } = useCartStore();
-    const total = getTotal();
+    
+    // Use prescription total if provided, otherwise use cart total
+    const total = prescriptionTotal !== null ? prescriptionTotal : getTotal();
 
     const formattedTotal = `Rs. ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
@@ -20,7 +22,9 @@ const OrderSummary = ({ formData, handleInputChange, handlePlaceOrder, isLoading
                 </div>
                 
                 <div className="flex justify-between text-blue-900 font-bold border-b border-slate-100 pb-4">
-                    <span className="max-w-[220px]">Medicine Order Items × 1</span>
+                    <span className="max-w-[220px]">
+                        {prescriptionItems ? prescriptionItems : (prescriptionTotal !== null ? "Prescription Order Items" : "Medicine Order Items")}
+                    </span>
                     <span>{formattedTotal}</span>
                 </div>
                 

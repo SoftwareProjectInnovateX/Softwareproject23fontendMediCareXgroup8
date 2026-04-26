@@ -10,11 +10,16 @@ import {
   ChevronDown,
   Bell,
   Package,
-  FileText
+  FileText,
+  PackageMinus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlertContext } from '../../layouts/PharmacistLayout';
-import { getInventory, getPrescriptions, getOnlineOrders } from '../../services/pharmacistService';
+import { db } from '../../services/firebase';
+import { 
+  collection, query, orderBy, onSnapshot, 
+  doc, deleteDoc, Timestamp 
+} from 'firebase/firestore';
 
 const PharmacistNotifications = () => {
   const navigate = useNavigate();
@@ -24,133 +29,27 @@ const PharmacistNotifications = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-         const inventory = await getInventory();
-         const prescriptions = await getPrescriptions();
-         const onlineOrders = await getOnlineOrders();
+    const q = query(collection(db, 'pharmacistNotifications'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const notifs = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        // Map to UI format if needed
+        date: doc.data().createdAt?.toMillis() || Date.now()
+      }));
+      setNotifications(notifs);
+      setIsLoading(false);
+    });
 
-         let newNotifs = [];
-
-         // 1. Inventory Notifications
-         inventory.forEach(item => {
-            const stock = parseInt(item.stock);
-            // Low stock
-            if (stock <= 30 && stock > 0) {
-               newNotifs.push({
-                  id: `inv-low-${item.id}`,
-                  type: 'inventory_low',
-                  category: 'Warning',
-                  title: 'Stock Reorder Warning',
-                  subtitle: `Category: ${item.category} • Current Stock: ${stock}`,
-                  message: `${item.name} is nearing its minimum threshold with only ${stock} units remaining.`,
-                  icon: <Clock className="w-5 h-5" />,
-                  colorType: 'amber',
-                  date: new Date().getTime() - 10000 // Just a generic timestamp for sorting
-               });
-            } else if (stock === 0) {
-               newNotifs.push({
-                  id: `inv-crit-${item.id}`,
-                  type: 'inventory_critical',
-                  category: 'Urgent',
-                  title: 'Critical Low Stock',
-                  subtitle: `Category: ${item.category} • Empty`,
-                  message: `${item.name} stock has fallen to 0. Please order immediately.`,
-                  icon: <AlertTriangle className="w-5 h-5" />,
-                  colorType: 'red',
-                  date: new Date().getTime() - 5000 
-               });
-            }
-
-            // Expiring
-            if (item.expiryDate) {
-               const expD = new Date(item.expiryDate).getTime();
-               const nowD = new Date().getTime();
-               const daysDiff = (expD - nowD)/(1000*3600*24);
-               if (daysDiff < 30 && daysDiff >= 0) {
-                  newNotifs.push({
-                     id: `inv-exp-${item.id}`,
-                     type: 'inventory_expiring',
-                     category: 'Alert',
-                     title: 'Expiring Inventory',
-                     subtitle: `Expires in ${Math.ceil(daysDiff)} days`,
-                     message: `${item.name} will expire on ${item.expiryDate}. Please clear the stock.`,
-                     icon: <AlertTriangle className="w-5 h-5" />,
-                     colorType: 'red',
-                     date: new Date().getTime() - 15000 
-                  });
-               }
-            }
-         });
-
-         // 2. Prescription Notifications
-         prescriptions.forEach(rx => {
-            if (rx.status === 'New' || rx.status === 'In Review') {
-               newNotifs.push({
-                  id: `rx-new-${rx.id}`,
-                  type: 'prescription_new',
-                  category: 'Pending',
-                  title: 'New Rx Prescription',
-                  subtitle: `Patient: ${rx.patientName}`,
-                  message: `Prescription #${rx.id} is waiting for your review and verification.`,
-                  icon: <FileText className="w-5 h-5" />,
-                  colorType: 'blue',
-                  date: parseInt(rx.timestamp || new Date().getTime()),
-                  linkId: rx.id
-               });
-            } else if (rx.status === 'Flagged') {
-               newNotifs.push({
-                  id: `rx-flag-${rx.id}`,
-                  type: 'prescription_flagged',
-                  category: 'Urgent',
-                  title: 'Flagged Prescription',
-                  subtitle: `Patient: ${rx.patientName}`,
-                  message: `Prescription #${rx.id} has been flagged for issues. Needs immediate resolution.`,
-                  icon: <FileText className="w-5 h-5" />,
-                  colorType: 'amber',
-                  date: parseInt(rx.timestamp || new Date().getTime()),
-                  linkId: rx.id
-               });
-            }
-         });
-
-         // 3. Online Orders Notifications
-         onlineOrders.forEach(o => {
-            if (o.status === 'Reviewing' || o.status === 'New') {
-               newNotifs.push({
-                  id: `ord-new-${o.id}`,
-                  type: 'order_new',
-                  category: 'Pending',
-                  title: 'New Online Order',
-                  subtitle: `Customer: ${o.patient}`,
-                  message: `Online order ${o.id} requires confirmation and packing.`,
-                  icon: <Package className="w-5 h-5" />,
-                  colorType: 'emerald',
-                  date: new Date().getTime() // just map latest
-               });
-            }
-         });
-
-         // Sort by date (newest first)
-         newNotifs.sort((a,b) => b.date - a.date);
-         
-         setNotifications(newNotifs);
-         setIsLoading(false);
-      } catch (error) {
-         console.error("Error generating notifications:", error);
-         setIsLoading(false);
-      }
-    };
-    
-    fetchNotifications();
+    return () => unsub();
   }, []);
 
-  useEffect(() => {
-    setUnreadAlerts(notifications.length);
-  }, [notifications, setUnreadAlerts]);
-
-  const dismissNotification = (id) => {
-    setNotifications(notifications.filter(n => n.id !== id));
+  const dismissNotification = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'pharmacistNotifications', id));
+    } catch (err) {
+      console.error("Failed to dismiss:", err);
+    }
   };
 
   const handleAction = (type, linkId) => {
@@ -160,6 +59,18 @@ const PharmacistNotifications = () => {
        navigate(linkId ? `/pharmacist/verification/${linkId}` : '/pharmacist/prescriptions');
     } else if (type.includes('order')) {
        navigate('/pharmacist/online-orders');
+    }
+  };
+
+  const getIcon = (iconName) => {
+    switch(iconName) {
+      case 'PackagePlus': return <PackagePlus className="w-5 h-5" />;
+      case 'Trash2':      return <AlertTriangle className="w-5 h-5" />;
+      case 'Clock':       return <Clock className="w-5 h-5" />;
+      case 'ShoppingCart': return <ShoppingCart className="w-5 h-5" />;
+      case 'FileText':    return <FileText className="w-5 h-5" />;
+      case 'PackageMinus': return <PackageMinus className="w-5 h-5" />;
+      default:            return <Bell className="w-5 h-5" />;
     }
   };
 
@@ -216,7 +127,7 @@ const PharmacistNotifications = () => {
                         <div className="flex justify-between items-start mb-4">
                           <div className="flex gap-4 items-start">
                             <div className={`${c.bg} ${c.text} p-2 rounded-lg mt-0.5`}>
-                              {notif.icon}
+                              {getIcon(notif.icon)}
                             </div>
                             <div>
                               <h3 className="font-bold text-slate-800 text-lg">{notif.title}</h3>

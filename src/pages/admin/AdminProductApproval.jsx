@@ -1,7 +1,8 @@
-// AdminProductApproval.jsx
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/Card';
 import { getAuthHeaders } from "../../services/firebase";
+import { db } from '../../services/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -54,7 +55,7 @@ export default function AdminProductApproval() {
       const authHeaders = await getAuthHeaders();
 
       // 1. Approve on backend
-      const res = await fetch(`${API_BASE}/admin/pending-products/${product.id}/approve`, { 
+      const res = await fetch(`${API_BASE}/admin/pending-products/${product.id}/approve`, {
         method: 'PATCH',
         headers: authHeaders
       });
@@ -86,7 +87,7 @@ export default function AdminProductApproval() {
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert('Failed to approve product');
+      alert(`Failed to approve product: ${err.message}`);
     } finally {
       setActionLoading(null);
     }
@@ -104,7 +105,7 @@ export default function AdminProductApproval() {
       const authHeaders = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/admin/pending-products/${rejectModal.id}/reject`, {
         method: 'PATCH',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...authHeaders
         },
