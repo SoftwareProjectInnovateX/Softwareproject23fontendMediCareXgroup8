@@ -17,25 +17,41 @@ export default function Header() {
   const getPageTitle = () => {
     switch (location.pathname) {
       case "/":
+      case "/admin/dashboard":
         return { title: "Dashboard", subtitle: "Admin overview & insights" };
+
       case "/admin/usermanagement":
         return { title: "User Management", subtitle: "Manage registered customers" };
+
       case "/admin/suppliers":
         return { title: "Suppliers", subtitle: "Manage supplier partners" };
+
       case "/admin/products":
         return { title: "Products", subtitle: "View pharmacy products" };
+
       case "/admin/ordermanagement":
         return { title: "Orders", subtitle: "Manage purchase orders" };
+
       case "/admin/financialAnalytics":
         return { title: "Analytics", subtitle: "Sales & profit analysis" };
+
       case "/admin/notifications":
         return { title: "Notifications", subtitle: "System alerts & updates" };
+
       case "/admin/analytics":
         return { title: "Sales Analytics", subtitle: "Analyse sales & updates" };
-      case "/admin/adminpayments":
+
+      case "/admin/adminPayments":
         return { title: "Payments", subtitle: "Manage payments" };
+
+      case "/admin/adminproductapproval":
+        return { title: "Product Approval", subtitle: "Approve new product listings" };
+
+      case "/admin/Searchanalytics":
+        return { title: "Search Analytics", subtitle: "Analyze search behavior" };
+
       default:
-        return { title: "Registration", subtitle: "Manage user registrations" };
+        return { title: "Admin Panel", subtitle: "Manage your system" };
     }
   };
 
