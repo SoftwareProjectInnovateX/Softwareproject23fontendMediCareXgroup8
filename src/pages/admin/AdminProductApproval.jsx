@@ -4,16 +4,17 @@ import { getAuthHeaders } from '../../services/firebase';
 import { db } from '../../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-// API_BASE owns the /api prefix — individual paths must NOT repeat it.
-// .env: VITE_API_URL=http://localhost:5000/api
+// Base API URL from .env — individual paths must NOT repeat the /api prefix
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// Status badge styles and labels keyed by status string
 const STATUS_BADGE = {
   pending:  { cls: 'bg-amber-100 text-amber-700 border border-amber-300',       label: 'Pending'  },
   approved: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-300', label: 'Approved' },
   rejected: { cls: 'bg-red-100 text-red-700 border border-red-300',             label: 'Rejected' },
 };
 
+// Handles both Firestore Timestamps (_seconds) and plain date strings
 function formatDate(val) {
   if (!val) return '—';
   if (val._seconds) return new Date(val._seconds * 1000).toLocaleDateString();
@@ -24,24 +25,22 @@ function formatDate(val) {
 export default function AdminProductApproval() {
   const [products, setProducts]           = useState([]);
   const [loading, setLoading]             = useState(true);
-  const [actionLoading, setActionLoading] = useState(null);
-  const [rejectModal, setRejectModal]     = useState(null);
+  const [actionLoading, setActionLoading] = useState(null); // tracks which product row is mid-action
+  const [rejectModal, setRejectModal]     = useState(null); // holds the product being rejected
   const [rejectReason, setRejectReason]   = useState('');
   const [filter, setFilter]               = useState('pending');
   const [search, setSearch]               = useState('');
 
   useEffect(() => { fetchAll(); }, []);
 
+  // Fetch all supplier product submissions from the backend
   const fetchAll = async () => {
     try {
       setLoading(true);
       const authHeaders = await getAuthHeaders();
-      // FIX: was `${API_BASE}/admin/pending-products` with old API_BASE=localhost:5000
-      // Now API_BASE=localhost:5000/api so path is just /admin/pending-products
-      const res  = await fetch(`${API_BASE}/admin/pending-products`, {
-        headers: authHeaders,
-      });
+      const res  = await fetch(`${API_BASE}/admin/pending-products`, { headers: authHeaders });
       const data = await res.json();
+      // Ensure we always set an array even if the API returns unexpected shape
       setProducts(Array.isArray(data) ? data : []);
       if (!res.ok) console.error('API error:', data);
     } catch (err) {
@@ -58,23 +57,19 @@ export default function AdminProductApproval() {
       setActionLoading(product.id);
       const authHeaders = await getAuthHeaders();
 
-      // 1. Approve on backend
+      // Step 1: Approve on the backend — returns an auto-generated productCode
       const res = await fetch(`${API_BASE}/admin/pending-products/${product.id}/approve`, {
-        method:  'PATCH',
-        headers: authHeaders,
+        method: 'PATCH', headers: authHeaders,
       });
       if (!res.ok) throw new Error('Approval failed');
       const { productCode } = await res.json();
 
-      // 2. Auto-create pharmacist pending product
-      // FIX: added authHeaders here too — was missing auth on this call
+      // Step 2: Mirror the approved product into the pharmacist's pending list
+      // Retail price is automatically set to 120% of the wholesale price
       const pharmacistHeaders = await getAuthHeaders();
       await fetch(`${API_BASE}/pharmacist/pending-products`, {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...pharmacistHeaders,
-        },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...pharmacistHeaders },
         body: JSON.stringify({
           productName:    product.productName,
           category:       product.category,
@@ -93,7 +88,7 @@ export default function AdminProductApproval() {
       });
 
       alert(`Product approved!\nProduct Code: ${productCode}`);
-      fetchAll();
+      fetchAll(); // refresh list to reflect new status
     } catch (err) {
       console.error(err);
       alert(`Failed to approve product: ${err.message}`);
@@ -102,11 +97,13 @@ export default function AdminProductApproval() {
     }
   };
 
+  // Open the reject modal and reset any previous reason
   const openRejectModal = (product) => {
     setRejectModal(product);
     setRejectReason('');
   };
 
+  // Reject product via PATCH — reason is optional and sent to the supplier as a notification
   const handleReject = async () => {
     if (!rejectModal) return;
     try {
@@ -114,14 +111,12 @@ export default function AdminProductApproval() {
       const authHeaders = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/admin/pending-products/${rejectModal.id}/reject`, {
         method:  'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
-        body: JSON.stringify({ reason: rejectReason }),
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body:    JSON.stringify({ reason: rejectReason }),
       });
       if (!res.ok) throw new Error('Rejection failed');
       alert('Product rejected. Supplier has been notified.');
+      // Reset modal state and refresh the table
       setRejectModal(null);
       setRejectReason('');
       fetchAll();
@@ -133,10 +128,12 @@ export default function AdminProductApproval() {
     }
   };
 
+  // Derived counts for the summary cards and filter tab badges
   const pendingCount  = products.filter((p) => p.status === 'pending').length;
   const approvedCount = products.filter((p) => p.status === 'approved').length;
   const rejectedCount = products.filter((p) => p.status === 'rejected').length;
 
+  // Apply active status filter, then narrow by search across name/supplier/category
   const filtered = products.filter((p) => {
     const matchFilter = filter === 'all' || p.status === filter;
     const matchSearch =
@@ -153,6 +150,7 @@ export default function AdminProductApproval() {
     { key: 'all',      label: 'All',      count: products.length, color: 'slate'   },
   ];
 
+  // Active tab highlight colors per status
   const tabColor = {
     amber:   'bg-amber-500 text-white border-amber-500',
     emerald: 'bg-emerald-600 text-white border-emerald-600',
@@ -167,12 +165,14 @@ export default function AdminProductApproval() {
         <p className="text-sm text-gray-500 mt-1">Review and approve supplier product submissions</p>
       </div>
 
+      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card title="Awaiting Review" value={pendingCount}  />
         <Card title="Approved"        value={approvedCount} />
         <Card title="Rejected"        value={rejectedCount} />
       </div>
 
+      {/* Filter tabs and search */}
       <div className="bg-white p-4 rounded-xl shadow-sm mb-5 flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-2 flex-wrap">
           {FILTER_TABS.map((tab) => (
@@ -203,6 +203,7 @@ export default function AdminProductApproval() {
         />
       </div>
 
+      {/* Products table */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="py-16 text-center text-slate-500 text-lg">Loading submissions...</div>
@@ -224,9 +225,9 @@ export default function AdminProductApproval() {
               </thead>
               <tbody>
                 {filtered.map((product) => {
-                  const badge       = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
-                  const isActioning = actionLoading === product.id;
-                  const isPending   = product.status === 'pending';
+                  const badge       = STATUS_BADGE[product.status] || STATUS_BADGE.pending; // fallback to pending style if status unknown
+                  const isActioning = actionLoading === product.id; // disable buttons while this row is processing
+                  const isPending   = product.status === 'pending'; // only pending products show action buttons
 
                   return (
                     <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
@@ -245,6 +246,7 @@ export default function AdminProductApproval() {
                       </td>
                       <td className="px-4 py-4 text-sm font-semibold text-slate-800">
                         Rs.{Number(product.wholesalePrice).toFixed(2)}
+                        {/* Retail price preview — calculated at 1.2x wholesale */}
                         <p className="text-xs text-slate-400 font-normal mt-0.5">
                           Retail: Rs.{(Number(product.wholesalePrice) * 1.2).toFixed(2)}
                         </p>
@@ -258,6 +260,7 @@ export default function AdminProductApproval() {
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>
                           {badge.label}
                         </span>
+                        {/* Show product code on approval, rejection reason on rejection */}
                         {product.status === 'approved' && product.productCode && (
                           <p className="text-[11px] text-emerald-600 font-mono mt-1">{product.productCode}</p>
                         )}
@@ -266,6 +269,7 @@ export default function AdminProductApproval() {
                         )}
                       </td>
                       <td className="px-4 py-4">
+                        {/* Approve/Reject buttons only shown for pending products */}
                         {isPending ? (
                           <div className="flex gap-2">
                             <button
@@ -296,12 +300,14 @@ export default function AdminProductApproval() {
         )}
       </div>
 
+      {/* Reject confirmation modal — clicking the backdrop closes it */}
       {rejectModal && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
           style={{ animation: 'fadeIn 0.2s ease-out' }}
           onClick={() => setRejectModal(null)}
         >
+          {/* stopPropagation prevents backdrop click from firing inside the modal */}
           <div
             className="bg-white rounded-2xl p-8 w-full max-w-[480px] shadow-2xl"
             style={{ animation: 'slideUp 0.3s ease-out' }}

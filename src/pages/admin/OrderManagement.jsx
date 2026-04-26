@@ -6,23 +6,6 @@ import { OrderFilters } from '../../components/admin/OrderFilters';
 import { OrderTable } from '../../components/admin/OrderTable';
 import { OrderModal } from '../../components/admin/OrderModal';
 
-/**
- * OrderManagement page — allows admins to view, search, filter, and complete
- * all supplier purchase orders across the platform.
- *
- * Data flow:
- *   - All purchase orders are fetched from `purchaseOrders` on mount, ordered
- *     by creation date descending.
- *   - A derived `filteredOrders` list is recomputed whenever the status filter
- *     or search term changes, without re-querying Firestore.
- *   - Marking an order as COMPLETED triggers a multi-step write:
- *       1. Updates the order status in `purchaseOrders`.
- *       2. Increments stock in the `adminProducts` collection.
- *       3. Upserts a FINAL payment record in `payments` (creates if absent,
- *          unlocks if already exists).
- *       4. Creates a FINAL invoice in `invoices` so the supplier can see it
- *          in their InvoicePayments view (queried by supplierId).
- */
 const OrderManagement = () => {
   const [orders, setOrders]                   = useState([]);
   const [filteredOrders, setFilteredOrders]   = useState([]);  // derived view — updated by the filter effect
@@ -32,12 +15,8 @@ const OrderManagement = () => {
   const [selectedOrder, setSelectedOrder]     = useState(null);    // order open in the details modal
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  /**
-   * Fetches all purchase orders from Firestore, ordered by creation date descending.
-   * Both `orders` (full list) and `filteredOrders` (displayed list) are set to the
-   * same data on load; the filter effect then narrows `filteredOrders` as needed.
-   * Called on mount and again after any status mutation to keep the table current.
-   */
+  // Fetch all purchase orders from Firestore ordered by date descending
+  // Called on mount and after any status mutation to keep the table current
   const fetchOrders = async () => {
     try {
       setLoading(true);
@@ -58,12 +37,8 @@ const OrderManagement = () => {
   // Fetch all orders once on mount
   useEffect(() => { fetchOrders(); }, []);
 
-  /**
-   * Recomputes the filtered order list whenever the status filter, search term,
-   * or underlying orders array changes. Filtering is done client-side against the
-   * already-fetched `orders` array to avoid additional Firestore round-trips.
-   * Search matches against PO ID, product ID, product name, and supplier name.
-   */
+  // Recompute filtered list client-side whenever filter, search, or orders change
+  // Search matches against PO ID, product ID, product name, and supplier name
   useEffect(() => {
     let filtered = orders;
     if (statusFilter !== 'All') filtered = filtered.filter((o) => o.status === statusFilter);
@@ -79,43 +54,28 @@ const OrderManagement = () => {
     setFilteredOrders(filtered);
   }, [statusFilter, searchTerm, orders]);
 
-  /**
-   * Selects an order and opens the details modal.
-   *
-   * @param {Object} order - The purchase order document to display.
-   */
+  // Set the selected order and open the details modal
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
     setShowDetailsModal(true);
   };
 
-  /**
-   * Marks a DELIVERED order as COMPLETED and executes all downstream side-effects.
-   * The admin is prompted to confirm before any writes are made.
-   *
-   * Steps:
-   *   1. Updates the order status to COMPLETED in `purchaseOrders`.
-   *   2. Increments the admin product's stock in `adminProducts`.
-   *   3. Upserts the FINAL payment in `payments`:
-   *        - If a FINAL payment record already exists, it is unlocked (set to PENDING).
-   *        - If none exists, a new record is created with a 14-day due date.
-   *   4. Creates a FINAL invoice in `invoices` if one does not already exist,
-   *      so the supplier can view it through their InvoicePayments page.
-   *
-   * @param {string} orderId - Firestore document ID of the order to complete.
-   * @param {Object} order   - The purchase order data object.
-   */
+  // Marks a DELIVERED order as COMPLETED and runs all downstream side-effects:
+  //   1. Updates order status in purchaseOrders
+  //   2. Increments stock in adminProducts
+  //   3. Upserts FINAL payment in payments (unlocks if exists, creates if not)
+  //   4. Creates FINAL invoice in invoices so supplier can view it
   const markAsReceived = async (orderId, order) => {
     if (!window.confirm('Mark this order as COMPLETED?\n\nThis will update the inventory stock and unlock the final payment.')) return;
     try {
-      // Step 1 — mark the order as completed and record the completion timestamp
+      // Step 1 — mark order as completed with a completion timestamp
       await updateDoc(doc(db, 'purchaseOrders', orderId), {
         status: 'COMPLETED',
         completionDate: Timestamp.now(),
         updatedAt: Timestamp.now(),
       });
 
-      // Step 2 — increment the admin product stock now that the delivery is confirmed
+      // Step 2 — increment admin product stock now that delivery is confirmed
       const adminProductRef  = doc(db, 'adminProducts', order.adminProductId);
       const adminProductSnap = await getDoc(adminProductRef);
       if (adminProductSnap.exists()) {
@@ -127,7 +87,7 @@ const OrderManagement = () => {
         });
       }
 
-      // Resolve display values with fallbacks to handle incomplete order documents
+      // Resolve display values with fallbacks for incomplete order documents
       const resolvedProductName = order.productName || order.product || 'N/A';
       const resolvedPoId        = order.poId || order.productId || orderId;
       const resolvedTotal       = order.totalAmount ?? (order.quantity * order.unitPrice) ?? 0;
@@ -143,14 +103,14 @@ const OrderManagement = () => {
       );
 
       if (!paymentsSnap.empty) {
-        // Unlock an existing FINAL payment record that was created earlier
+        // Unlock existing FINAL payment record
         await updateDoc(doc(db, 'payments', paymentsSnap.docs[0].id), {
           status:     'PENDING',
           unlockedAt: Timestamp.now(),
           updatedAt:  Timestamp.now(),
         });
       } else {
-        // No FINAL payment exists yet — create one with a 14-day due date
+        // No FINAL payment exists — create one with a 14-day due date
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 14);
         await addDoc(collection(db, 'payments'), {
@@ -172,8 +132,7 @@ const OrderManagement = () => {
       }
 
       // ─── Step 4: Create FINAL invoice if one does not already exist ───────
-      // The invoice must include supplierId so the supplier's InvoicePayments
-      // page (which queries by supplierId) can find and display it.
+      // supplierId is required so the supplier's InvoicePayments page can find it
       const finalInvoiceSnap = await getDocs(
         query(
           collection(db, 'invoices'),
@@ -224,12 +183,8 @@ const OrderManagement = () => {
     }
   };
 
-  /**
-   * Configuration array for the six summary stat cards.
-   * Counts are derived from the full (unfiltered) orders array so they remain
-   * accurate regardless of the active search or status filter.
-   * Total Amount is computed as quantity × unitPrice across all orders.
-   */
+  // Stat cards derived from full order list — unaffected by active search or filter
+  // Total Amount is summed as quantity × unitPrice across all orders
   const stats = [
     { title: 'Total Orders', value: orders.length,                                         color: 'bg-slate-500' },
     { title: 'Pending',      value: orders.filter((o) => o.status === 'PENDING').length,   color: 'bg-amber-500' },
@@ -253,14 +208,14 @@ const OrderManagement = () => {
         <p className="text-slate-500 text-[15px]">Manage and track all purchase orders</p>
       </div>
 
-      {/* Summary Stat Cards — counts derived from full order list, unaffected by active filters */}
+      {/* Summary stat cards — counts from full order list, unaffected by active filters */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
         {stats.map((card) => (
           <Card key={card.title} title={card.title} value={card.value} color={card.color} />
         ))}
       </div>
 
-      {/* Delivered Alert — shown only when at least one order is awaiting admin receipt confirmation */}
+      {/* Delivered alert — shown only when orders are awaiting receipt confirmation */}
       {orders.some((o) => o.status === 'DELIVERED') && (
         <div className="mb-6 flex items-center gap-3 rounded-xl bg-orange-50 border border-orange-300 p-4">
           <svg className="h-5 w-5 flex-shrink-0 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -272,7 +227,7 @@ const OrderManagement = () => {
         </div>
       )}
 
-      {/* Search and Status Filter Bar */}
+      {/* Search and status filter bar */}
       <OrderFilters
         searchTerm={searchTerm}
         onSearch={setSearchTerm}
@@ -280,12 +235,12 @@ const OrderManagement = () => {
         onStatusFilter={setStatusFilter}
       />
 
-      {/* Orders Table — displays the filtered order list */}
+      {/* Orders table — displays the filtered order list */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         <OrderTable loading={loading} orders={filteredOrders} onView={viewOrderDetails} />
       </div>
 
-      {/* Order Details Modal — rendered only when an order is selected */}
+      {/* Order details modal — rendered only when an order is selected */}
       {showDetailsModal && selectedOrder && (
         <OrderModal
           order={selectedOrder}
@@ -294,7 +249,7 @@ const OrderManagement = () => {
         />
       )}
 
-      {/* Keyframe animations used by modal entrance transitions */}
+      {/* Keyframe animations for modal entrance transitions */}
       <style>{`
         @keyframes fadeIn  { from { opacity: 0 }               to { opacity: 1 } }
         @keyframes slideUp { from { transform: translateY(30px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }

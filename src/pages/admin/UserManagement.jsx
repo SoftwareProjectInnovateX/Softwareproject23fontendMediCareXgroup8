@@ -9,21 +9,6 @@ import {
 } from "react-icons/md";
 import { FaStar } from "react-icons/fa";
 
-/**
- * UserManagement page — allows admins to view, search, and manage all registered
- * platform users, including their order history and loyalty points.
- *
- * The page operates in two distinct views:
- *   - List view:   a searchable table of all users with inline action buttons.
- *   - Detail view: a profile card and order history table for the selected user.
- *
- * Data flow:
- *   - Users and orders are fetched from the backend REST API on mount.
- *   - Order matching relies on the Firestore document ID stored as `userId`
- *     in the orders collection — not the human-readable customerId field.
- *   - Loyalty point additions and user disabling are written via the API and
- *     optimistically reflected in local state to avoid a full re-fetch.
- */
 export default function UserManagement() {
   const [users, setUsers]               = useState([]);
   const [orders, setOrders]             = useState([]);
@@ -31,15 +16,12 @@ export default function UserManagement() {
   const [loading, setLoading]           = useState(true);
   const [selectedUser, setSelectedUser] = useState(null); // null = list view, object = detail view
 
-  /**
-   * Fetches all users and orders from the backend API on mount.
-   * Each collection is fetched independently so a failure in one does not
-   * block the other; errors are caught separately and state is set to an
-   * empty array to allow partial rendering.
-   */
+  // Fetch all users and orders when the component mounts
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+
+      // Fetch users; on failure set to empty array so the page still renders
       try {
         const authHeaders = await getAuthHeaders();
         const usersRes = await axios.get("http://localhost:5000/api/users", {
@@ -50,6 +32,8 @@ export default function UserManagement() {
         console.error("Failed to load users", err);
         setUsers([]);
       }
+
+      // Fetch orders separately so a users failure doesn't block this
       try {
         const authHeaders = await getAuthHeaders();
         const ordersRes = await axios.get("http://localhost:5000/api/orders", {
@@ -60,34 +44,22 @@ export default function UserManagement() {
         console.error("Failed to load orders", err);
         setOrders([]);
       }
+
       setLoading(false);
     };
     fetchData();
   }, []);
 
-  /**
-   * Calculates the total purchase amount for a given user by summing the
-   * totalAmount field of all orders whose userId matches the Firestore document ID.
-   *
-   * @param {string} userId - The Firestore document ID of the user.
-   * @returns {number} Sum of totalAmount across all matching orders.
-   */
+  // Sum all order amounts for a user by matching their Firestore doc ID
   const getTotalPurchases = (userId) =>
     orders
       .filter((o) => o.userId === userId)
       .reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
-  /**
-   * Prompts the admin to enter a point value, then adds that amount to the
-   * user's loyalty points via the API. Optimistically updates local state
-   * so the table reflects the change without a full re-fetch.
-   * Input is validated to ensure it is a non-empty positive numeric value.
-   *
-   * @param {string} docId - Firestore document ID of the user to update.
-   */
+  // Prompt admin for a point value, call the API, then update local state optimistically
   const addLoyaltyPoints = async (docId) => {
     const points = prompt("Enter loyalty points to add:");
-    if (!points || isNaN(points) || Number(points) <= 0) return;
+    if (!points || isNaN(points) || Number(points) <= 0) return; // ignore invalid input
     try {
       const authHeaders = await getAuthHeaders();
       await axios.put(
@@ -95,7 +67,7 @@ export default function UserManagement() {
         { points: Number(points) },
         { headers: authHeaders }
       );
-      // Optimistically add the points to the user's local record
+      // Update the user's points in state without refetching
       setUsers((prev) =>
         prev.map((u) =>
           u.id === docId
@@ -109,13 +81,7 @@ export default function UserManagement() {
     }
   };
 
-  /**
-   * Asks the admin to confirm, then sets the user's status to "inactive" via
-   * the API. Optimistically reflects the change in local state so the status
-   * badge updates immediately without a full re-fetch.
-   *
-   * @param {string} docId - Firestore document ID of the user to disable.
-   */
+  // Ask for confirmation, then set the user's status to "inactive" via API
   const disableUser = async (docId) => {
     if (!window.confirm("Are you sure you want to disable this user?")) return;
     try {
@@ -125,7 +91,7 @@ export default function UserManagement() {
         { status: "inactive" },
         { headers: authHeaders }
       );
-      // Optimistically update the user's status in local state
+      // Reflect the status change immediately in local state
       setUsers((prev) =>
         prev.map((u) => (u.id === docId ? { ...u, status: "inactive" } : u))
       );
@@ -134,18 +100,14 @@ export default function UserManagement() {
     }
   };
 
-  /**
-   * Filters the user list client-side by the current search term.
-   * Matches against fullName, email, customerId, and userId (all case-insensitive).
-   * Concatenating the fields into a single string keeps the filter expression concise.
-   */
+  // Client-side filter: match search term against name, email, or customer ID
   const filteredUsers = users.filter((u) =>
     `${u.fullName} ${u.email} ${u.customerId} ${u.userId}`
       .toLowerCase()
       .includes(search.toLowerCase())
   );
 
-  // Loading state — shown while both API requests are in progress
+  // Show a simple loading message while API calls are in progress
   if (loading)
     return (
       <div className="p-6 bg-[#f5f8ff] min-h-screen text-slate-500 text-lg">
@@ -154,17 +116,14 @@ export default function UserManagement() {
     );
 
   /* ================= USER DETAIL VIEW ================= */
-  /**
-   * Rendered when a user is selected from the list.
-   * Orders are matched using the Firestore document ID (user.id), which is stored
-   * as the userId field in the orders collection — not the human-readable customerId.
-   */
+  // Shown when admin clicks "View" on a user row
   if (selectedUser) {
+    // Only show orders that belong to this user (matched by Firestore doc ID)
     const userOrders = orders.filter((o) => o.userId === selectedUser.id);
 
     return (
       <div className="p-6 bg-[#f5f8ff] min-h-screen">
-        {/* Back button — clears selection and returns to the list view */}
+        {/* Back button returns to the user list */}
         <button
           onClick={() => setSelectedUser(null)}
           className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 mb-6"
@@ -174,7 +133,7 @@ export default function UserManagement() {
 
         <h2 className="text-2xl font-bold text-slate-800 mb-6">User Details</h2>
 
-        {/* User Info Grid — key profile fields rendered from a config array */}
+        {/* Profile grid — renders each field from a config array */}
         <div className="bg-white rounded-2xl p-6 shadow-sm mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { label: "Customer ID",    value: selectedUser.customerId || "N/A" },
@@ -195,9 +154,10 @@ export default function UserManagement() {
           ))}
         </div>
 
-        {/* User Orders Table — empty state shown when the user has no orders */}
+        {/* Order history for the selected user */}
         <h3 className="text-xl font-bold text-slate-800 mb-4">User Orders</h3>
         <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+          {/* Show empty state if user has no orders */}
           {userOrders.length === 0 ? (
             <div className="py-16 text-center text-slate-400 text-base">
               No orders found for this user
@@ -223,7 +183,7 @@ export default function UserManagement() {
                       key={order.id}
                       className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                     >
-                      {/* Prefer the human-readable orderId; fall back to Firestore document ID */}
+                      {/* Use human-readable orderId when available, else fall back to doc ID */}
                       <td className="px-4 py-3 text-sm font-mono font-semibold text-blue-600">
                         {order.orderId || order.id}
                       </td>
@@ -236,7 +196,7 @@ export default function UserManagement() {
                         Rs. {order.totalAmount?.toFixed(2)}
                       </td>
                       <td className="px-4 py-3">
-                        {/* Green badge for completed/active orders; amber for all other statuses */}
+                        {/* Green badge for completed/active; amber for everything else */}
                         <span
                           className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase
                           ${
@@ -265,7 +225,7 @@ export default function UserManagement() {
   return (
     <div className="p-6 bg-[#f5f8ff] min-h-screen">
 
-      {/* Page Header */}
+      {/* Page header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-800">User Management</h1>
         <p className="text-slate-500 text-[15px]">
@@ -273,7 +233,7 @@ export default function UserManagement() {
         </p>
       </div>
 
-      {/* Search Bar — filters by name, email, customerId, and userId */}
+      {/* Search input — filters the user list as the admin types */}
       <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
         <input
           type="text"
@@ -284,7 +244,7 @@ export default function UserManagement() {
         />
       </div>
 
-      {/* Users Table — scrollable; empty state rendered inside the container */}
+      {/* Users table — horizontally scrollable for smaller screens */}
       <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse min-w-[900px]">
@@ -316,7 +276,7 @@ export default function UserManagement() {
                   key={user.id}
                   className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
                 >
-                  {/* Prefer human-readable customerId; fall back to userId then Firestore doc ID */}
+                  {/* Show the most readable ID available */}
                   <td className="px-4 py-3 text-sm font-mono font-semibold text-blue-700">
                     {user.customerId || user.userId || user.id}
                   </td>
@@ -329,12 +289,12 @@ export default function UserManagement() {
                     {user.createdAt
                       ? new Date(
                           user.createdAt._seconds
-                            ? user.createdAt._seconds * 1000  // Firestore Timestamp object
-                            : user.createdAt                  // ISO string or milliseconds
+                            ? user.createdAt._seconds * 1000  // Firestore Timestamp → ms
+                            : user.createdAt                  // already ISO string or ms
                         ).toLocaleDateString()
                       : "-"}
                   </td>
-                  {/* Total purchases matched by Firestore doc ID stored as userId in orders */}
+                  {/* Total is calculated by summing matching orders client-side */}
                   <td className="px-4 py-3 text-sm font-bold text-emerald-600">
                     Rs. {getTotalPurchases(user.id).toFixed(2)}
                   </td>
@@ -347,7 +307,7 @@ export default function UserManagement() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    {/* Green badge for active users; red badge for inactive/disabled users */}
+                    {/* Green for active, red for inactive/disabled */}
                     <span
                       className={`inline-block px-3 py-1 rounded-full text-xs font-semibold uppercase
                       ${
@@ -360,7 +320,7 @@ export default function UserManagement() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {/* Action buttons: View detail, Add loyalty points, Disable user */}
+                    {/* Three action buttons: view detail, add points, disable */}
                     <div className="flex items-center gap-1.5">
                       <button
                         title="View"
@@ -391,7 +351,7 @@ export default function UserManagement() {
           </table>
         </div>
 
-        {/* Empty state — shown inside the table container when no users match the search */}
+        {/* Empty state shown when no users match the current search term */}
         {filteredUsers.length === 0 && (
           <div className="py-16 text-center text-slate-400 text-base">
             No users found

@@ -71,7 +71,7 @@ export default function SalesAnalytics() {
   const [orders, setOrders]                   = useState([]);
   const [purchaseOrders, setPurchaseOrders]   = useState([]);
   const [payments, setPayments]               = useState([]);
-  const [customerOrders, setCustomerOrders]   = useState([]); // NEW: customer revenue
+  const [customerOrders, setCustomerOrders]   = useState([]); 
   const [loading, setLoading]                 = useState(true);
   const [year, setYear]                       = useState(CURRENT_YEAR);
   const [activeTab, setActiveTab]             = useState("overview"); // overview | products | suppliers
@@ -84,12 +84,12 @@ export default function SalesAnalytics() {
           getDocs(collection(db, "orders")),
           getDocs(collection(db, "purchaseOrders")),
           getDocs(collection(db, "payments")),
-          getDocs(collection(db, "CustomerOrders")), // NEW
+          getDocs(collection(db, "CustomerOrders")), 
         ]);
         setOrders(oSnap.docs.map((d) => d.data()));
         setPurchaseOrders(poSnap.docs.map((d) => d.data()));
         setPayments(pySnap.docs.map((d) => d.data()));
-        setCustomerOrders(coSnap.docs.map((d) => d.data())); // NEW
+        setCustomerOrders(coSnap.docs.map((d) => d.data())); 
       } catch (e) {
         console.error(e);
       } finally {
@@ -161,7 +161,8 @@ export default function SalesAnalytics() {
 
   /* ── top products ──
      CustomerOrders carry product info inside types[] array.
-     Flatten all items across all orders, group by name. */
+     Flatten all items across all orders, group by name.
+     Sorted by quantity sold (highest qty = rank 1). */
   const topProducts = useMemo(() => {
     const map = {};
     filteredCustomerOrders.forEach((o) => {
@@ -182,7 +183,7 @@ export default function SalesAnalytics() {
         map[name].orders  += 1;
       }
     });
-    return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+    return Object.values(map).sort((a, b) => b.qty - a.qty).slice(0, 8);
   }, [filteredCustomerOrders]);
 
   /* ── top suppliers ── (unchanged — still from purchaseOrders) */

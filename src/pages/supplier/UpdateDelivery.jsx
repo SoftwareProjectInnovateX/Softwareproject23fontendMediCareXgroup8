@@ -9,25 +9,13 @@ import Card from '../../components/Card';
 import DeliveryCard from '../../components/DeliveryCard';
 import CompletedDeliveryCard from '../../components/CompletedDeliveryCard';
 
-/**
- * Ordered sequence of delivery statuses a purchase order progresses through.
- * Used to drive status-change logic and filter queries.
- */
+// Order of statuses a delivery moves through
 const STATUS_FLOW  = ['APPROVED', 'PACKED', 'IN DELIVERY', 'DELIVERED'];
 
-/**
- * Full set of statuses fetched from Firestore, including COMPLETED orders
- * which are displayed separately from the active delivery list.
- */
+// All statuses including COMPLETED for Firestore queries
 const ALL_STATUSES = [...STATUS_FLOW, 'COMPLETED'];
 
-/**
- * Converts a Firestore Timestamp or any Date-constructable value to a
- * "YYYY-MM-DD" date string. Returns "—" for null, invalid, or missing values.
- *
- * @param {Timestamp|Date|string|number|null} ts - The value to format.
- * @returns {string} ISO date string (date part only) or "—".
- */
+// Format Firestore timestamp to "YYYY-MM-DD", returns "—" if invalid
 const formatDateOnly = (ts) => {
   if (!ts) return '—';
   try {
@@ -37,51 +25,20 @@ const formatDateOnly = (ts) => {
   } catch { return '—'; }
 };
 
-/**
- * UpdateDelivery page — allows the logged-in supplier to track and advance
- * the delivery status of their approved purchase orders.
- *
- * Status progression: APPROVED → PACKED → IN DELIVERY → DELIVERED → COMPLETED
- *
- * Key behaviours:
- *   - Uses a real-time Firestore listener (onSnapshot) so status changes made
- *     by other parties are reflected immediately without a page refresh.
- *   - Locks status advancement if the admin's initial 50% payment has not been
- *     confirmed, preventing dispatch before financial clearance.
- *   - Requires a tracking number when transitioning to IN DELIVERY.
- *   - Completed orders are shown in a collapsible section separate from active ones.
- */
 const UpdateDelivery = () => {
   const [supplierId,    setSupplierId]    = useState(null);
   const [deliveries,    setDeliveries]    = useState([]);
   const [loading,       setLoading]       = useState(true);
-  const [updatingId,    setUpdatingId]    = useState(null);  // ID of the delivery currently being updated
-  const [showCompleted, setShowCompleted] = useState(true);  // controls collapsible completed section
+  const [updatingId,    setUpdatingId]    = useState(null);  // tracks which delivery is being updated
+  const [showCompleted, setShowCompleted] = useState(true);  // toggle for completed section
 
-  /* ── Auth ────────────────────────────────────────────────────────────────── */
-  /**
-   * Subscribes to Firebase Auth state changes to resolve the current supplier's UID.
-   * Sets supplierId to null when the user signs out, which halts the Firestore listener.
-   */
+  // Listen for auth state and store current user's UID
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => setSupplierId(user?.uid ?? null));
     return () => unsub();
   }, []);
 
-  /* ── Real-time listener ──────────────────────────────────────────────────── */
-  /**
-   * Opens a real-time Firestore listener on `purchaseOrders` for all statuses
-   * in ALL_STATUSES that belong to the current supplier.
-   *
-   * onSnapshot is preferred over getDocs so that status updates from the admin
-   * side (e.g. payment confirmation) are reflected in real time without polling.
-   *
-   * Each document is mapped to a flat object with normalised timestamp fields
-   * (prefixed with _) to avoid conflicts with other data properties, plus a
-   * pre-formatted `date` string for display.
-   *
-   * The listener is cleaned up on unmount or when supplierId changes.
-   */
+  // Real-time listener for supplier's purchase orders from Firestore
   useEffect(() => {
     if (!supplierId) { setLoading(false); return; }
     setLoading(true);
@@ -95,17 +52,16 @@ const UpdateDelivery = () => {
 
     const unsub = onSnapshot(q,
       (snapshot) => {
+        // Map each doc to a flat object with normalized timestamps and formatted date
         setDeliveries(snapshot.docs.map((d) => {
           const data = d.data();
           return {
             id: d.id, ...data,
-            // Normalised timestamp fields for use in DeliveryCard timeline display
             _createdAt:   data.createdAt,
             _packedAt:    data.packedAt,
             _shippedAt:   data.shippedAt,
             _deliveredAt: data.deliveredAt,
             _completedAt: data.completedAt,
-            // Pre-formatted date string — falls back to createdAt if date is absent
             date: formatDateOnly(data.date ?? data.createdAt),
           };
         }));
@@ -114,30 +70,18 @@ const UpdateDelivery = () => {
       (err) => { alert('Failed to load deliveries: ' + err.message); setLoading(false); }
     );
 
-    return () => unsub();
+    return () => unsub(); // cleanup listener on unmount
   }, [supplierId]);
 
-  /* ── Update status ───────────────────────────────────────────────────────── */
-  /**
-   * Writes a status update to the `purchaseOrders` document and stamps the
-   * appropriate milestone timestamp for the new status.
-   *
-   * Sets `updatingId` while the write is in progress so the DeliveryCard can
-   * display a loading indicator and disable its action buttons.
-   *
-   * @param {string} deliveryId     - Firestore document ID of the order to update.
-   * @param {string} newStatus      - The target status from STATUS_FLOW.
-   * @param {string} trackingNumber - Optional tracking number added on IN DELIVERY.
-   */
+  // Write new status to Firestore and stamp the matching milestone timestamp
   const updateDeliveryStatus = async (deliveryId, newStatus, trackingNumber = '') => {
     try {
       setUpdatingId(deliveryId);
       const payload = { status: newStatus, updatedAt: new Date() };
 
-      // Attach the optional tracking number when provided
       if (trackingNumber)              payload.trackingNumber = trackingNumber;
 
-      // Stamp the relevant milestone timestamp for the new status
+      // Stamp timestamp based on which stage was reached
       if (newStatus === 'PACKED')      payload.packedAt       = new Date();
       if (newStatus === 'IN DELIVERY') payload.shippedAt      = new Date();
       if (newStatus === 'DELIVERED')   payload.deliveredAt    = new Date();
@@ -151,27 +95,14 @@ const UpdateDelivery = () => {
     }
   };
 
-  /**
-   * Validates preconditions before advancing a delivery's status, then
-   * delegates to updateDeliveryStatus.
-   *
-   * Preconditions:
-   *   1. The admin's initial 50% payment must be confirmed (initialPaymentStatus === 'PAID').
-   *      If not, the delivery is locked and the supplier is directed to the payments page.
-   *   2. Transitioning to IN DELIVERY requires a tracking number entered via prompt.
-   *      If the supplier cancels the prompt, the update is aborted.
-   *   3. All other transitions require a confirmation dialog.
-   *
-   * @param {Object} delivery  - The delivery object from local state.
-   * @param {string} newStatus - The target status requested by the supplier.
-   */
+  // Validate preconditions before advancing status
   const handleStatusChange = (delivery, newStatus) => {
-    // Block advancement until the admin's initial payment has been confirmed
+    // Block if admin hasn't confirmed the initial 50% payment
     if (delivery.initialPaymentStatus !== 'PAID') {
       alert('Delivery is locked.\n\nYou can only proceed once MediCareX has paid the initial 50% payment.\n\nCheck the Invoice & Payments page for the payment status.');
       return;
     }
-    // Prompt for a tracking number before transitioning to IN DELIVERY
+    // Require tracking number before moving to IN DELIVERY
     if (newStatus === 'IN DELIVERY' && !delivery.trackingNumber) {
       const tn = window.prompt('Enter tracking number:');
       if (tn) updateDeliveryStatus(delivery.id, newStatus, tn);
@@ -180,11 +111,11 @@ const UpdateDelivery = () => {
     }
   };
 
-  // Separate active and completed deliveries for rendering in distinct sections
+  // Split deliveries into active and completed for separate rendering
   const activeDeliveries    = deliveries.filter((d) => d.status !== 'COMPLETED');
   const completedDeliveries = deliveries.filter((d) => d.status === 'COMPLETED');
 
-  // True when at least one APPROVED order is awaiting initial payment — drives the locked notice banner
+  // Show locked notice if any approved order is awaiting payment
   const hasLockedApproved   = activeDeliveries.some(
     (d) => d.initialPaymentStatus !== 'PAID' && d.status === 'APPROVED'
   );
@@ -198,7 +129,7 @@ const UpdateDelivery = () => {
         <p className="mt-1 text-sm text-slate-500">Track and update order delivery progress</p>
       </div>
 
-      {/* Summary Cards — one card per status showing the count of orders at that stage */}
+      {/* Status summary cards — shows count per status */}
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-5">
         {ALL_STATUSES.map((status) => (
           <Card
@@ -209,7 +140,7 @@ const UpdateDelivery = () => {
         ))}
       </div>
 
-      {/* Locked Payment Notice — shown only when an APPROVED order is awaiting initial payment */}
+      {/* Warning banner when an order is locked due to unpaid initial payment */}
       {hasLockedApproved && (
         <div className="mb-6 flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-300 p-4">
           <svg className="h-5 w-5 flex-shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -221,10 +152,10 @@ const UpdateDelivery = () => {
         </div>
       )}
 
-      {/* Active Deliveries — three render states: loading, empty, and populated */}
+      {/* Active deliveries — handles loading, empty, and populated states */}
       <div className="space-y-4">
         {loading ? (
-          // Loading state — spinner shown while Firestore snapshot is pending
+          // Spinner while data loads
           <div className="flex items-center justify-center rounded-xl bg-white py-20 shadow-sm">
             <div className="flex items-center gap-3 text-slate-400">
               <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -235,12 +166,12 @@ const UpdateDelivery = () => {
             </div>
           </div>
         ) : activeDeliveries.length === 0 ? (
-          // Empty state — no active orders for this supplier
+          // Empty state
           <div className="rounded-xl bg-white py-12 text-center shadow-sm">
             <p className="text-sm text-slate-400">No active deliveries found</p>
           </div>
         ) : (
-          // Populated state — each active delivery rendered as a DeliveryCard
+          // Render a card for each active delivery
           activeDeliveries.map((delivery) => (
             <DeliveryCard
               key={delivery.id}
@@ -252,10 +183,10 @@ const UpdateDelivery = () => {
         )}
       </div>
 
-      {/* Completed Deliveries — collapsible section shown only when completed orders exist */}
+      {/* Completed orders — collapsible, shown only when completed orders exist */}
       {!loading && completedDeliveries.length > 0 && (
         <div className="mt-10">
-          {/* Toggle button — chevron rotates to indicate expanded/collapsed state */}
+          {/* Toggle button with rotating chevron */}
           <button
             onClick={() => setShowCompleted((v) => !v)}
             className="mb-4 flex w-full items-center justify-between rounded-xl bg-teal-50 border border-teal-200 px-5 py-3 text-left transition hover:bg-teal-100"
@@ -265,11 +196,12 @@ const UpdateDelivery = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
               </svg>
               <span className="text-sm font-semibold text-teal-800">Completed Orders</span>
-              {/* Count badge showing how many orders are fully completed */}
+              {/* Badge showing completed order count */}
               <span className="rounded-full bg-teal-200 px-2 py-0.5 text-xs font-bold text-teal-800">
                 {completedDeliveries.length}
               </span>
             </div>
+            {/* Chevron rotates when section is expanded */}
             <svg
               className={`h-4 w-4 text-teal-600 transition-transform ${showCompleted ? 'rotate-180' : ''}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
@@ -278,7 +210,7 @@ const UpdateDelivery = () => {
             </svg>
           </button>
 
-          {/* Completed order cards — only rendered when the section is expanded */}
+          {/* Render completed cards only when section is expanded */}
           {showCompleted && (
             <div className="space-y-4">
               {completedDeliveries.map((delivery) => (

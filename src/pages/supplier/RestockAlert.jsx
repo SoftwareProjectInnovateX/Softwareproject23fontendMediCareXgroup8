@@ -5,16 +5,8 @@ import { useAuth } from "../../context/AuthContext";
 import { MdWarning, MdInventory, MdCheckCircle } from "react-icons/md";
 
 /**
- * RestockAlert page — displays LOW_STOCK notifications for the logged-in supplier.
- *
- * Responsibilities:
- *   - Fetches all LOW_STOCK notifications from the `notifications` collection
- *     that belong to the current supplier, ordered by most recent first.
- *   - Broadcasts the current unread count to the site Header via a custom DOM
- *     event so the header badge stays in sync without prop drilling.
- *   - Allows the supplier to mark individual alerts as read, updating Firestore
- *     and optimistically reflecting the change in local state.
- *   - Provides All / Unread / Read filter tabs to narrow the visible alerts.
+ * RestockAlert — shows LOW_STOCK notifications for the logged-in supplier.
+ * Supports All / Unread / Read filtering and mark-as-read with optimistic UI.
  */
 export default function RestockAlert() {
   const { user } = useAuth();
@@ -22,14 +14,9 @@ export default function RestockAlert() {
 
   const [alerts, setAlerts]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState("All");  // "All" | "Unread" | "Read"
+  const [filter, setFilter]   = useState("All"); // "All" | "Unread" | "Read"
 
-  /**
-   * Queries the `notifications` collection for LOW_STOCK alerts belonging to
-   * the current supplier, sorted by creation date descending.
-   * Wrapped in useCallback so it can be called imperatively after a mark-as-read
-   * operation without being redefined on every render.
-   */
+  // Fetch LOW_STOCK notifications for this supplier, newest first
   const fetchAlerts = useCallback(async () => {
     if (!supplierId) { setAlerts([]); setLoading(false); return; }
     try {
@@ -49,29 +36,20 @@ export default function RestockAlert() {
     }
   }, [supplierId]);
 
-  // Fetch alerts on mount and whenever the supplier identity changes
+  // Run fetch on mount and when supplier changes
   useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
 
-  /**
-   * Broadcasts the current unread count to the Header component via a custom
-   * DOM event. This decouples the Header from this component's state, avoiding
-   * prop drilling through the layout tree.
-   */
+  // Broadcast unread count to the Header via a custom DOM event (avoids prop drilling)
   useEffect(() => {
     const unread = alerts.filter((a) => !a.read).length;
     window.dispatchEvent(new CustomEvent("restock-unread-count", { detail: { count: unread } }));
   }, [alerts]);
 
-  /**
-   * Marks a single alert as read in Firestore and optimistically updates local
-   * state so the UI reflects the change immediately without a full re-fetch.
-   *
-   * @param {string} alertId - Firestore document ID of the notification to mark.
-   */
+  // Mark a single alert as read in Firestore and update local state optimistically
   const markAsRead = async (alertId) => {
     try {
       await updateDoc(doc(db, "notifications", alertId), { read: true });
-      // Optimistically update local state to avoid a redundant Firestore round-trip
+      // Update locally without re-fetching from Firestore
       setAlerts((prev) =>
         prev.map((a) => (a.id === alertId ? { ...a, read: true } : a))
       );
@@ -80,25 +58,15 @@ export default function RestockAlert() {
     }
   };
 
-  // Derived count used in the stat cards and the header badge
   const unreadCount = alerts.filter((a) => !a.read).length;
 
-  /**
-   * Returns the subset of alerts matching the active filter tab.
-   * "All" returns the full list; "Unread" and "Read" filter by the read flag.
-   */
+  // Filter alert list based on active tab
   const filteredAlerts =
     filter === "Unread" ? alerts.filter((a) => !a.read)
     : filter === "Read"   ? alerts.filter((a) => a.read)
     : alerts;
 
-  /**
-   * Converts a Firestore Timestamp or any Date-constructable value to a
-   * locale-formatted date-time string. Returns an empty string for null input.
-   *
-   * @param {Timestamp|Date|string|number|null} timestamp - The value to format.
-   * @returns {string} Formatted date-time string or "".
-   */
+  // Format Firestore Timestamp or any date value to a readable string
   const formatDate = (timestamp) => {
     if (!timestamp) return "";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -108,21 +76,17 @@ export default function RestockAlert() {
     });
   };
 
-  /**
-   * Configuration array for the three summary stat cards shown at the top of the page.
-   * The "Unread" card uses a gradient background with white text; the others use white.
-   * Keeping card definitions here rather than inline in JSX makes them easy to extend.
-   */
+  // Stat card definitions — avoids repetitive inline JSX
   const statCards = [
-    { label: "Total Alerts",  value: alerts.length,                       icon: <MdInventory size={28} className="text-slate-600" />,  bg: "bg-white" },
-    { label: "Unread",        value: unreadCount,                          icon: <MdWarning   size={28} className="text-white" />,       bg: "bg-gradient-to-br from-indigo-500 to-purple-600", white: true },
-    { label: "Read",          value: alerts.length - unreadCount,          icon: <MdCheckCircle size={28} className="text-slate-600" />, bg: "bg-white" },
+    { label: "Total Alerts", value: alerts.length,              icon: <MdInventory   size={28} className="text-slate-600" />, bg: "bg-white" },
+    { label: "Unread",       value: unreadCount,                icon: <MdWarning     size={28} className="text-white" />,     bg: "bg-gradient-to-br from-indigo-500 to-purple-600", white: true },
+    { label: "Read",         value: alerts.length - unreadCount, icon: <MdCheckCircle size={28} className="text-slate-600" />, bg: "bg-white" },
   ];
 
   return (
     <div className="p-8 bg-slate-50 min-h-screen max-w-[1200px] mx-auto">
 
-      {/* Page Header — badge only shown when there are unread alerts */}
+      {/* Page header — badge only visible when there are unread alerts */}
       <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-800 mb-1">Low Stock Alerts</h2>
@@ -135,14 +99,14 @@ export default function RestockAlert() {
         )}
       </div>
 
-      {/* Stat Cards — Total, Unread, and Read counts */}
+      {/* Summary stat cards — Total / Unread / Read */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {statCards.map((card) => (
           <div
             key={card.label}
             className={`${card.bg} p-6 rounded-2xl shadow-sm flex items-center gap-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
           >
-            {/* Icon badge — uses a semi-transparent background on the gradient card */}
+            {/* Icon uses semi-transparent bg on the gradient card */}
             <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 ${card.white ? "bg-white/20" : "bg-slate-100"}`}>
               {card.icon}
             </div>
@@ -158,7 +122,7 @@ export default function RestockAlert() {
         ))}
       </div>
 
-      {/* Filter Buttons — active tab is filled indigo; inactive tabs show on hover */}
+      {/* Filter tabs — active tab is filled indigo */}
       <div className="flex gap-3 mb-8 flex-wrap">
         {["All", "Unread", "Read"].map((f) => (
           <button
@@ -175,20 +139,18 @@ export default function RestockAlert() {
         ))}
       </div>
 
-      {/* Alert List — three states: loading, empty, and populated */}
+      {/* Alert list — three states: loading, empty, populated */}
       {loading ? (
-        // Loading state
         <div className="text-center py-12 text-slate-400 text-lg">Loading alerts...</div>
       ) : filteredAlerts.length === 0 ? (
-        // Empty state — shown when the active filter returns no results
+        // Empty state
         <div className="bg-white rounded-2xl shadow-sm py-16 text-center px-8">
           <MdCheckCircle size={64} className="text-slate-200 mx-auto mb-4" />
           <p className="text-lg text-slate-500 mb-1">No low stock alerts</p>
           <small className="text-sm text-slate-400">All inventory levels are healthy</small>
         </div>
       ) : (
-        // Populated state — each alert card has a colored left border:
-        // indigo for unread, amber for read
+        // Alert cards — indigo left border for unread, amber for read
         <div className="flex flex-col gap-4">
           {filteredAlerts.map((alert) => (
             <div
@@ -197,12 +159,11 @@ export default function RestockAlert() {
                 hover:shadow-md hover:translate-x-1
                 ${!alert.read ? "bg-indigo-50 border-indigo-500" : "border-amber-400"}`}
             >
-              {/* Warning icon badge */}
+              {/* Warning icon */}
               <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <MdWarning size={26} className="text-amber-600" />
               </div>
 
-              {/* Alert content — message, detail pills, and mark-as-read button */}
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
                   <span className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">
@@ -213,7 +174,7 @@ export default function RestockAlert() {
 
                 <p className="text-base text-slate-800 leading-relaxed m-0 mb-4">{alert.message}</p>
 
-                {/* Detail pills — only rendered when the corresponding field is present */}
+                {/* Detail pills — only rendered when fields are present */}
                 <div className="flex flex-wrap gap-4 pt-4 border-t border-slate-100">
                   {alert.productName && (
                     <span className="text-sm text-slate-500">
@@ -232,7 +193,7 @@ export default function RestockAlert() {
                   )}
                 </div>
 
-                {/* Mark as Read button — only shown for unread alerts */}
+                {/* Mark as Read — only shown for unread alerts */}
                 {!alert.read && (
                   <button
                     onClick={() => markAsRead(alert.id)}
@@ -243,7 +204,7 @@ export default function RestockAlert() {
                 )}
               </div>
 
-              {/* Animated pulse dot — indicates an unread alert at a glance */}
+              {/* Animated pulse dot — quick visual cue for unread alerts */}
               {!alert.read && (
                 <span className="absolute top-6 right-6 w-3 h-3 bg-indigo-500 rounded-full animate-pulse" />
               )}
