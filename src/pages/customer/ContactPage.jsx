@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, Mail, CheckCircle, MailOpen, Clock, Pill, MessageSquare, Search, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { initializeApp, getApps } from 'firebase/app';
 import { C, FONT } from '../../components/profile/profileTheme';
-import { getFirestore, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 
 // Base URL for all API calls — falls back to localhost in development
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;

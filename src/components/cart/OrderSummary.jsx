@@ -1,9 +1,9 @@
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
-  surface:     "#ffffff",
-  border:      "rgba(26,135,225,0.18)",
-  textPrimary: "#1e293b",
-  textSoft:    "#475569",
+  surface:     "var(--bg-secondary)",
+  border:      "var(--card-border)",
+  textPrimary: "var(--text-primary)",
+  textSoft:    "var(--text-secondary)",
   successText: "#059669",
   successBg:   "rgba(16,185,129,0.08)",
 };

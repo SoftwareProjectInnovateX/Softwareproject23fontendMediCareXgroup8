@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { ShoppingCart, X, Package } from 'lucide-react';
 import { useCartStore } from '../../stores/cartStore';
-import { C, FONT }      from './categoryConfig';
+import { db } from '../../services/firebase';
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { C, FONT } from './categoryConfig';
 
 // Resolve the API base URL from the environment, falling back to localhost
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;

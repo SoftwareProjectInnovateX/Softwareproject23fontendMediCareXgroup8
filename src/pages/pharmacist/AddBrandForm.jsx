@@ -5,7 +5,7 @@ const C = {
   bg:          "#f8fafc",
   surface:     "#ffffff",
   border:      "rgba(26,135,225,0.18)",
-  accent:      "#218ee7",
+  accent:      "#1a87e1",
   accentMid:   "#0284c7",
   textPrimary: "#1e293b",
   textMuted:   "#64748b",

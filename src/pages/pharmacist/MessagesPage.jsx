@@ -1,245 +1,292 @@
-import { useEffect, useState, useRef } from 'react';
-import {
-  MessageSquare, Mail, Send, Inbox,
-  CheckCheck, MailOpen, Clock,
-} from 'lucide-react';
-
-// Base URL for all API calls — falls back to localhost in development
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
+import { useState, useRef, useEffect } from "react";
+import { UploadCloud, X } from "lucide-react";
 
 const C = {
-  bg:          "#f1f5f9",
+  bg:          "#f8fafc",
   surface:     "#ffffff",
   border:      "rgba(26,135,225,0.18)",
   accent:      "#1a87e1",
+  accentMid:   "#0284c7",
   textPrimary: "#1e293b",
   textMuted:   "#64748b",
   textSoft:    "#475569",
 };
 
-// Returns background, text color, border color, and icon for each message status
-function statusStyle(status) {
-  if (status === 'replied') return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)", icon: CheckCheck };
-  if (status === 'read')    return { bg: "rgba(26,135,225,0.1)",  color: "#1a87e1", border: "rgba(26,135,225,0.25)", icon: MailOpen   };
-  return                           { bg: "rgba(245,158,11,0.1)",  color: "#d97706", border: "rgba(245,158,11,0.25)", icon: Clock      };
-}
+const FONT = { body: "'DM Sans', sans-serif" };
 
-// Renders a small colored pill showing the current message status with an icon
-function StatusBadge({ status }) {
-  const s = statusStyle(status || 'unread');
-  const Icon = s.icon;
+// Backend endpoint for all brand CRUD operations
+const BRANDS_API = 'http://localhost:5000/api/brands';
+
+// Reusable labelled field wrapper used across all form inputs
+function Field({ label, children }) {
   return (
-    <span className="text-[10px] font-bold px-[10px] py-[3px] rounded-[20px] uppercase tracking-[0.06em] whitespace-nowrap inline-flex items-center gap-1"
-      style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-      <Icon size={10} />
-      {status || 'unread'}
-    </span>
+    <div className="flex flex-col gap-[5px]">
+      <label className="text-[11px] font-semibold text-[#64748b] uppercase tracking-[0.1em]">
+        {label}
+      </label>
+      {children}
+    </div>
   );
 }
 
-export default function MessagesPage() {
-  const [messages, setMessages]     = useState([]);
-  // ID of the currently selected message shown in the right panel
-  const [selectedId, setSelectedId] = useState(null);
-  // Controlled textarea value for composing or updating a reply
-  const [reply, setReply]           = useState('');
-  const [sending, setSending]       = useState(false);
-  // Ref to the polling interval so it can be cleared on unmount
-  const pollRef = useRef(null);
+export default function AddBrandForm() {
+  // Controlled form state for all brand fields
+  const [form, setForm] = useState({
+    name: "", tagline: "", description: "",
+    category: "", rating: "", products: "",
+    established: "", country: "", imageUrl: "",
+  });
 
-  // Fetches all contact messages from the backend
-  const fetchMessages = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/contact`);
-      if (!res.ok) throw new Error('Failed to fetch messages');
-      const data = await res.json();
-      setMessages(data);
-    } catch (err) {
-      console.error('Failed to fetch messages:', err);
-    }
-  };
+  const [loading, setLoading]           = useState(false);
+  const [isDragging, setIsDragging]     = useState(false);
+  // Holds the raw File object for the uploaded image
+  const [imageFile, setImageFile]       = useState(null);
+  // Holds the base64 data URL used for previewing the selected image
+  const [imagePreview, setImagePreview] = useState(null);
+  // Ref to the hidden file input so the drop zone can trigger it programmatically
+  const fileInputRef = useRef(null);
 
-  // Poll every 10 seconds instead of real-time Firebase listener
+  // Injects a global style to override placeholder color on brand inputs
   useEffect(() => {
-    fetchMessages();
-    pollRef.current = setInterval(fetchMessages, 10000);
-    // Clear the interval when the component unmounts to prevent memory leaks
-    return () => clearInterval(pollRef.current);
+    const style = document.createElement("style");
+    style.textContent = `.brand-input::placeholder { color: rgba(30,41,59,0.4) !important; }`;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
   }, []);
 
-  // Derives the full selected message object from the messages array
-  const selected = messages.find((m) => m.id === selectedId);
+  // Generic change handler for all text/number inputs using field name attribute
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  // Syncs reply textarea with the selected message's existing reply when switching messages
-  useEffect(() => {
-    if (selected) setReply(selected.reply || '');
-  }, [selected?.reply, selectedId]);
-
-  // Selects a message and marks it as read via the backend if it was previously unread
-  const handleSelect = async (msg) => {
-    setSelectedId(msg.id);
-    if (msg.status === 'unread') {
-      try {
-        await fetch(`${API_BASE}/contact/${msg.id}/read`, { method: 'PUT' });
-        // Update local state immediately so UI reflects the change without waiting for next poll
-        setMessages(prev =>
-          prev.map(m => m.id === msg.id ? { ...m, status: 'read' } : m)
-        );
-      } catch (err) {
-        console.error('Failed to mark as read:', err);
-      }
-    }
+  // Validates and reads an image file into a base64 preview using FileReader
+  const handleImageFile = (file) => {
+    if (!file || !file.type.startsWith("image/")) { alert("Please select a valid image file."); return; }
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setImagePreview(e.target.result);
+    reader.readAsDataURL(file);
   };
 
-  // Sends or updates the reply for the selected message via the backend
-  const handleReply = async () => {
-    if (!reply.trim()) return;
-    setSending(true);
+  // Drag-and-drop event handlers for the image upload zone
+  const handleDragOver  = (e) => { e.preventDefault(); setIsDragging(true);  };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+  const handleDrop      = (e) => { e.preventDefault(); setIsDragging(false); const file = e.dataTransfer.files[0]; if (file) handleImageFile(file); };
+  // Handles image selection via the hidden file input
+  const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleImageFile(file); };
+
+  // Clears the uploaded image and resets both the preview and imageUrl form field
+  const removeImage = () => {
+    setImageFile(null); setImagePreview(null);
+    setForm({ ...form, imageUrl: "" });
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  // Submits the brand to the backend — uses base64 preview if uploaded, else the pasted URL
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/contact/${selectedId}/reply`, {
-        method:  'PUT',
+      await fetch(BRANDS_API, {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ reply }),
+        body:    JSON.stringify({
+          ...form,
+          // Prefer uploaded image preview; fall back to pasted URL; default to empty string
+          imageUrl:    imagePreview || form.imageUrl || '',
+          // Cast numeric string fields to numbers before sending
+          rating:      Number(form.rating),
+          products:    Number(form.products),
+          established: Number(form.established),
+        }),
       });
-      if (!res.ok) throw new Error('Failed to send reply');
-      // Update local state immediately so status changes to 'replied' without waiting for next poll
-      setMessages(prev =>
-        prev.map(m => m.id === selectedId ? { ...m, reply, status: 'replied' } : m)
-      );
-      alert('Reply sent successfully.');
+
+      alert("Brand added successfully!");
+      // Reset all form fields and image state after successful submission
+      setForm({ name: "", tagline: "", description: "", category: "", rating: "", products: "", established: "", country: "", imageUrl: "" });
+      setImageFile(null);
+      setImagePreview(null);
     } catch (err) {
-      alert(`Failed: ${err.message}`);
+      alert(`Error: ${err.message}`);
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   };
-
-  // Count of messages not yet opened — shown as a red badge in the panel header
-  const unreadCount = messages.filter((m) => m.status === 'unread').length;
 
   return (
-    <div className="flex overflow-hidden font-['DM_Sans',sans-serif] gap-0" style={{ height: "calc(100vh - 60px)" }}>
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-[14px] max-w-[520px] font-['DM_Sans',sans-serif]"
+    >
 
-      {/* Left panel — scrollable message list with status badges */}
-      <div className="w-[300px] shrink-0 bg-white border-r border-[rgba(26,135,225,0.18)] flex flex-col rounded-[14px_0_0_14px] overflow-hidden shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
-        <div className="px-5 py-[18px] border-b border-[rgba(26,135,225,0.18)]">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-bold text-[#1e293b]">Messages</h2>
-            {/* Red unread badge — only rendered when unread messages exist */}
-            {unreadCount > 0 && (
-              <span className="text-[10px] font-bold px-[9px] py-[3px] rounded-[20px] bg-[rgba(239,68,68,0.1)] text-red-600 border border-[rgba(239,68,68,0.25)] uppercase tracking-[0.06em]">
-                {unreadCount} new
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-[#64748b] mt-1">
-            {messages.length} total message{messages.length !== 1 ? "s" : ""}
-          </p>
-        </div>
+      <Field label="Brand Name">
+        <input
+          name="name"
+          placeholder="e.g. Pfizer"
+          value={form.name}
+          onChange={handleChange}
+          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          required
+        />
+      </Field>
 
-        <div className="flex-1 overflow-y-auto">
-          {/* Empty state when no messages have been received yet */}
-          {messages.length === 0 ? (
-            <div className="text-center py-12">
-              <Inbox size={32} color={C.textMuted} className="mx-auto mb-[10px]" />
-              <p className="text-[13px] text-[#475569]">No messages yet.</p>
-            </div>
-          ) : (
-            messages.map((msg) => {
-              const isSelected = selectedId === msg.id;
-              const isUnread   = msg.status === 'unread';
-              return (
-                // Selected row gets a blue left border and light background highlight
-                <div key={msg.id} onClick={() => handleSelect(msg)}
-                  className="px-[18px] py-[14px] border-b border-[rgba(26,135,225,0.18)] cursor-pointer transition-[background] duration-150"
-                  style={{
-                    background: isSelected ? "rgba(26,135,225,0.06)" : C.surface,
-                    borderLeft: isSelected ? `3px solid ${C.accent}` : "3px solid transparent",
-                  }}>
-                  <div className="flex justify-between items-start gap-2">
-                    {/* Unread messages use bold weight to stand out */}
-                    <p className={`text-[13px] ${isUnread ? "font-bold" : "font-semibold"} text-[#1e293b] overflow-hidden text-ellipsis whitespace-nowrap flex-1`}>
-                      {msg.name}
-                    </p>
-                    <StatusBadge status={msg.status} />
-                  </div>
-                  <p className="text-[11px] text-[#64748b] mt-[3px]">{msg.email}</p>
-                  <p className="text-[11px] text-[#475569] mt-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                    {msg.message}
-                  </p>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
+      <Field label="Tagline">
+        <input
+          name="tagline"
+          placeholder="e.g. Premium Respiratory Care"
+          value={form.tagline}
+          onChange={handleChange}
+          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+        />
+      </Field>
 
-      {/* Right panel — message detail view and reply composer */}
-      <div className="flex-1 flex flex-col bg-[#f1f5f9] overflow-hidden rounded-[0_14px_14px_0] border border-[rgba(26,135,225,0.18)] border-l-0 shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
-        {/* Empty state shown before any message is selected */}
-        {!selected ? (
-          <div className="flex-1 flex items-center justify-center flex-col gap-[10px]">
-            <MessageSquare size={44} color={C.textMuted} />
-            <p className="text-[15px] font-semibold text-[#475569]">Select a message to view</p>
-            <p className="text-[12px] text-[#64748b]">Choose a conversation from the left panel.</p>
+      <Field label="Description">
+        <textarea
+          name="description"
+          placeholder="Brand description..."
+          value={form.description}
+          onChange={handleChange}
+          rows={4}
+          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border resize-y"
+          required
+        />
+      </Field>
+
+      <Field label="Category">
+        <input
+          name="category"
+          placeholder="e.g. Respiratory, Wellness"
+          value={form.category}
+          onChange={handleChange}
+          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          required
+        />
+      </Field>
+
+      {/* ── Image upload: drag-and-drop zone or URL fallback ── */}
+      <Field label="Brand Image">
+        {/* Show drop zone when no image is selected; show preview once one is loaded */}
+        {!imagePreview ? (
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-[10px] px-4 py-6 text-center cursor-pointer transition-all duration-150 ${
+              isDragging
+                ? "border-[#1a87e1] bg-[rgba(26,135,225,0.05)]"
+                : "border-[rgba(26,135,225,0.35)] bg-[#f8fafc]"
+            }`}
+          >
+            <UploadCloud size={28} color={C.accent} className="mx-auto mb-2" />
+            <p className="text-[13px] font-semibold text-[#1e293b]">Drag & drop brand image here</p>
+            <p className="text-[11px] text-[#64748b] mt-1">or click to browse</p>
+            {/* Hidden input triggered by clicking the drop zone or camera button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileInput}
+              className="hidden"
+            />
           </div>
         ) : (
-          <>
-            <div className="flex-1 overflow-y-auto p-6">
-              {/* Sender info card with name, email, and current status */}
-              <div className="bg-white border border-[rgba(26,135,225,0.18)] rounded-[14px] px-5 py-4 mb-[14px] shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-[16px] font-bold text-[#1e293b]">{selected.name}</p>
-                    <div className="flex items-center gap-[5px] mt-1">
-                      <Mail size={11} color={C.textMuted} />
-                      <p className="text-[12px] text-[#64748b]">{selected.email}</p>
-                    </div>
-                  </div>
-                  <StatusBadge status={selected.status} />
-                </div>
-              </div>
-
-              {/* Customer's original message body */}
-              <div className="bg-white border border-[rgba(26,135,225,0.18)] rounded-[14px] px-5 py-4 mb-[14px] shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
-                <p className="text-[10px] font-bold text-[#64748b] uppercase tracking-[0.08em] mb-[10px]">Customer Message</p>
-                <div className="bg-[#f1f5f9] border border-[rgba(26,135,225,0.18)] rounded-[10px] px-4 py-3">
-                  <p className="text-[13px] text-[#1e293b] leading-[1.7]">{selected.message}</p>
-                </div>
-              </div>
-
-              {/* Existing reply card — only rendered when a reply has already been sent */}
-              {selected.reply && (
-                <div className="bg-[rgba(26,135,225,0.05)] border border-[rgba(26,135,225,0.18)] rounded-[14px] px-5 py-4 shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
-                  <p className="text-[10px] font-bold text-[#1a87e1] uppercase tracking-[0.08em] mb-[10px]">Your Reply</p>
-                  <p className="text-[13px] text-[#1e293b] leading-[1.7]">{selected.reply}</p>
-                </div>
-              )}
+          /* Image preview with overlay showing filename and a remove button */
+          <div className="relative rounded-[10px] overflow-hidden border border-[rgba(26,135,225,0.18)]">
+            <img
+              src={imagePreview}
+              alt="preview"
+              className="w-full h-40 object-cover block"
+            />
+            <button
+              type="button"
+              onClick={removeImage}
+              className="absolute top-2 right-2 bg-red-600 text-white border-none rounded-[20px] px-[10px] py-1 text-[11px] font-semibold cursor-pointer flex items-center gap-1"
+            >
+              <X size={11} /> Remove
+            </button>
+            {/* Filename overlay at the bottom of the preview */}
+            <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-[11px] px-[10px] py-1">
+              {imageFile?.name}
             </div>
-
-            {/* Reply composer — label changes to 'Update Reply' if a reply already exists */}
-            <div className="border-t border-[rgba(26,135,225,0.18)] bg-white px-5 py-4">
-              <p className="text-[11px] font-bold text-[#64748b] uppercase tracking-[0.08em] mb-2">
-                {selected.reply ? 'Update Reply' : 'Write a Reply'}
-              </p>
-              <textarea rows={3} value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                placeholder="Type your reply here..."
-                className="w-full border border-[rgba(26,135,225,0.18)] rounded-[10px] px-[14px] py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none resize-none bg-[#f1f5f9] box-border" />
-              {/* Send button — disabled while sending or if reply textarea is empty */}
-              <button onClick={handleReply} disabled={sending || !reply.trim()}
-                className={`mt-[10px] inline-flex items-center gap-[7px] text-white border-none rounded-[9px] px-5 py-[10px] text-[13px] font-semibold font-['DM_Sans',sans-serif] transition-all ${
-                  sending || !reply.trim()
-                    ? "bg-[rgba(26,135,225,0.35)] cursor-not-allowed shadow-none"
-                    : "bg-[#1a87e1] cursor-pointer shadow-[0_4px_12px_rgba(26,135,225,0.25)]"
-                }`}>
-                <Send size={13} />
-                {sending ? 'Sending...' : selected.reply ? 'Update Reply' : 'Send Reply'}
-              </button>
-            </div>
-          </>
+          </div>
         )}
+
+        {/* URL input fallback — only shown when no file has been uploaded */}
+        {!imagePreview && (
+          <div className="mt-2">
+            <p className="text-[11px] text-[#64748b] text-center mb-[6px]">— or paste image URL —</p>
+            <input
+              name="imageUrl"
+              placeholder="https://example.com/image.jpg"
+              value={form.imageUrl}
+              onChange={handleChange}
+              className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+            />
+          </div>
+        )}
+      </Field>
+
+      {/* Rating and product count side by side */}
+      <div className="grid grid-cols-2 gap-[14px]">
+        <Field label="Rating">
+          <input
+            name="rating"
+            placeholder="e.g. 4.8"
+            type="number"
+            step="0.1"
+            min="0"
+            max="5"
+            value={form.rating}
+            onChange={handleChange}
+            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          />
+        </Field>
+        <Field label="No. of Products">
+          <input
+            name="products"
+            placeholder="e.g. 120"
+            type="number"
+            value={form.products}
+            onChange={handleChange}
+            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          />
+        </Field>
       </div>
-    </div>
+
+      {/* Established year and country of origin side by side */}
+      <div className="grid grid-cols-2 gap-[14px]">
+        <Field label="Established Year">
+          <input
+            name="established"
+            placeholder="e.g. 1998"
+            type="number"
+            value={form.established}
+            onChange={handleChange}
+            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          />
+        </Field>
+        <Field label="Country">
+          <input
+            name="country"
+            placeholder="e.g. Germany"
+            value={form.country}
+            onChange={handleChange}
+            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          />
+        </Field>
+      </div>
+
+      {/* Submit button — faded and disabled while the request is in flight */}
+      <button
+        type="submit"
+        disabled={loading}
+        className={`border-none rounded-[10px] px-3 py-3 text-[14px] font-semibold font-['DM_Sans',sans-serif] mt-1 text-white transition-all ${
+          loading
+            ? "bg-[rgba(26,135,225,0.4)] cursor-not-allowed shadow-none"
+            : "bg-[#1a87e1] cursor-pointer shadow-[0_4px_12px_rgba(26,135,225,0.25)]"
+        }`}
+      >
+        {loading ? "Adding..." : "Add Brand"}
+      </button>
+    </form>
   );
 }

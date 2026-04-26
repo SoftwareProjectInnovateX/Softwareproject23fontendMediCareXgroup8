@@ -106,7 +106,12 @@ export default function SmartSearch({ onResults, onLoading }) {
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder='Smart Search: try "pain relief" or "skin care"'
-          className="w-full pl-10 pr-36 py-3 border-2 border-[#cbd6ee] rounded-lg text-[15px] transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 bg-white"
+          className="w-full pl-10 pr-36 py-3 border-2 rounded-lg text-[15px] transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          style={{
+            background: "var(--bg-secondary)",
+            color: "var(--text-primary)",
+            borderColor: "var(--navbar-border)",
+          }}
         />
 
         {/* Right-side controls */}

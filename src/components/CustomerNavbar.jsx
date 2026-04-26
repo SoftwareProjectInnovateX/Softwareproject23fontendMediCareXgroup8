@@ -1,9 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCartStore } from "../stores/cartStore";
-import { ShoppingCart, User, LogOut, Phone, Mail, Settings } from "lucide-react";
+import { ShoppingCart, User, LogOut, Phone, Mail, Sun, Moon } from "lucide-react";
 import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
 
@@ -18,6 +19,7 @@ export default function CustomerNavbar() {
   const pathname = location.pathname;
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { isDarkMode, toggleTheme } = useTheme();
 
   const items     = useCartStore((state) => state.items || []);
   const cartCount = items.reduce((total, item) => total + (item.qty || 0), 0);
@@ -80,8 +82,13 @@ export default function CustomerNavbar() {
         </div>
       </div>
 
-      {/* Main Navbar */}
-      <div style={{ background: "#ffffff", borderBottom: "1px solid rgba(26,135,225,0.15)", boxShadow: "0 2px 16px rgba(26,135,225,0.09)" }}>
+      {/* ── Main Navbar ── */}
+      <div style={{
+        background: "var(--navbar-bg)",
+        borderBottom: "1px solid var(--navbar-border)",
+        boxShadow: "0 2px 16px rgba(26,135,225,0.09)",
+        transition: "background 0.3s ease, border-color 0.3s ease",
+      }}>
         <div style={{ width: "100%", padding: "0 40px", boxSizing: "border-box" }}>
           <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
@@ -89,8 +96,12 @@ export default function CustomerNavbar() {
             <Link to="/customer" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", flexShrink: 0 }}>
               <div style={{ width: 46, height: 46, borderRadius: "50%", backgroundImage: "url('/logo.png')", backgroundSize: "cover", backgroundPosition: "center", border: "2.5px solid rgba(26,135,225,0.22)", flexShrink: 0 }} />
               <div>
-                <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 20, color: "#0f2a5e", lineHeight: 1.2 }}>MediCareX</div>
-                <div style={{ fontSize: 11, fontWeight: 500, color: "#64748b", letterSpacing: "0.04em", marginTop: 1 }}>Your Smart Pharmacy</div>
+                <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 20, color: "var(--text-primary)", lineHeight: 1.2 }}>
+                  MediCareX
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 500, color: "var(--text-secondary)", letterSpacing: "0.04em", marginTop: 1 }}>
+                  Your Smart Pharmacy
+                </div>
               </div>
             </Link>
 
@@ -104,27 +115,53 @@ export default function CustomerNavbar() {
                     transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
                     ...(isActive(link.href)
                       ? { background: "#1749b5", color: "#ffffff", boxShadow: "0 4px 20px rgba(26,135,225,0.28)" }
-                      : { color: "#334155", background: "transparent" }
+                      : { color: "var(--text-primary)", background: "transparent" }
                     ),
                   }}
-                  onMouseEnter={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "rgba(26,135,225,0.08)"; e.currentTarget.style.color = "#1a87e1"; } }}
-                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#334155"; } }}
+                  onMouseEnter={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "var(--accent-blue-soft)"; e.currentTarget.style.color = "var(--accent-blue)"; } }}
+                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-primary)"; } }}
                 >
                   {link.name}
                 </Link>
               ))}
             </nav>
 
-            {/* Right: Cart + Profile + Settings + Logout */}
+            {/* Right: Cart + Profile + Theme Toggle + Logout */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
 
-              {/* Cart */}
-              <Link to="/customer/cart"
-                style={{ ...iconBtnBase, position: "relative", background: "rgba(26,135,225,0.06)", border: "1.5px solid rgba(26,135,225,0.18)", textDecoration: "none" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,135,225,0.13)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.4)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(26,135,225,0.06)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.18)"; }}
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 44, height: 44, borderRadius: 12,
+                  background: "var(--accent-blue-soft)",
+                  border: "1.5px solid var(--card-border)",
+                  cursor: "pointer",
+                  transition: "background 0.15s, border-color 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,135,225,0.13)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--accent-blue-soft)"; }}
               >
-                <ShoppingCart size={20} color="#1a87e1" strokeWidth={1.8} />
+                {isDarkMode ? <Sun size={20} color="var(--accent-blue)" strokeWidth={1.8} /> : <Moon size={20} color="var(--accent-blue)" strokeWidth={1.8} />}
+              </button>
+
+              {/* Cart */}
+              <Link
+                to="/customer/cart"
+                style={{
+                  position: "relative",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 44, height: 44, borderRadius: 12,
+                  background: "var(--accent-blue-soft)",
+                  border: "1.5px solid var(--card-border)",
+                  textDecoration: "none",
+                  transition: "background 0.15s, border-color 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,135,225,0.13)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.4)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "var(--accent-blue-soft)"; e.currentTarget.style.borderColor = "var(--card-border)"; }}
+              >
+                <ShoppingCart size={20} color="var(--accent-blue)" strokeWidth={1.8} />
                 {cartCount > 0 && (
                   <span style={{ position: "absolute", top: -7, right: -7, background: "#dc2626", color: "#ffffff", fontSize: 10.5, fontWeight: 700, fontFamily: FONT.body, borderRadius: 20, padding: "2px 6px", border: "2px solid #ffffff", minWidth: 18, textAlign: "center", lineHeight: 1.4 }}>
                     {cartCount}
@@ -139,15 +176,6 @@ export default function CustomerNavbar() {
                 onMouseLeave={e => { e.currentTarget.style.opacity = "1";    e.currentTarget.style.boxShadow = "0 4px 14px rgba(26,135,225,0.28)"; }}
               >
                 <User size={20} color="#ffffff" strokeWidth={1.8} />
-              </button>
-
-              {/* Settings */}
-              <button onClick={() => navigate("/customer/settings")}
-                style={{ ...iconBtnBase, background: "rgba(26,135,225,0.06)", border: "1.5px solid rgba(26,135,225,0.18)" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(26,135,225,0.13)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.4)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(26,135,225,0.06)"; e.currentTarget.style.borderColor = "rgba(26,135,225,0.18)"; }}
-              >
-                <Settings size={20} color="#1a87e1" strokeWidth={1.8} />
               </button>
 
               {/* Logout */}

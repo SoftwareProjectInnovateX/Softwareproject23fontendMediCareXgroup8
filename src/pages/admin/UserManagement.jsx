@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { getAuthHeaders } from "../../services/firebase";
 import {
   MdArrowBack,
   MdVisibility,
@@ -19,14 +20,20 @@ export default function UserManagement() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const usersRes = await axios.get("http://localhost:5000/api/users");
+        const authHeaders = await getAuthHeaders();
+        const usersRes = await axios.get("http://localhost:5000/api/users", {
+          headers: authHeaders
+        });
         setUsers(usersRes.data);
       } catch (err) {
         console.error("Failed to load users", err);
         setUsers([]);
       }
       try {
-        const ordersRes = await axios.get("http://localhost:5000/api/orders");
+        const authHeaders = await getAuthHeaders();
+        const ordersRes = await axios.get("http://localhost:5000/api/orders", {
+          headers: authHeaders
+        });
         setOrders(ordersRes.data);
       } catch (err) {
         console.error("Failed to load orders", err);
@@ -48,8 +55,11 @@ export default function UserManagement() {
     if (!points || isNaN(points)) return;
     try {
       // Use Firestore doc ID (id) for API calls
+      const authHeaders = await getAuthHeaders();
       await axios.put(`http://localhost:5000/api/users/${docId}/loyalty`, {
         points: Number(points),
+      }, {
+        headers: authHeaders
       });
       setUsers((prev) =>
         prev.map((u) =>
@@ -67,8 +77,11 @@ export default function UserManagement() {
   const disableUser = async (docId) => {
     if (!window.confirm("Are you sure you want to disable this user?")) return;
     try {
+      const authHeaders = await getAuthHeaders();
       await axios.put(`http://localhost:5000/api/users/${docId}/status`, {
         status: "inactive",
+      }, {
+        headers: authHeaders
       });
       setUsers((prev) =>
         prev.map((u) => (u.id === docId ? { ...u, status: "inactive" } : u))

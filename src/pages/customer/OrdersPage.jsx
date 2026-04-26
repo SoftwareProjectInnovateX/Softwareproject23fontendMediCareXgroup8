@@ -67,8 +67,8 @@ export default function OrdersPage() {
       >
         <button
           onClick={() => navigate(ROUTES.CUSTOMER_PRESCRIPTION)}
-          className="flex items-center gap-2 text-[13px] font-semibold px-[22px] py-[11px] rounded-[10px] bg-white border-none cursor-pointer"
-          style={{ color: C.accent, fontFamily: FONT.body, boxShadow: C.btnShadow }}
+          className="flex items-center gap-2 text-[13px] font-semibold px-[22px] py-[11px] rounded-[10px] border-none cursor-pointer"
+          style={{ background: "var(--bg-secondary)", color: "var(--accent-blue)", fontFamily: FONT.body, boxShadow: C.btnShadow }}
         >
           <Upload size={15} /> Upload Prescription
         </button>

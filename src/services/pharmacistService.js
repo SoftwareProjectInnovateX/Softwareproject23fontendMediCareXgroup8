@@ -162,7 +162,6 @@ export const updateReturnRequest = async (id, data) => {
   }));
 };
 
-// ✅ from your version (important extra features)
 export const approveReturn = async (id, adjNote, items) => {
   return handleResponse(await fetch(`${API_BASE_URL}/returns/${id}/approve`, {
     method: 'PUT',

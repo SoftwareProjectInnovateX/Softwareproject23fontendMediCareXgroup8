@@ -121,9 +121,9 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
           <span
             className="text-[11px] font-bold px-3 py-1 rounded-xl uppercase tracking-[0.06em]"
             style={{
-              background: order.paymentStatus === 'paid' ? '#f0fdf4' : '#fffbeb',
+              background: order.paymentStatus === 'paid' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(217, 119, 6, 0.1)',
               color:      order.paymentStatus === 'paid' ? '#16a34a' : '#d97706',
-              border:     order.paymentStatus === 'paid' ? '1px solid #bbf7d0' : '1px solid #fde68a',
+              border:     order.paymentStatus === 'paid' ? '1px solid rgba(22, 163, 74, 0.3)' : '1px solid rgba(217, 119, 6, 0.3)',
             }}
           >
             {order.paymentStatus || 'pending'}
@@ -134,8 +134,8 @@ export default function OrderCard({ order, returnDoc, onReturnClick }) {
         {order.orderStatus === 'delivered' && !hasReturn && isCOD && (
           <button
             onClick={onReturnClick}
-            className="flex items-center gap-2 text-[13px] font-semibold px-5 py-2.5 rounded-xl cursor-pointer"
-            style={{ background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fed7aa', fontFamily: FONT.body }}
+            className="flex items-center gap-[6px] text-[12px] font-semibold px-[18px] py-[9px] rounded-[10px] cursor-pointer"
+            style={{ background: "rgba(234, 88, 12, 0.1)", color: '#ea580c', border: '1.5px solid rgba(234, 88, 12, 0.3)', fontFamily: FONT.body }}
           >
             <RotateCcw size={14} /> Return Items <ChevronRight size={13} />
           </button>
