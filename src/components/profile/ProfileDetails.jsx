@@ -5,6 +5,8 @@ import {
 import { C, FONT, inputStyle } from "./profileTheme";
 
 // ── Field ─────────────────────────────────────────────────────────────────────
+// Label + input wrapper used in the edit form.
+// `icon` is an optional Lucide component rendered inline before the label text.
 function Field({ label, icon: Icon, children }) {
   return (
     <div className="flex flex-col gap-[6px]">
@@ -15,18 +17,23 @@ function Field({ label, icon: Icon, children }) {
         {Icon && <Icon size={11} color={C.accent} />}
         {label}
       </label>
+      {/* Slotted input or textarea */}
       {children}
     </div>
   );
 }
 
 // ── InfoRow ───────────────────────────────────────────────────────────────────
+// Read-only display row used in the non-editing view.
+// Shows an icon, a small label, and the field value.
+// `accent` flag renders the value in the app accent colour (used for email).
 function InfoRow({ icon: Icon, label, value, accent }) {
   return (
     <div
       className="flex items-center gap-3 px-4 py-3 rounded-[10px]"
       style={{ background: "rgba(26,135,225,0.03)", border: `1px solid ${C.border}` }}
     >
+      {/* Icon badge */}
       <div
         className="w-[34px] h-[34px] rounded-lg shrink-0 flex items-center justify-center"
         style={{ background: "rgba(26,135,225,0.1)" }}
@@ -37,6 +44,7 @@ function InfoRow({ icon: Icon, label, value, accent }) {
         <p className="text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: C.textMuted }}>
           {label}
         </p>
+        {/* Value — uses accent colour when `accent` prop is true */}
         <p className="text-[13px] font-semibold mt-[2px]" style={{ color: accent ? C.accent : C.textPrimary }}>
           {value || "—"}
         </p>
@@ -46,6 +54,14 @@ function InfoRow({ icon: Icon, label, value, accent }) {
 }
 
 // ── ProfileDetails ────────────────────────────────────────────────────────────
+// Card that toggles between a read-only info view and an editable form.
+// The parent controls all state; this component is purely presentational.
+// Props:
+//   user                          — current user object (read-only values)
+//   editing / saving              — UI state flags
+//   fullName / phone / address    — controlled field values
+//   onFullNameChange / onPhoneChange / onAddressChange — field change handlers
+//   onEdit / onCancel / onSave    — action callbacks
 export default function ProfileDetails({
   user,
   editing, saving,
@@ -62,7 +78,7 @@ export default function ProfileDetails({
         boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
       }}
     >
-      {/* Card header */}
+      {/* ── Card header with Edit / Save / Cancel controls ── */}
       <div
         className="px-5 py-[14px] flex justify-between items-center"
         style={{ background: "rgba(26,135,225,0.04)", borderBottom: `1px solid ${C.border}` }}
@@ -75,6 +91,7 @@ export default function ProfileDetails({
           Profile Details
         </p>
 
+        {/* Show "Edit Profile" when not editing; show "Cancel" + "Save" when editing */}
         {!editing ? (
           <button
             onClick={onEdit}
@@ -85,6 +102,7 @@ export default function ProfileDetails({
           </button>
         ) : (
           <div className="flex gap-2">
+            {/* Cancel — discards unsaved changes */}
             <button
               onClick={onCancel}
               className="flex items-center gap-[5px] text-[12px] font-semibold px-3 py-[6px] rounded-lg cursor-pointer"
@@ -92,6 +110,7 @@ export default function ProfileDetails({
             >
               <X size={12} /> Cancel
             </button>
+            {/* Save — disabled and lightened while the API call is in flight */}
             <button
               onClick={onSave}
               disabled={saving}
@@ -109,13 +128,15 @@ export default function ProfileDetails({
         )}
       </div>
 
-      {/* Edit form / read-only rows */}
+      {/* ── Card body: edit form or read-only rows ── */}
       <div className="px-5 py-[18px] flex flex-col gap-[14px]">
         {editing ? (
           <>
+            {/* Editable fields for name, phone, and address */}
             <Field label="Full Name" icon={User}>
               <input style={inputStyle} value={fullName} onChange={e => onFullNameChange(e.target.value)} placeholder="Your full name" />
             </Field>
+            {/* Email is read-only — users cannot change their login email here */}
             <Field label="Email" icon={Mail}>
               <input
                 style={{ ...inputStyle, background: "#f8fafc", color: C.textMuted, cursor: "not-allowed" }}
@@ -137,6 +158,7 @@ export default function ProfileDetails({
             </Field>
           </>
         ) : (
+          /* Read-only info rows for all profile fields */
           <div className="flex flex-col gap-[10px]">
             <InfoRow icon={User}   label="Full Name" value={user.fullName} />
             <InfoRow icon={Mail}   label="Email"     value={user.email}   accent />

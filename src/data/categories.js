@@ -6,12 +6,10 @@ export const CATEGORIES = [
   { id: "pain-relief", name: "Pain Relief", icon: "💉" },
   { id: "antibiotics", name: "Antibiotics", icon: "🧪" },
   { id: "first-aid", name: "First Aid", icon: "🩹" },
-  { id: "diabetes", name: "Diabetes Care", icon: "🩸" },
   { id: "heart", name: "Heart Health", icon: "❤️" },
   { id: "eye-care", name: "Eye Care", icon: "👁️" },
   { id: "dental", name: "Dental Care", icon: "🦷" },
   { id: "herbal", name: "Herbal Products", icon: "🌿" },
-  { id: "supplements", name: "Supplements", icon: "💪" },
   { id: "baby-mother", name: "Mother & Baby", icon: "🤱" },
   { id: "other", name: "Other", icon: "📦" },
 ];

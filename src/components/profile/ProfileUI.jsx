@@ -2,7 +2,9 @@ import React from "react";
 import { CheckCircle, AlertCircle } from "lucide-react";
 import { C } from "./profileTheme";
 
-// ── Section card — white container with tinted header strip ───────────────────
+// ── SectionCard ───────────────────────────────────────────────────────────────
+// White card with a tinted header strip, icon, title, and subtitle.
+// Used as the main container for each profile settings section.
 export function SectionCard({ icon, title, subtitle, children }) {
   return (
     <div
@@ -13,6 +15,7 @@ export function SectionCard({ icon, title, subtitle, children }) {
         boxShadow: C.cardShadow,
       }}
     >
+      {/* Tinted header strip with icon, title, and subtitle */}
       <div
         className="flex items-center gap-2.5 px-[22px] py-4"
         style={{
@@ -35,12 +38,16 @@ export function SectionCard({ icon, title, subtitle, children }) {
           </p>
         </div>
       </div>
+
+      {/* Card body — slotted children stacked vertically */}
       <div className="p-[22px] flex flex-col gap-3.5">{children}</div>
     </div>
   );
 }
 
-// ── Section label — FIXED (handles both icon types) ───────────────────────────
+// ── SectionLabel ──────────────────────────────────────────────────────────────
+// Small uppercase label used as a visual divider inside a section.
+// Accepts either a Lucide component reference or a pre-rendered React element as `icon`.
 export function SectionLabel({ icon, label }) {
   const Icon = icon;
 
@@ -49,6 +56,7 @@ export function SectionLabel({ icon, label }) {
       className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] mb-4"
       style={{ color: C.textMuted }}
     >
+      {/* Render a pre-rendered element directly; otherwise instantiate the component */}
       {React.isValidElement(icon)
         ? icon
         : Icon
@@ -59,7 +67,9 @@ export function SectionLabel({ icon, label }) {
   );
 }
 
-// ── Field — label + input wrapper ─────────────────────────────────────────────
+// ── Field ─────────────────────────────────────────────────────────────────────
+// Label + input wrapper used inside forms.
+// `icon` is a pre-rendered element placed inline before the label text.
 export function Field({ icon, label, children }) {
   return (
     <div>
@@ -69,12 +79,14 @@ export function Field({ icon, label, children }) {
       >
         {icon} {label}
       </label>
+      {/* Slotted input or textarea */}
       {children}
     </div>
   );
 }
 
-// ── Success banner — green confirmation strip ─────────────────────────────────
+// ── SuccessBanner ─────────────────────────────────────────────────────────────
+// Green confirmation strip shown inline after a successful save action.
 export function SuccessBanner({ message }) {
   return (
     <div
@@ -92,9 +104,13 @@ export function SuccessBanner({ message }) {
   );
 }
 
-// ── Toast — fixed top-right notification ─────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
+// Fixed top-right notification for success or error feedback.
+// Returns null when no toast is active so it renders nothing.
 export function Toast({ toast }) {
   if (!toast) return null;
+
+  // Switch colours and icon based on whether this is an error or success toast
   const isError = toast.type === "error";
 
   return (

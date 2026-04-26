@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { getAuthHeaders } from "../../services/firebase";
 import {
   MdArrowBack,
   MdVisibility,
@@ -24,11 +25,11 @@ import { FaStar } from "react-icons/fa";
  *     optimistically reflected in local state to avoid a full re-fetch.
  */
 export default function UserManagement() {
-  const [users, setUsers]                   = useState([]);
-  const [orders, setOrders]                 = useState([]);
-  const [search, setSearch]                 = useState("");
-  const [loading, setLoading]               = useState(true);
-  const [selectedUser, setSelectedUser]     = useState(null); // null = list view, object = detail view
+  const [users, setUsers]               = useState([]);
+  const [orders, setOrders]             = useState([]);
+  const [search, setSearch]             = useState("");
+  const [loading, setLoading]           = useState(true);
+  const [selectedUser, setSelectedUser] = useState(null); // null = list view, object = detail view
 
   /**
    * Fetches all users and orders from the backend API on mount.
@@ -40,14 +41,20 @@ export default function UserManagement() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const usersRes = await axios.get("http://localhost:5000/api/users");
+        const authHeaders = await getAuthHeaders();
+        const usersRes = await axios.get("http://localhost:5000/api/users", {
+          headers: authHeaders,
+        });
         setUsers(usersRes.data);
       } catch (err) {
         console.error("Failed to load users", err);
         setUsers([]);
       }
       try {
-        const ordersRes = await axios.get("http://localhost:5000/api/orders");
+        const authHeaders = await getAuthHeaders();
+        const ordersRes = await axios.get("http://localhost:5000/api/orders", {
+          headers: authHeaders,
+        });
         setOrders(ordersRes.data);
       } catch (err) {
         console.error("Failed to load orders", err);
@@ -74,17 +81,20 @@ export default function UserManagement() {
    * Prompts the admin to enter a point value, then adds that amount to the
    * user's loyalty points via the API. Optimistically updates local state
    * so the table reflects the change without a full re-fetch.
-   * Input is validated to ensure it is a non-empty numeric value.
+   * Input is validated to ensure it is a non-empty positive numeric value.
    *
    * @param {string} docId - Firestore document ID of the user to update.
    */
   const addLoyaltyPoints = async (docId) => {
     const points = prompt("Enter loyalty points to add:");
-    if (!points || isNaN(points)) return;
+    if (!points || isNaN(points) || Number(points) <= 0) return;
     try {
-      await axios.put(`http://localhost:5000/api/users/${docId}/loyalty`, {
-        points: Number(points),
-      });
+      const authHeaders = await getAuthHeaders();
+      await axios.put(
+        `http://localhost:5000/api/users/${docId}/loyalty`,
+        { points: Number(points) },
+        { headers: authHeaders }
+      );
       // Optimistically add the points to the user's local record
       setUsers((prev) =>
         prev.map((u) =>
@@ -109,9 +119,12 @@ export default function UserManagement() {
   const disableUser = async (docId) => {
     if (!window.confirm("Are you sure you want to disable this user?")) return;
     try {
-      await axios.put(`http://localhost:5000/api/users/${docId}/status`, {
-        status: "inactive",
-      });
+      const authHeaders = await getAuthHeaders();
+      await axios.put(
+        `http://localhost:5000/api/users/${docId}/status`,
+        { status: "inactive" },
+        { headers: authHeaders }
+      );
       // Optimistically update the user's status in local state
       setUsers((prev) =>
         prev.map((u) => (u.id === docId ? { ...u, status: "inactive" } : u))
@@ -358,14 +371,14 @@ export default function UserManagement() {
                       </button>
                       <button
                         title="Add Points"
-                        onClick={() => addLoyaltyPoints(user.id)}  // Firestore doc ID
+                        onClick={() => addLoyaltyPoints(user.id)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 border-none cursor-pointer transition-colors duration-200"
                       >
                         <MdCardGiftcard size={16} />
                       </button>
                       <button
                         title="Disable"
-                        onClick={() => disableUser(user.id)}        // Firestore doc ID
+                        onClick={() => disableUser(user.id)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 text-red-500 border-none cursor-pointer transition-colors duration-200"
                       >
                         <MdBlock size={16} />

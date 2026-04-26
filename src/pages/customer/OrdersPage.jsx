@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { db } from '../../lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Upload, ClipboardList } from 'lucide-react';
 
 import { C, FONT }   from '../../components/profile/profileTheme';
 import PageBanner     from '../../components/profile/PageBanner';
 import OrderCard      from '../../components/orders/OrderCard';
-import { ROUTES, COLLECTIONS } from '../../components/utils/constants';
+import { ROUTES }     from '../../components/utils/constants';
+
+// Base URL for all API calls — falls back to localhost in development
+const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 
 export default function OrdersPage() {
   const [orders, setOrders]   = useState([]);
@@ -15,17 +16,23 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const navigate              = useNavigate();
 
-  // ── fetchData ──────────────────────────────────────────────────────────────
+  // Fetch orders and returns in parallel on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const orderSnap = await getDocs(collection(db, COLLECTIONS.CUSTOMER_ORDERS));
-        const orderData = orderSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        orderData.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-        setOrders(orderData);
+        // Both requests fire simultaneously for better performance
+        const [ordersRes, returnsRes] = await Promise.all([
+          fetch(`${API_BASE}/orders`),
+          fetch(`${API_BASE}/returns`),  // ✅ fixed — was /orders/returns
+        ]);
 
-        const returnSnap = await getDocs(collection(db, COLLECTIONS.CUSTOMER_RETURNS));
-        const returnData = returnSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (!ordersRes.ok)  throw new Error('Failed to fetch orders');
+        if (!returnsRes.ok) throw new Error('Failed to fetch returns');
+
+        const orderData  = await ordersRes.json();
+        const returnData = await returnsRes.json();
+
+        setOrders(orderData);
         setReturns(returnData);
       } catch (err) {
         console.error(err);
@@ -36,11 +43,11 @@ export default function OrdersPage() {
     fetchData();
   }, []);
 
-  // ── getReturnForOrder ──────────────────────────────────────────────────────
+  // Looks up a return document matching a given order ID
   const getReturnForOrder = (orderId) =>
     returns.find(r => r.orderId === orderId);
 
-  // ── Loading state ──────────────────────────────────────────────────────────
+  // Show loading state while both fetches are in progress
   if (loading) return (
     <div
       className="flex justify-center items-center min-h-[60vh] text-[14px]"
@@ -50,18 +57,18 @@ export default function OrdersPage() {
     </div>
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
 
+      {/* Page header banner with prescription action buttons */}
       <PageBanner
         title="My Orders"
         subtitle="View your order history, track deliveries, and manage returns."
       >
         <button
           onClick={() => navigate(ROUTES.CUSTOMER_PRESCRIPTION)}
-          className="flex items-center gap-2 text-[13px] font-semibold px-[22px] py-[11px] rounded-[10px] bg-white border-none cursor-pointer"
-          style={{ color: C.accent, fontFamily: FONT.body, boxShadow: C.btnShadow }}
+          className="flex items-center gap-2 text-[13px] font-semibold px-[22px] py-[11px] rounded-[10px] border-none cursor-pointer"
+          style={{ background: "var(--bg-secondary)", color: "var(--accent-blue)", fontFamily: FONT.body, boxShadow: C.btnShadow }}
         >
           <Upload size={15} /> Upload Prescription
         </button>
@@ -74,9 +81,8 @@ export default function OrdersPage() {
         </button>
       </PageBanner>
 
-      <div className="max-w-[860px] mx-auto px-6 py-9">
-
-        {/* Empty state */}
+      <div className="max-w-[1100px] mx-auto px-6 py-9">
+        {/* Empty state when the customer has no orders yet */}
         {orders.length === 0 ? (
           <div
             className="rounded-2xl py-[72px] text-center"
@@ -89,6 +95,7 @@ export default function OrdersPage() {
             </p>
           </div>
         ) : (
+          /* Render each order card with its matching return doc if one exists */
           <div className="flex flex-col gap-5">
             {orders.map(order => (
               <OrderCard
@@ -100,7 +107,6 @@ export default function OrdersPage() {
             ))}
           </div>
         )}
-
       </div>
     </div>
   );

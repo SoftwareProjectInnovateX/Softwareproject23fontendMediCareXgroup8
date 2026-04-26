@@ -1,232 +1,187 @@
-// pharmacistService.js
-// Centralized service for all pharmacist-related API calls
+const API_BASE_URL = 'http://localhost:5000/api/pharmacist';
 
-const BASE_URL = 'http://localhost:5000/api';
+const handleResponse = async (response) => {
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorBody}`);
+  }
+  return response.json();
+};
 
+/* ================= PROFILE ================= */
 
-// ─── INVENTORY ────────────────────────────────────────────────────────────────
+export const getPharmacistProfile = async (id = sessionStorage.getItem('userId') || 'default') => {
+  const res = await fetch(`${API_BASE_URL}/profile/${id}`);
+  return handleResponse(res);
+};
 
-export async function getInventory() {
-  const res = await fetch(`${BASE_URL}/pharmacist/inventory`);
-  if (!res.ok) throw new Error(`Failed to fetch inventory: ${res.statusText}`);
-  return res.json();
-}
-
-export async function addInventoryItem(itemData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/inventory`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(itemData),
-  });
-  if (!res.ok) throw new Error(`Failed to add inventory item: ${res.statusText}`);
-  return res.json();
-}
-
-export async function updateInventoryItem(id, updateData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/inventory/${id}`, {
+export const updatePharmacistProfile = async (id, data) => {
+  const res = await fetch(`${API_BASE_URL}/profile/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updateData),
+    body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error(`Failed to update inventory item: ${res.statusText}`);
-  return res.json();
-}
+  return handleResponse(res);
+};
 
-export async function deleteInventoryItem(id) {
-  const res = await fetch(`${BASE_URL}/pharmacist/inventory/${id}`, {
+/* ================= INVENTORY ================= */
+
+export const getInventory = async () => {
+  return handleResponse(await fetch(`${API_BASE_URL}/inventory`));
+};
+
+export const addInventoryItem = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/inventory`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+export const updateInventoryItem = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/inventory/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+export const deleteInventoryItem = async (id) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/inventory/${id}`, {
     method: 'DELETE',
-  });
-  if (!res.ok) throw new Error(`Failed to delete inventory item: ${res.statusText}`);
-  return res.json();
-}
+  }));
+};
 
-// ─── DISPENSED HISTORY ────────────────────────────────────────────────────────
+/* ================= PATIENTS ================= */
 
-export async function getDispensedHistory() {
-  const res = await fetch(`${BASE_URL}/pharmacist/dispensed`);
-  if (!res.ok) throw new Error(`Failed to fetch dispensed history: ${res.statusText}`);
-  return res.json();
-}
+export const getPatients = async () => {
+  return handleResponse(await fetch(`${API_BASE_URL}/patients`));
+};
 
-export async function addDispensedRecord(dispenseData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/dispensed`, {
+export const addPatient = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/patients`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(dispenseData),
-  });
-  if (!res.ok) throw new Error(`Failed to add dispensed record: ${res.statusText}`);
-  return res.json();
-}
+    body: JSON.stringify(data),
+  }));
+};
 
-export async function updateDispensedRecord(id, updateData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/dispensed/${id}`, {
+export const updatePatient = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/patients/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updateData),
-  });
-  if (!res.ok) throw new Error(`Failed to update dispensed record: ${res.statusText}`);
-  return res.json();
-}
+    body: JSON.stringify(data),
+  }));
+};
 
-// ─── RETURNS ──────────────────────────────────────────────────────────────────
+/* ================= PRESCRIPTIONS ================= */
 
-export async function getReturnRequests() {
-  const res = await fetch(`${BASE_URL}/pharmacist/returns`);
-  if (!res.ok) throw new Error(`Failed to fetch returns: ${res.statusText}`);
-  return res.json();
-}
+export const getPrescriptions = async () => {
+  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions`));
+};
 
-export async function addReturnRequest(returnData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/returns`, {
+export const addPrescription = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(returnData),
-  });
-  if (!res.ok) throw new Error(`Failed to add return request: ${res.statusText}`);
-  return res.json();
-}
+    body: JSON.stringify(data),
+  }));
+};
 
-export async function approveReturn(id, adjNote, items) {
-  const res = await fetch(`${BASE_URL}/pharmacist/returns/${id}/approve`, {
+export const updatePrescription = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+/* ================= DISPENSED ================= */
+
+export const getDispensedHistory = async () => {
+  return handleResponse(await fetch(`${API_BASE_URL}/dispensed`));
+};
+
+export const addDispensedRecord = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/dispensed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+export const updateDispensedRecord = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/dispensed/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+/* ================= ORDERS ================= */
+
+export const getOnlineOrders = async () => {
+  return handleResponse(await fetch(`${API_BASE_URL}/orders`));
+};
+
+export const addOnlineOrder = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+export const updateOnlineOrder = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/orders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+/* ================= RETURNS ================= */
+
+export const getReturnRequests = async () => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns`));
+};
+
+export const addReturnRequest = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+export const updateReturnRequest = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
+};
+
+export const approveReturn = async (id, adjNote, items) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns/${id}/approve`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ adjNote, items }),
-  });
-  if (!res.ok) throw new Error(`Failed to approve return: ${res.statusText}`);
-  return res.json();
-}
+  }));
+};
 
-export async function rejectReturn(id, adjNote) {
-  const res = await fetch(`${BASE_URL}/pharmacist/returns/${id}/reject`, {
+export const rejectReturn = async (id, adjNote) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns/${id}/reject`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ adjNote }),
-  });
-  if (!res.ok) throw new Error(`Failed to reject return: ${res.statusText}`);
-  return res.json();
-}
+  }));
+};
 
-export async function updateReturnRequest(id, updateData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/returns/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updateData),
-  });
-  if (!res.ok) throw new Error(`Failed to update return: ${res.statusText}`);
-  return res.json();
-}
+/* ================= SYSTEM ================= */
 
-// ─── ONLINE ORDERS ────────────────────────────────────────────────────────────
-
-export async function getOnlineOrders() {
-  const res = await fetch(`${BASE_URL}/pharmacist/orders`);
-  if (!res.ok) throw new Error(`Failed to fetch orders: ${res.statusText}`);
-  return res.json();
-}
-
-export async function addOnlineOrder(orderData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/orders`, {
+export const resetSystemData = async () => {
+  return handleResponse(await fetch(`${API_BASE_URL}/system/reset`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(orderData),
-  });
-  if (!res.ok) throw new Error(`Failed to add order: ${res.statusText}`);
-  return res.json();
-}
-
-export async function updateOnlineOrder(id, updateData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/orders/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updateData),
-  });
-  if (!res.ok) throw new Error(`Failed to update order: ${res.statusText}`);
-  return res.json();
-}
-
-// ─── PATIENTS ─────────────────────────────────────────────────────────────────
-
-export async function getPatients() {
-  const res = await fetch(`${BASE_URL}/pharmacist/patients`);
-  if (!res.ok) throw new Error(`Failed to fetch patients: ${res.statusText}`);
-  return res.json();
-}
-
-export async function addPatient(patientData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/patients`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patientData),
-  });
-  if (!res.ok) throw new Error(`Failed to add patient: ${res.statusText}`);
-  return res.json();
-}
-
-export async function updatePatient(id, updateData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/patients/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updateData),
-  });
-  if (!res.ok) throw new Error(`Failed to update patient: ${res.statusText}`);
-  return res.json();
-}
-
-// ─── PRESCRIPTIONS ────────────────────────────────────────────────────────────
-
-export async function getPrescriptions() {
-  const res = await fetch(`${BASE_URL}/prescriptions`);
-  if (!res.ok) throw new Error(`Failed to fetch prescriptions: ${res.statusText}`);
-  return res.json();
-}
-
-export async function addPrescription(prescriptionData) {
-  // Note: This endpoint uses multipart/form-data for file upload
-  // For JSON-only submissions, use this endpoint
-  const res = await fetch(`${BASE_URL}/prescriptions/upload`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(prescriptionData),
-  });
-  if (!res.ok) throw new Error(`Failed to add prescription: ${res.statusText}`);
-  return res.json();
-}
-
-export async function updatePrescription(id, updateData) {
-  const res = await fetch(`${BASE_URL}/prescriptions/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updateData),
-  });
-  if (!res.ok) throw new Error(`Failed to update prescription: ${res.statusText}`);
-  return res.json();
-}
-
-// ─── PROFILE ──────────────────────────────────────────────────────────────────
-
-export async function getPharmacistProfile(id = 'default') {
-  const res = await fetch(`${BASE_URL}/pharmacist/profile/${id}`);
-  if (!res.ok) throw new Error(`Failed to fetch profile: ${res.statusText}`);
-  return res.json();
-}
-
-export async function updatePharmacistProfile(id = 'default', updateData) {
-  const res = await fetch(`${BASE_URL}/pharmacist/profile/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updateData),
-  });
-  if (!res.ok) throw new Error(`Failed to update profile: ${res.statusText}`);
-  return res.json();
-}
-
-// ─── SYSTEM ───────────────────────────────────────────────────────────────────
-
-export async function resetSystemData() {
-  const res = await fetch(`${BASE_URL}/pharmacist/system/reset`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) throw new Error(`Failed to reset system data: ${res.statusText}`);
-  return res.json();
-}
+  }));
+};
