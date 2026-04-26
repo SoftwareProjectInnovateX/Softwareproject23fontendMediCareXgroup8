@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/Card';
-import { getAuthHeaders } from "../../services/firebase";
+import { getAuthHeaders } from '../../services/firebase';
 import { db } from '../../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// API_BASE owns the /api prefix — individual paths must NOT repeat it.
+// .env: VITE_API_URL=http://localhost:5000/api
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const STATUS_BADGE = {
   pending:  { cls: 'bg-amber-100 text-amber-700 border border-amber-300',       label: 'Pending'  },
@@ -34,8 +36,10 @@ export default function AdminProductApproval() {
     try {
       setLoading(true);
       const authHeaders = await getAuthHeaders();
+      // FIX: was `${API_BASE}/admin/pending-products` with old API_BASE=localhost:5000
+      // Now API_BASE=localhost:5000/api so path is just /admin/pending-products
       const res  = await fetch(`${API_BASE}/admin/pending-products`, {
-        headers: authHeaders
+        headers: authHeaders,
       });
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : []);
@@ -56,16 +60,21 @@ export default function AdminProductApproval() {
 
       // 1. Approve on backend
       const res = await fetch(`${API_BASE}/admin/pending-products/${product.id}/approve`, {
-        method: 'PATCH',
-        headers: authHeaders
+        method:  'PATCH',
+        headers: authHeaders,
       });
       if (!res.ok) throw new Error('Approval failed');
       const { productCode } = await res.json();
 
       // 2. Auto-create pharmacist pending product
+      // FIX: added authHeaders here too — was missing auth on this call
+      const pharmacistHeaders = await getAuthHeaders();
       await fetch(`${API_BASE}/pharmacist/pending-products`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...pharmacistHeaders,
+        },
         body: JSON.stringify({
           productName:    product.productName,
           category:       product.category,
@@ -104,10 +113,10 @@ export default function AdminProductApproval() {
       setActionLoading(rejectModal.id);
       const authHeaders = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/admin/pending-products/${rejectModal.id}/reject`, {
-        method: 'PATCH',
+        method:  'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          ...authHeaders
+          ...authHeaders,
         },
         body: JSON.stringify({ reason: rejectReason }),
       });

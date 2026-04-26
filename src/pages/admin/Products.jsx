@@ -4,19 +4,14 @@ import {
   getDocs,
   updateDoc,
   addDoc,
-  deleteDoc,
   doc,
   Timestamp,
   query,
   where,
   onSnapshot,
   getDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
-import SmartSearch from "../../components/SmartSearch";
-import SearchResultCard from "../../components/SearchResultCard";
-import { Trash2, PackagePlus, Plus, X } from "lucide-react";
 
 const CATEGORIES = ["All", "Medicine", "Baby Items", "Skin Care", "Medical Equipment"];
 
@@ -28,66 +23,9 @@ export default function Products() {
   const [category, setCategory] = useState("All");
   const [pendingOrders, setPendingOrders] = useState({});
   const [showOrderForm, setShowOrderForm] = useState(false);
-  const [showAddForm, setShowAddForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderQty, setOrderQty] = useState("");
   const [loading, setLoading] = useState(false);
-  
-  const [newProduct, setNewProduct] = useState({
-    productName: '',
-    category: 'Medicine',
-    stock: 0,
-    retailPrice: 0,
-    wholesalePrice: 0,
-    manufacturer: '',
-    supplierName: 'Direct Stock'
-  });
-
-  const handleAddManualProduct = async (e) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
-      const response = await fetch(`${API_BASE}/admin/pending-products/manual`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProduct)
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || 'Failed to add product via server');
-      }
-
-      alert("Product added successfully!");
-      setShowAddForm(false);
-      setNewProduct({
-        productName: '',
-        category: 'Medicine',
-        stock: 0,
-        retailPrice: 0,
-        wholesalePrice: 0,
-        manufacturer: '',
-        supplierName: 'Direct Stock'
-      });
-      loadProducts();
-    } catch (err) {
-      console.error(err);
-      alert(`Failed to add product: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Smart Search state ──────────────────────────────────────────
-  // null  = not searched yet → show normal filtered table
-  // []    = searched, no results
-  // [...] = search results to display as cards
-  const [searchResults, setSearchResults] = useState(null);
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
-  // ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     loadProducts();
@@ -149,29 +87,6 @@ export default function Products() {
     }
   };
 
-  const handleDeleteProduct = async (product) => {
-    if (!window.confirm(`Are you sure you want to remove "${product.productName}" from inventory?`)) return;
-    try {
-      setLoading(true);
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      
-      const response = await fetch(`${API_BASE}/admin/pending-products/remove/${product.id}`, {
-        method: 'DELETE'
-      });
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.message || 'Failed to remove product via server');
-      }
-      alert("Product removed from inventory.");
-      loadProducts();
-    } catch (err) {
-      console.error(err);
-      alert(`Failed to remove product: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const openOrderForm = (product) => {
     if (!product.supplierId) {
       alert("This product has no supplier assigned");
@@ -225,13 +140,8 @@ export default function Products() {
         date: new Date().toISOString().split("T")[0],
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
+        pharmacistAcknowledged: false,
       });
-
-      // ── ORDER PLACED ──────────────────────────────────────────────────────
-      // Supplier Remaining (minStock) goes DOWN by qty.
-      // Admin Stock (stock) and Stock Supplied (stock) do NOT change yet.
-      // They will increase when the supplier APPROVES the order.
-      const newMinStock = latestMinStock - qty;
 
       await updateDoc(adminRef, {
         minStock: newMinStock,
@@ -299,7 +209,6 @@ export default function Products() {
     );
   };
 
-  // Normal keyword/category filter — used when SmartSearch is not active
   const filtered = products.filter((p) => {
     const matchSearch =
       p.productName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -310,234 +219,130 @@ export default function Products() {
     return matchSearch && matchCategory;
   });
 
-  // Which products are currently on screen
-  const isSmartMode = searchResults !== null;
-
   return (
     <div className="p-8 bg-[#f5f9ff] min-h-screen">
 
       {/* Page Header */}
-      <div className="flex justify-between items-end mb-7">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Inventory Management</h1>
-          <p className="text-slate-500 text-[15px] font-medium m-0">
-            Admin Dashboard - Consolidated Inventory
-          </p>
-        </div>
-        <button 
-          onClick={() => setShowAddForm(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 flex items-center gap-2"
-        >
-          <PackagePlus size={18} /> Add New Item
-        </button>
+      <h1 className="text-3xl font-bold text-slate-800 mb-2">Inventory Management</h1>
+      <p className="text-slate-500 text-[15px] font-medium mb-7">
+        Admin Dashboard - Consolidated Inventory
+      </p>
+
+      {/* Category Bar */}
+      <div className="flex gap-2.5 flex-wrap my-5">
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setCategory(cat)}
+            className={`px-4 py-2.5 rounded-full text-sm font-medium cursor-pointer transition-all duration-200 border-none
+              ${category === cat
+                ? "bg-blue-600 text-white shadow-md shadow-blue-300"
+                : "bg-[#e6efff] text-slate-500 hover:bg-blue-100 hover:-translate-y-px"
+              }`}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
 
-      {/* ── Smart Search Bar ─────────────────────────────────────── */}
-      <div className="mb-5">
-        <div className="flex items-start gap-3">
-          <div className="flex-1 max-w-2xl">
-            <SmartSearch
-              onResults={(results) => setSearchResults(results)}
-              onLoading={setIsSearchLoading}
-            />
-          </div>
+      {/* Keyword Search */}
+      <input
+        className="w-full max-w-md px-4 py-3 border-2 border-[#cbd6ee] rounded-lg text-[15px] mb-5 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+        placeholder="Search products..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
 
-          {/* "Show All" button appears only while in smart search mode */}
-          {isSmartMode && (
-            <button
-              onClick={() => setSearchResults(null)}
-              className="px-4 py-3 border-2 border-[#cbd6ee] hover:border-blue-400 text-slate-600 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap"
-            >
-              ← Show All
-            </button>
-          )}
-        </div>
-
-        {/* Result count line */}
-        {isSmartMode && !isSearchLoading && (
-          <div className="mt-2">
-            {searchResults.length > 0 ? (
-              <p className="text-sm text-slate-500">
-                Found{" "}
-                <span className="font-semibold text-blue-600">
-                  {searchResults.length}
-                </span>{" "}
-                product{searchResults.length !== 1 ? "s" : ""}
-              </p>
-            ) : (
-              <p className="text-sm text-slate-500">
-                No products found.{" "}
-                <button
-                  onClick={() => setSearchResults(null)}
-                  className="text-blue-500 hover:underline"
-                >
-                  Show all products
-                </button>
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-      {/* ─────────────────────────────────────────────────────────── */}
-
-      {/* Category Bar — hidden while in smart search mode */}
-      {!isSmartMode && (
-        <div className="flex gap-2.5 flex-wrap my-5">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategory(cat)}
-              className={`px-4 py-2.5 rounded-full text-sm font-medium cursor-pointer transition-all duration-200 border-none
-                ${category === cat
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-300"
-                  : "bg-[#e6efff] text-slate-500 hover:bg-blue-100 hover:-translate-y-px"
-                }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Old keyword search — hidden while in smart search mode */}
-      {!isSmartMode && (
-        <input
-          className="w-full max-w-md px-4 py-3 border-2 border-[#cbd6ee] rounded-lg text-[15px] mb-5 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
-          placeholder="Search products..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      )}
-
-      {/* ── SMART SEARCH RESULTS (card list) ──────────────────────── */}
-      {isSmartMode ? (
-        <div className="space-y-2.5">
-          {/* Column headers — mirrors the existing table headers */}
-          {searchResults.length > 0 && (
-            <div className="flex items-center gap-4 px-4 py-2 text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
-              <div className="w-24 flex-shrink-0">ID</div>
-              <div className="flex-1">Product</div>
-              <div className="w-28 flex-shrink-0 hidden md:block">Category</div>
-              <div className="w-32 flex-shrink-0 hidden lg:block">Supplier</div>
-              <div className="w-20 flex-shrink-0 text-center">Stock</div>
-              <div className="w-24 flex-shrink-0 hidden xl:block">Wholesale</div>
-              <div className="w-24 flex-shrink-0 hidden xl:block">Retail</div>
-              <div className="w-24 flex-shrink-0 text-center">Match</div>
-              <div className="w-28 flex-shrink-0 text-center">Order Status</div>
-              <div className="w-28 flex-shrink-0 text-right">Action</div>
-            </div>
-          )}
-
-          {searchResults.map((product) => (
-            <SearchResultCard
-              key={product.id}
-              product={product}
-              pendingOrder={pendingOrders[product.id] || null}
-              onOrderClick={openOrderForm}
-            />
-          ))}
-        </div>
-      ) : (
-        /* ── NORMAL TABLE VIEW ─────────────────────────────────── */
-        <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[900px]">
-              <thead className="bg-slate-50">
-                <tr>
-                  {["ID", "Product", "Category", "Supplier", "Stock", "Reorder", "Wholesale", "Retail", "Order Status", "Action"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
+      {/* Table View */}
+      <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse min-w-[900px]">
+            <thead className="bg-slate-50">
+              <tr>
+                {["ID", "Product", "Category", "Supplier", "Stock", "Reorder", "Wholesale", "Retail", "Order Status", "Action"].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200"
                   >
-                    <td className="px-4 py-4 text-sm font-mono text-slate-600">{p.productCode}</td>
-
-                    <td className="px-4 py-4">
-                      <p className="font-semibold text-slate-800 text-sm m-0">{p.productName}</p>
-                      {p.manufacturer && (
-                        <p className="text-xs text-slate-400 mt-0.5 m-0">{p.manufacturer}</p>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4 text-sm text-slate-700">{p.category}</td>
-
-                    <td className="px-4 py-4">
-                      <span className="inline-block bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-xs font-medium">
-                        {p.supplierName || "—"}
-                      </span>
-                    </td>
-
-                    <td className={`px-4 py-4 text-sm font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
-                      {p.stock}
-                      {p.stock <= 100 && (
-                        <span className="ml-1.5 inline-block bg-red-100 text-red-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">
-                          LOW
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4 text-sm text-slate-700">100</td>
-
-                    <td className="px-4 py-4 text-sm text-slate-700">
-                      Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : "0.00"}
-                    </td>
-
-                    <td className="px-4 py-4 text-sm text-slate-700">
-                      Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {getOrderStatus(p.id) || (
-                        <span className="text-slate-300 italic text-sm">—</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <div className="flex gap-2">
-                        {p.stock <= 100 && (
-                          <button
-                            onClick={() => openOrderForm(p)}
-                            disabled={pendingOrders[p.id]?.status === "PENDING"}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
-                          >
-                            {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteProduct(p)}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border-none cursor-pointer"
-                          title="Remove Product"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    {h}
+                  </th>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((p) => (
+                <tr
+                  key={p.id}
+                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
+                >
+                  <td className="px-4 py-4 text-sm font-mono text-slate-600">{p.productCode}</td>
+
+                  <td className="px-4 py-4">
+                    <p className="font-semibold text-slate-800 text-sm m-0">{p.productName}</p>
+                    {p.manufacturer && (
+                      <p className="text-xs text-slate-400 mt-0.5 m-0">{p.manufacturer}</p>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-slate-700">{p.category}</td>
+
+                  <td className="px-4 py-4">
+                    <span className="inline-block bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-xs font-medium">
+                      {p.supplierName || "—"}
+                    </span>
+                  </td>
+
+                  <td className={`px-4 py-4 text-sm font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
+                    {p.stock}
+                    {p.stock <= 100 && (
+                      <span className="ml-1.5 inline-block bg-red-100 text-red-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                        LOW
+                      </span>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-slate-700">100</td>
+
+                  <td className="px-4 py-4 text-sm text-slate-700">
+                    Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : "0.00"}
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-slate-700">
+                    Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    {getOrderStatus(p.id) || (
+                      <span className="text-slate-300 italic text-sm">—</span>
+                    )}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    {p.stock <= 100 && (
+                      <button
+                        onClick={() => openOrderForm(p)}
+                        disabled={pendingOrders[p.id]?.status === "PENDING"}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md disabled:translate-y-0 disabled:shadow-none"
+                      >
+                        {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
       {/* Empty State */}
-      {!isSmartMode && filtered.length === 0 && (
+      {filtered.length === 0 && (
         <div className="text-center py-16 bg-white rounded-xl mt-5">
           <p className="text-lg text-slate-500">No products found</p>
         </div>
       )}
 
-      {/* ── Order Modal (unchanged) ───────────────────────────────── */}
+      {/* Order Modal */}
       {showOrderForm && selectedProduct && (
         <div
           className="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000] p-5"
@@ -614,111 +419,15 @@ export default function Products() {
         </div>
       )}
 
-      {/* ── Add Product Modal ────────────────────────────────────── */}
-      {showAddForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-[2000] p-5 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50">
-              <div>
-                <h3 className="text-xl font-bold text-slate-800">Add Manual Inventory</h3>
-                <p className="text-xs font-medium text-slate-500 mt-0.5">Enter product details for direct addition</p>
-              </div>
-              <button onClick={() => setShowAddForm(false)} className="p-2 hover:bg-white rounded-full transition-colors text-slate-400">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleAddManualProduct} className="p-8">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Product Name</label>
-                  <input 
-                    required
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
-                    placeholder="Enter full product name..."
-                    value={newProduct.productName}
-                    onChange={e => setNewProduct({...newProduct, productName: e.target.value})}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Category</label>
-                  <select 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                    value={newProduct.category}
-                    onChange={e => setNewProduct({...newProduct, category: e.target.value})}
-                  >
-                    {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Manufacturer</label>
-                  <input 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                    placeholder="Brand/Maker"
-                    value={newProduct.manufacturer}
-                    onChange={e => setNewProduct({...newProduct, manufacturer: e.target.value})}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Initial Stock</label>
-                  <input 
-                    type="number" required
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                    value={newProduct.stock}
-                    onChange={e => setNewProduct({...newProduct, stock: e.target.value})}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 col-span-2">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Wholesale Price (Rs.)</label>
-                    <input 
-                      type="number" step="0.01" required
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                      value={newProduct.wholesalePrice}
-                      onChange={e => setNewProduct({...newProduct, wholesalePrice: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Retail Price (Rs.)</label>
-                    <input 
-                      type="number" step="0.01" required
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-                      value={newProduct.retailPrice}
-                      onChange={e => setNewProduct({...newProduct, retailPrice: e.target.value})}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-4 mt-8">
-                <button 
-                  type="submit" disabled={loading}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
-                >
-                  {loading ? 'Processing...' : 'Confirm Addition'}
-                </button>
-                <button 
-                  type="button" onClick={() => setShowAddForm(false)}
-                  className="px-8 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-2xl font-bold transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .animate-in { animation-fill-mode: forwards; }
-        .fade-in { animation: fadeIn 0.2s ease-out; }
-        .slide-in-from-bottom-8 { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { transform: translateY(20px); opacity: 0; }
+          to   { transform: translateY(0);    opacity: 1; }
+        }
       `}</style>
     </div>
   );
