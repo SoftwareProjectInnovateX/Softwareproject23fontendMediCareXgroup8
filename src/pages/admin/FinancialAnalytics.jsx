@@ -66,17 +66,17 @@ const CustomPieTooltip = ({ active, payload }) => {
 export default function FinancialAnalytics() {
   const [orders, setOrders] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
-  const [customerOrders, setCustomerOrders] = useState([]); // NEW: customer revenue
+  const [customerOrders, setCustomerOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       const orderSnap = await getDocs(collection(db, "orders"));
       const purchaseSnap = await getDocs(collection(db, "purchaseOrders"));
-      const customerSnap = await getDocs(collection(db, "CustomerOrders")); // NEW
+      const customerSnap = await getDocs(collection(db, "CustomerOrders"));
       setOrders(orderSnap.docs.map((d) => d.data()));
       setPurchaseOrders(purchaseSnap.docs.map((d) => d.data()));
-      setCustomerOrders(customerSnap.docs.map((d) => d.data())); // NEW
+      setCustomerOrders(customerSnap.docs.map((d) => d.data()));
       setLoading(false);
     };
     fetchData();
@@ -93,12 +93,8 @@ export default function FinancialAnalytics() {
     );
 
   /* ================= SUMMARY ================= */
-  // Cost  = what admin paid to suppliers (purchaseOrders)
   const totalCost = purchaseOrders.reduce((sum, p) => sum + (p.amount || 0), 0);
-
-  // Revenue = what customers paid to admin (CustomerOrders → totalAmount)
   const totalRevenue = customerOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-
   const profit = totalRevenue - totalCost;
   const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0;
 
@@ -106,12 +102,10 @@ export default function FinancialAnalytics() {
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
   const trendData = months.map((month, i) => {
-    // Revenue: from CustomerOrders
     const revenue = customerOrders
       .filter((o) => getMonth(o.createdAt) === i)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
-    // Cost: from purchaseOrders (supplier payments)
     const cost = purchaseOrders
       .filter((p) => getMonth(p.createdAt) === i)
       .reduce((s, p) => s + (p.amount || 0), 0);
@@ -120,16 +114,8 @@ export default function FinancialAnalytics() {
   });
 
   /* ================= CATEGORY DATA ================= */
-  // Build category revenue from CustomerOrders → types array items
-  // Each CustomerOrder has a `types` array: [{ id, name, price, quantity, imageUrl }, ...]
-  // We derive per-item revenue as price * quantity, grouped by product name as category proxy.
-  // For cost, we use purchaseOrders which already have a `category` field.
-
-  // Collect all categories from purchaseOrders
   const supplierCategories = [...new Set(purchaseOrders.map((p) => p.category))].filter(Boolean);
 
-  // Build a flat list of line items from CustomerOrders for revenue breakdown
-  // Since CustomerOrders items (types[]) don't have a category, we group by product name
   const customerLineItems = [];
   customerOrders.forEach((order) => {
     if (Array.isArray(order.types)) {
@@ -137,35 +123,31 @@ export default function FinancialAnalytics() {
         customerLineItems.push({
           name: item.name,
           revenue: (item.price || 0) * (item.quantity || 1),
-          category: item.category || item.name, // fallback to product name if no category
+          category: item.category || item.name,
         });
       });
     }
   });
 
-  // Merge categories from all sources
   const allCategories = [
     ...new Set([
       ...supplierCategories,
       ...customerLineItems.map((i) => i.category),
-      ...orders.map((o) => o.category), // keep original orders categories for backward compat
+      ...orders.map((o) => o.category),
     ]),
   ].filter(Boolean);
 
   const categoryData = allCategories.map((cat) => {
-    // Revenue: sum from CustomerOrders line items matching this category
     const revenueFromCustomers = customerLineItems
       .filter((i) => i.category === cat)
       .reduce((s, i) => s + i.revenue, 0);
 
-    // Also include any revenue from the original `orders` collection (kept for backward compat)
     const revenueFromOrders = orders
       .filter((o) => o.category === cat)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
     const revenue = revenueFromCustomers + revenueFromOrders;
 
-    // Cost: from purchaseOrders
     const cost = purchaseOrders
       .filter((p) => p.category === cat)
       .reduce((s, p) => s + (p.amount || 0), 0);
@@ -192,16 +174,16 @@ export default function FinancialAnalytics() {
   ];
 
   const summaryCards = [
-    { title: "Total Cost",      value: `Rs. ${totalCost.toLocaleString()}` },
-    { title: "Total Revenue",   value: `Rs. ${totalRevenue.toLocaleString()}` },
-    { title: "Net Profit",      value: `Rs. ${profit.toLocaleString()}` },
-    { title: "Profit Margin",   value: `${margin}%` },
+    { title: "Total Cost",    value: `Rs. ${totalCost.toLocaleString()}` },
+    { title: "Total Revenue", value: `Rs. ${totalRevenue.toLocaleString()}` },
+    { title: "Net Profit",    value: `Rs. ${profit.toLocaleString()}` },
+    { title: "Profit Margin", value: `${margin}%` },
   ];
 
   return (
     <div className="min-h-screen bg-slate-50">
 
-      {/* ── Page Header — plain, bold black ── */}
+      {/* ── Page Header ── */}
       <div className="px-8 py-6">
         <h1 className="text-2xl font-bold text-gray-900">Financial Analytics</h1>
         <p className="text-gray-400 text-sm mt-0.5">Track costs, revenue, and profit margins</p>
