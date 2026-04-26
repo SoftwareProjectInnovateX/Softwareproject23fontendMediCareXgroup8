@@ -1,53 +1,62 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Search, 
-  ArrowLeft,
-  UserPlus
-} from 'lucide-react';
+import { Search, ArrowLeft, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../../lib/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 const PharmacistNewPatients = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [initialData, setInitialData] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-     import('../../services/pharmacistService').then(({ getPatients }) => {
-        getPatients().then(pts => {
-           setInitialData(pts);
-           setIsLoading(false);
-        }).catch(e => {
-           console.error("Failed to fetch patients:", e);
-           setIsLoading(false);
-        });
-     });
+    (async () => {
+      try {
+        const snap = await getDocs(
+          // No orderBy — avoids composite index requirement; sort client-side
+          query(collection(db, 'users'), where('role', '==', 'customer'))
+        );
+        const data = snap.docs.map(d => {
+          const d2 = d.data();
+          return {
+            id: d2.customerId || d.id,
+            firebaseUid: d.id,
+            name: d2.fullName || d2.name || 'Unknown',
+            email: d2.email || '',
+            phone: d2.phone || 'N/A',
+            dob: d2.dob || '—',
+            age: d2.age || '—',
+            address: d2.address || '—',
+            status: d2.status || 'active',
+            createdAt: d2.createdAt?.toDate?.() || null,
+            timestamp: d2.createdAt?.toMillis?.() || 0,
+          };
+        })
+        // Newest first — client-side sort
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+        setCustomers(data);
+      } catch (e) {
+        console.error('Failed to load customers from Firebase:', e.message);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
-  // 1. Logic to prevent showing people with the same name (Validation)
-  const uniquePatients = useMemo(() => {
-    const seenNames = new Set();
-    return initialData.filter(patient => {
-      const nameKey = (patient.name || '').toLowerCase();
-      // Checks if the name is already in the list
-      const isDuplicate = seenNames.has(nameKey);
-      seenNames.add(nameKey);
-      return !isDuplicate; // If already exists, do not add to the list
-    });
-  }, [initialData]);
-
-  // 2. Search feature (Search Logic) - Shows instantly when name or ID is typed
-  const filteredPatients = useMemo(() => {
-    return uniquePatients.filter(patient => 
-      (patient.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (patient.id || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [searchTerm, uniquePatients]);
+  const filtered = useMemo(() =>
+    customers.filter(c =>
+      (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.phone || '').includes(searchTerm)
+    ), [searchTerm, customers]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={() => navigate('/pharmacist/dashboard')}
           className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
         >
@@ -56,9 +65,11 @@ const PharmacistNewPatients = () => {
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <UserPlus className="w-6 h-6 text-blue-600" />
-            Total Patient Directory
+            Registered Customers
           </h1>
-          <p className="text-slate-500 mt-1">Showing {filteredPatients.length} unique registered patients.</p>
+          <p className="text-slate-500 mt-1">
+            {isLoading ? 'Loading…' : `Showing ${filtered.length} of ${customers.length} registered app customers`}
+          </p>
         </div>
       </div>
 
@@ -67,68 +78,79 @@ const PharmacistNewPatients = () => {
         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
           <div className="relative w-full max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Enter patient name or ID..." 
+            <input
+              type="text"
+              placeholder="Search by name, ID, email or phone…"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
             />
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-white">
-                <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Patient Details</th>
-                <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Date of Birth</th>
-                <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
-                <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredPatients.length > 0 ? (
-                filteredPatients.map((patient) => (
-                  <tr key={patient.id} className="hover:bg-slate-50 transition-colors group">
+          {isLoading ? (
+            <div className="py-16 text-center text-slate-400 text-sm">Loading customers from Firebase…</div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white">
+                  <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Customer</th>
+                  <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Contact</th>
+                  <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Registered</th>
+                  <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 border-b text-xs font-bold text-slate-400 uppercase tracking-widest">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.length > 0 ? filtered.map(c => (
+                  <tr key={c.firebaseUid} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
-                          {patient.name.charAt(0)}
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+                          {(c.name || '?').charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-800">{patient.name}</p>
-                          <p className="text-xs text-slate-500 font-medium">ID: {patient.id}</p>
+                          <p className="font-bold text-slate-800">{c.name}</p>
+                          <p className="text-xs text-slate-400 font-medium">{c.id}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-600 font-medium">
-                      {patient.dob} <span className="text-slate-400 ml-1">({patient.age}y)</span>
+                    <td className="px-6 py-4">
+                      <p className="text-sm font-semibold text-slate-700">{c.phone}</p>
+                      <p className="text-xs text-slate-400">{c.email}</p>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-500">
+                      {c.createdAt ? c.createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${(patient.activeCount && patient.activeCount > 0) ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-                        {(patient.activeCount && patient.activeCount > 0) ? 'ACTIVE' : 'INACTIVE'}
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wide ${
+                        c.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'
+                      }`}>
+                        {c.status}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                       <button 
-                        onClick={() => navigate('/pharmacist/patients', { state: { searchTarget: patient.id } })} 
+                      <button
+                        onClick={() => navigate('/pharmacist/patients', { state: { searchTarget: c.firebaseUid } })}
                         className="text-blue-600 font-bold text-sm hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
-                       >
-                         View Profile
-                       </button>
+                      >
+                        View Profile →
+                      </button>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center">
-                    <p className="text-slate-400 italic">No such patient found.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )) : (
+                  <tr>
+                    <td colSpan="5" className="px-6 py-12 text-center">
+                      <p className="text-slate-400 text-sm font-medium">
+                        {customers.length === 0 ? 'No customers have registered yet.' : 'No customers match your search.'}
+                      </p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

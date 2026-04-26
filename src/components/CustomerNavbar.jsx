@@ -1,3 +1,4 @@
+import React, { useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCartStore } from "../stores/cartStore";
 import { ShoppingCart, User, LogOut, Phone, Mail, Sun, Moon } from "lucide-react";
@@ -20,7 +21,7 @@ export default function CustomerNavbar() {
   const { logout } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
 
-  const items = useCartStore((state) => state.items || []);
+  const items     = useCartStore((state) => state.items || []);
   const cartCount = items.reduce((total, item) => total + (item.qty || 0), 0);
 
   const navLinks = [
@@ -32,12 +33,12 @@ export default function CustomerNavbar() {
   ];
 
   const socialLinks = [
-    { icon: <Phone size={13} strokeWidth={2} />,      label: "+94 723 556 700",    href: null },
-    { icon: <FaFacebook size={13} />,                 label: "Facebook",           href: "https://facebook.com",      target: "_blank" },
-    { icon: <WhatsAppIcon size={13} />,               label: "WhatsApp",           href: "https://wa.me/94723556700", target: "_blank" },
-    { icon: <FaInstagram size={13} />,                label: "Instagram",          href: "https://instagram.com",     target: "_blank" },
-    { icon: <FaLinkedin size={13} />,                 label: "LinkedIn",           href: "https://linkedin.com",      target: "_blank" },
-    { icon: <Mail size={13} strokeWidth={2} />,       label: "info@medicarex.com", href: "mailto:info@medicarex.com", target: null },
+    { icon: <Phone size={13} strokeWidth={2} />,    label: "+94 723 556 700",    href: null },
+    { icon: <FaFacebook size={13} />,               label: "Facebook",           href: "https://facebook.com",      target: "_blank" },
+    { icon: <WhatsAppIcon size={13} />,             label: "WhatsApp",           href: "https://wa.me/94723556700", target: "_blank" },
+    { icon: <FaInstagram size={13} />,              label: "Instagram",          href: "https://instagram.com",     target: "_blank" },
+    { icon: <FaLinkedin size={13} />,               label: "LinkedIn",           href: "https://linkedin.com",      target: "_blank" },
+    { icon: <Mail size={13} strokeWidth={2} />,     label: "info@medicarex.com", href: "mailto:info@medicarex.com", target: null },
   ];
 
   const isActive = (href) => {
@@ -45,53 +46,37 @@ export default function CustomerNavbar() {
     return pathname.startsWith(href);
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+  const handleLogout = () => { logout(); navigate("/login"); };
 
   const topLinkStyle = {
-    fontSize: 12.5,
-    fontWeight: 500,
-    color: "rgba(255,255,255,0.82)",
-    textDecoration: "none",
-    letterSpacing: "0.01em",
-    transition: "color 0.15s",
-    display: "flex",
-    alignItems: "center",
-    gap: 5,
+    fontSize: 12.5, fontWeight: 500, color: "rgba(255,255,255,0.82)",
+    textDecoration: "none", letterSpacing: "0.01em", transition: "color 0.15s",
+    display: "flex", alignItems: "center", gap: 5,
+  };
+
+  const iconBtnBase = {
+    display: "flex", alignItems: "center", justifyContent: "center",
+    width: 44, height: 44, borderRadius: 12, border: "none", cursor: "pointer",
+    transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
   };
 
   return (
     <header style={{ position: "sticky", top: 0, zIndex: 50, width: "100%", fontFamily: FONT.body }}>
 
-      {/* ── Top Bar ── */}
+      {/* Top Bar */}
       <div style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}>
-        <div style={{
-          maxWidth: "100%", margin: "0 auto", padding: "0 40px",
-          height: 42, display: "flex", justifyContent: "flex-end",
-          alignItems: "center", gap: 24,
-        }}>
+        <div style={{ maxWidth: "100%", margin: "0 auto", padding: "0 40px", height: 42, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 24 }}>
           {socialLinks.map(({ icon, label, href, target }) =>
             href ? (
-              <a
-                key={label}
-                href={href}
-                target={target || undefined}
-                rel={target === "_blank" ? "noreferrer" : undefined}
+              <a key={label} href={href} target={target || undefined} rel={target === "_blank" ? "noreferrer" : undefined}
                 style={topLinkStyle}
                 onMouseEnter={e => e.currentTarget.style.color = "#ffffff"}
                 onMouseLeave={e => e.currentTarget.style.color = "rgba(255,255,255,0.82)"}
               >
-                {icon}
-                {label}
+                {icon}{label}
               </a>
             ) : (
-                    
-              <span key={label} style={{ ...topLinkStyle, cursor: "default" }}>
-                {icon}
-                {label}
-              </span>
+              <span key={label} style={{ ...topLinkStyle, cursor: "default" }}>{icon}{label}</span>
             )
           )}
         </div>
@@ -107,14 +92,9 @@ export default function CustomerNavbar() {
         <div style={{ width: "100%", padding: "0 40px", boxSizing: "border-box" }}>
           <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
-            {/* ── LEFT: Logo ── */}
+            {/* Logo */}
             <Link to="/customer" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", flexShrink: 0 }}>
-              <div style={{
-                width: 46, height: 46, borderRadius: "50%",
-                backgroundImage: "url('/logo.png')", backgroundSize: "cover", backgroundPosition: "center",
-                border: "2.5px solid rgba(26,135,225,0.22)",
-                flexShrink: 0,
-              }} />
+              <div style={{ width: 46, height: 46, borderRadius: "50%", backgroundImage: "url('/logo.png')", backgroundSize: "cover", backgroundPosition: "center", border: "2.5px solid rgba(26,135,225,0.22)", flexShrink: 0 }} />
               <div>
                 <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 20, color: "var(--text-primary)", lineHeight: 1.2 }}>
                   MediCareX
@@ -125,20 +105,13 @@ export default function CustomerNavbar() {
               </div>
             </Link>
 
-            {/* ── CENTER: Nav Links ── */}
+            {/* Nav Links */}
             <nav style={{ display: "flex", alignItems: "center", gap: 80, position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
               {navLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  to={link.href}
+                <Link key={link.href} to={link.href}
                   style={{
-                    padding: "8px 16px",
-                    borderRadius: 10,
-                    fontSize: 17,
-                    fontWeight: 800,
-                    fontFamily: FONT.body,
-                    textDecoration: "none",
-                    letterSpacing: "0.01em",
+                    padding: "8px 16px", borderRadius: 10, fontSize: 17, fontWeight: 800,
+                    fontFamily: FONT.body, textDecoration: "none", letterSpacing: "0.01em",
                     transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
                     ...(isActive(link.href)
                       ? { background: "#1749b5", color: "#ffffff", boxShadow: "0 4px 20px rgba(26,135,225,0.28)" }
@@ -153,7 +126,7 @@ export default function CustomerNavbar() {
               ))}
             </nav>
 
-            {/* ── RIGHT: Cart + Profile + Logout ── */}
+            {/* Right: Cart + Profile + Theme Toggle + Logout */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
 
               {/* Theme Toggle */}
@@ -190,48 +163,24 @@ export default function CustomerNavbar() {
               >
                 <ShoppingCart size={20} color="var(--accent-blue)" strokeWidth={1.8} />
                 {cartCount > 0 && (
-                  <span style={{
-                    position: "absolute", top: -7, right: -7,
-                    background: "#dc2626", color: "#ffffff",
-                    fontSize: 10.5, fontWeight: 700, fontFamily: FONT.body,
-                    borderRadius: 20, padding: "2px 6px",
-                    border: "2px solid #ffffff",
-                    minWidth: 18, textAlign: "center", lineHeight: 1.4,
-                  }}>
+                  <span style={{ position: "absolute", top: -7, right: -7, background: "#dc2626", color: "#ffffff", fontSize: 10.5, fontWeight: 700, fontFamily: FONT.body, borderRadius: 20, padding: "2px 6px", border: "2px solid #ffffff", minWidth: 18, textAlign: "center", lineHeight: 1.4 }}>
                     {cartCount}
                   </span>
                 )}
               </Link>
 
               {/* Profile */}
-              <button
-                onClick={() => navigate("/customer/profile")}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 44, height: 44, borderRadius: 12,
-                  background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)",
-                  border: "none",
-                  boxShadow: "0 4px 14px rgba(26,135,225,0.28)",
-                  cursor: "pointer",
-                  transition: "opacity 0.15s, box-shadow 0.15s",
-                }}
+              <button onClick={() => navigate("/customer/profile")}
+                style={{ ...iconBtnBase, background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)", boxShadow: "0 4px 14px rgba(26,135,225,0.28)" }}
                 onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(26,135,225,0.38)"; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(26,135,225,0.28)"; }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = "1";    e.currentTarget.style.boxShadow = "0 4px 14px rgba(26,135,225,0.28)"; }}
               >
                 <User size={20} color="#ffffff" strokeWidth={1.8} />
               </button>
 
               {/* Logout */}
-              <button
-                onClick={handleLogout}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  width: 44, height: 44, borderRadius: 12,
-                  background: "rgba(220,38,38,0.06)",
-                  border: "1.5px solid rgba(220,38,38,0.22)",
-                  cursor: "pointer",
-                  transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
-                }}
+              <button onClick={handleLogout}
+                style={{ ...iconBtnBase, background: "rgba(220,38,38,0.06)", border: "1.5px solid rgba(220,38,38,0.22)" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(220,38,38,0.12)"; e.currentTarget.style.borderColor = "rgba(220,38,38,0.45)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(220,38,38,0.18)"; }}
                 onMouseLeave={e => { e.currentTarget.style.background = "rgba(220,38,38,0.06)"; e.currentTarget.style.borderColor = "rgba(220,38,38,0.22)"; e.currentTarget.style.boxShadow = "none"; }}
               >
@@ -242,7 +191,6 @@ export default function CustomerNavbar() {
           </div>
         </div>
       </div>
-
     </header>
   );
 }

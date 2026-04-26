@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:5000/pharmacist';
+const API_BASE_URL = 'http://localhost:5000/api/pharmacist';
 
 const handleResponse = async (response) => {
   if (!response.ok) {
@@ -8,310 +8,180 @@ const handleResponse = async (response) => {
   return response.json();
 };
 
-/**
- * PHARMACIST PROFILE SERVICE
- */
-export const getPharmacistProfile = async (pharmacistId = sessionStorage.getItem('userId') || 'default_pharmacist') => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/profile/${pharmacistId}`);
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error fetching pharmacist profile:", error);
-    // Return null if not found, preserving the original behavior
-    if (error.message.includes('404')) return null;
-    throw error;
-  }
+/* ================= PROFILE ================= */
+
+export const getPharmacistProfile = async (id = sessionStorage.getItem('userId') || 'default') => {
+  const res = await fetch(`${API_BASE_URL}/profile/${id}`);
+  return handleResponse(res);
 };
 
-export const updatePharmacistProfile = async (pharmacistId = sessionStorage.getItem('userId') || 'default_pharmacist', updateData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/profile/${pharmacistId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error updating pharmacist profile:", error);
-    throw error;
-  }
+export const updatePharmacistProfile = async (id, data) => {
+  const res = await fetch(`${API_BASE_URL}/profile/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return handleResponse(res);
 };
 
-/**
- * INVENTORY SERVICE
- */
+/* ================= INVENTORY ================= */
 
 export const getInventory = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/inventory`);
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error fetching inventory:", error);
-    throw error;
-  }
+  return handleResponse(await fetch(`${API_BASE_URL}/inventory`));
 };
 
-export const addInventoryItem = async (itemData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/inventory`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(itemData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error adding inventory item:", error);
-    throw error;
-  }
+export const addInventoryItem = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/inventory`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-export const updateInventoryItem = async (id, updateData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error updating inventory item:", error);
-    throw error;
-  }
+export const updateInventoryItem = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/inventory/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
 export const deleteInventoryItem = async (id) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
-      method: 'DELETE',
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error deleting inventory item:", error);
-    throw error;
-  }
+  return handleResponse(await fetch(`${API_BASE_URL}/inventory/${id}`, {
+    method: 'DELETE',
+  }));
 };
 
-/**
- * PATIENTS SERVICE
- */
+/* ================= PATIENTS ================= */
 
 export const getPatients = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/patients`);
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error fetching patients:", error);
-    throw error;
-  }
+  return handleResponse(await fetch(`${API_BASE_URL}/patients`));
 };
 
-export const addPatient = async (patientData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/patients`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patientData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error adding patient:", error);
-    throw error;
-  }
+export const addPatient = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/patients`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-export const updatePatient = async (id, updateData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/patients/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error updating patient:", error);
-    throw error;
-  }
+export const updatePatient = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/patients/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-/**
- * PRESCRIPTIONS SERVICE
- */
+/* ================= PRESCRIPTIONS ================= */
 
 export const getPrescriptions = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/prescriptions`);
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error fetching prescriptions:", error);
-    throw error;
-  }
+  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions`));
 };
 
-export const addPrescription = async (prescriptionData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/prescriptions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(prescriptionData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error adding prescription:", error);
-    throw error;
-  }
+export const addPrescription = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-export const updatePrescription = async (id, updateData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/prescriptions/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error updating prescription:", error);
-    throw error;
-  }
+export const updatePrescription = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/prescriptions/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-/**
- * DISPENSING HISTORY SERVICE
- */
+/* ================= DISPENSED ================= */
 
 export const getDispensedHistory = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/dispensed`);
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error fetching dispends history:", error);
-    throw error;
-  }
+  return handleResponse(await fetch(`${API_BASE_URL}/dispensed`));
 };
 
-export const addDispensedRecord = async (dispenseData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/dispensed`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dispenseData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error adding dispensed record:", error);
-    throw error;
-  }
+export const addDispensedRecord = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/dispensed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-export const updateDispensedRecord = async (id, updateData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/dispensed/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error updating dispensed record:", error);
-    throw error;
-  }
+export const updateDispensedRecord = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/dispensed/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-/**
- * ONLINE ORDERS SERVICE
- */
+/* ================= ORDERS ================= */
 
 export const getOnlineOrders = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/orders`);
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error fetching online orders:", error);
-    throw error;
-  }
+  return handleResponse(await fetch(`${API_BASE_URL}/orders`));
 };
 
-export const addOnlineOrder = async (orderData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error adding online order:", error);
-    throw error;
-  }
+export const addOnlineOrder = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-export const updateOnlineOrder = async (id, updateData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error updating online order:", error);
-    throw error;
-  }
+export const updateOnlineOrder = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/orders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-/**
- * RETURN REQUESTS SERVICE
- */
+/* ================= RETURNS ================= */
 
 export const getReturnRequests = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/returns`);
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error fetching return requests:", error);
-    throw error;
-  }
+  return handleResponse(await fetch(`${API_BASE_URL}/returns`));
 };
 
-export const addReturnRequest = async (returnData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/returns`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(returnData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error adding return request:", error);
-    throw error;
-  }
+export const addReturnRequest = async (data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-export const updateReturnRequest = async (id, updateData) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/returns/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updateData),
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error updating return request:", error);
-    throw error;
-  }
+export const updateReturnRequest = async (id, data) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }));
 };
 
-/**
- * SYSTEM RESET UTILITY
- */
+export const approveReturn = async (id, adjNote, items) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns/${id}/approve`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adjNote, items }),
+  }));
+};
+
+export const rejectReturn = async (id, adjNote) => {
+  return handleResponse(await fetch(`${API_BASE_URL}/returns/${id}/reject`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adjNote }),
+  }));
+};
+
+/* ================= SYSTEM ================= */
+
 export const resetSystemData = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/system/reset`, {
-      method: 'POST',
-    });
-    return handleResponse(response);
-  } catch (error) {
-    console.error("Error resetting system data:", error);
-    throw error;
-  }
+  return handleResponse(await fetch(`${API_BASE_URL}/system/reset`, {
+    method: 'POST',
+  }));
 };

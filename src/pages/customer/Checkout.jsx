@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import CryptoJS from 'crypto-js';
 import { useCartStore } from '../../stores/cartStore';
 import BillingDetails from '../../components/checkout/BillingDetails';
 import OrderSummary from '../../components/checkout/OrderSummary';
 import { getAuthHeaders } from '../../services/firebase';
+import { updateDispensedRecord, getDispensedHistory } from '../../services/pharmacistService';
 
 const Checkout = () => {
-    const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     const { getTotal, clearCart, items } = useCartStore();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const rxId = queryParams.get('rxId');
+    const rxAmount = parseFloat(queryParams.get('amount') || '0');
 
     const PAYMENT_GATEWAY_CONFIG = {
         MERCHANT_ID: "1235095",
         MERCHANT_SECRET: "NDUxMTU1MDYxNDEyNDEyMTgyMjM3MTEzMTYyMjMwMzQ0OTc1MjM=",
         CURRENCY: "LKR",
-        TOTAL_AMOUNT: getTotal().toFixed(2),
+        TOTAL_AMOUNT: (rxId ? rxAmount : getTotal()).toFixed(2),
         NOTIFY_URL: "http://localhost:5000/api/orders/notify",
         RETURN_URL: `${window.location.origin}/customer/checkout/success`,
         CANCEL_URL: `${window.location.origin}/customer/checkout/cancel`,
@@ -138,7 +143,24 @@ const Checkout = () => {
             });
 
             if (response.ok) {
-                if (shouldClearCart) clearCart();
+                // If this was a prescription order, update the dispensing queue status
+                if (rxId) {
+                    try {
+                        const history = await getDispensedHistory();
+                        const record = history.find(h => h.rxId === rxId);
+                        if (record) {
+                            await updateDispensedRecord(record.firebaseId || record.id, {
+                                paymentStatus: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Pending-COD',
+                                paymentMethod: orderData.paymentMethod
+                            });
+                            console.log("Dispensing record updated successfully for RX:", rxId);
+                        }
+                    } catch (err) {
+                        console.error("Failed to update dispensing status:", err);
+                    }
+                }
+
+                if (shouldClearCart && !rxId) clearCart();
                 navigate('/customer/checkout/success', {
                     state: { totalAmount: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT) }
                 });

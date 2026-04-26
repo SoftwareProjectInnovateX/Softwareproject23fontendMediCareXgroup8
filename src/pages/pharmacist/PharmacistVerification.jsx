@@ -20,23 +20,13 @@ import {
   Search,
   History,
   Send,
-  BriefcaseMedical
+  BriefcaseMedical,
+  Plus
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AlertContext } from '../../layouts/PharmacistLayout';
 import { useContext } from 'react';
-import { getPatients, updatePatient, addPatient, getPrescriptions, updatePrescription, addDispensedRecord, getDispensedHistory } from '../../services/pharmacistService';
-
-const inventoryMeds = [
-  { name: 'Lisinopril 10mg Tablets', stock: 1200, unitPrice: 15.50 },
-  { name: 'Metformin 500mg ER Tablets', stock: 850, unitPrice: 8.25 },
-  { name: 'Atorvastatin 20mg Tablets', stock: 500, unitPrice: 22.00 },
-  { name: 'Amoxicillin 500mg Capsules', stock: 320, unitPrice: 12.00 },
-  { name: 'Ibuprofen 400mg Tablets', stock: 2100, unitPrice: 4.50 },
-  { name: 'Omeprazole 20mg Capsules', stock: 450, unitPrice: 18.75 },
-  { name: 'Losartan 50mg Tablets', stock: 650, unitPrice: 16.00 },
-  { name: 'Panadol 500mg', stock: 3000, unitPrice: 3.50 }
-];
+import { getPatients, updatePatient, addPatient, getPrescriptions, updatePrescription, addDispensedRecord, getDispensedHistory, getInventory } from '../../services/pharmacistService';
 
 const PharmacistVerification = () => {
   const navigate = useNavigate();
@@ -44,9 +34,20 @@ const PharmacistVerification = () => {
   const { updateQueueCount } = useContext(AlertContext);
   const [isVerified, setIsVerified] = useState(false);
   const [patients, setPatients] = useState([]);
+  const [inventoryMeds, setInventoryMeds] = useState([]);
   
   useEffect(() => {
      getPatients().then(setPatients).catch(console.error);
+     // Load real inventory from Firebase/backend — no hardcoded data
+     getInventory().then(inv => {
+       const mapped = inv.map(item => ({
+         id: item.id,
+         name: item.name || item.productName || 'Unknown',
+         stock: Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0),
+         unitPrice: Number(item.retailPrice || item.price || item.unitPrice || item.sellingPrice || item.cost || 0),
+       })).filter(m => m.name !== 'Unknown');
+       setInventoryMeds(mapped);
+     }).catch(console.error);
   }, []);
 
   const [patientSearch, setPatientSearch] = useState('');
@@ -76,7 +77,9 @@ const PharmacistVerification = () => {
   const [currentDosage, setCurrentDosage] = useState('Oral Tablet');
   const [currentFreq, setCurrentFreq] = useState('');
   const [currentQty, setCurrentQty] = useState(1);
+  const [currentPrice, setCurrentPrice] = useState(0);
   const [currentRefills, setCurrentRefills] = useState(0);
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
   const [clinicalNote, setClinicalNote] = useState('');
 
   // removed localstorage patients sync
@@ -100,7 +103,7 @@ const PharmacistVerification = () => {
         setSelectedPatient(match);
       } else {
         const newTempPatient = {
-          id: '#' + Math.floor(Math.random() * 900000 + 100000),
+          id: `#PT-${Date.now().toString().slice(-6)}`,
           name: location.state.rxPatientName,
           dob: location.state.rxDob || 'Unknown',
           phone: '(000) 000-0000',
@@ -143,53 +146,47 @@ const PharmacistVerification = () => {
     const activeRxId = (rxIdFromUrl && rxIdFromUrl !== 'verification') ? rxIdFromUrl : '88291';
 
     try {
+      // 1. Prescription status update and record creation
+      // Note: Stock is now managed in real-time as items are added/removed from the orderItems list.
+      
       let activeIsDigital = false;
       const queueList = await getPrescriptions();
       const match = queueList.find(q => String(q.id) === String(activeRxId) || String(q.queueId) === String(activeRxId)); 
-      // Actually, our custom IDs are mostly inside `id` or `queueId`.
 
       if (match) {
          activeIsDigital = match.isDigital || false;
          await updatePrescription(match.firebaseId || match.id, {
-            status: 'Completed',
+            status: 'Approved',
             patientId: selectedPatient?.id,
             statusStyle: 'bg-emerald-100 text-emerald-700',
-            actionLabel: 'Verified',
-            rowStyle: ''
+            actionLabel: 'Approved',
+            rowStyle: 'bg-emerald-50/30',
+            orderItems: orderItems, // Add medications to the Rx doc so customer can see them
+            total: orderItems.reduce((a, b) => a + b.total, 0),
+            approvedAt: Date.now()
          });
-         // Delay queue update slightly to allow Firebase index to catch up
          setTimeout(() => updateQueueCount(), 600);
       }
 
-      // Check if an ACTIVE dispensing record already exists for this Rx
-      const existingDispQ = await getDispensedHistory();
-      const existingDisp = existingDispQ.find(d => d.rxId === activeRxId && !d.finalized);
-      
-      let dispenseDocId;
-      if (existingDisp) {
-         dispenseDocId = existingDisp.firebaseId || existingDisp.id;
-         // Optionally update it if needed, but we don't need to duplicate it.
-      } else {
-         const newDispenseRec = await addDispensedRecord({
-               rxId: activeRxId,
-               isDigital: activeIsDigital,
-               orderItems: orderItems,
-               verifiedPatient: selectedPatient?.name,
-               patientId: selectedPatient?.id,
-               total: orderItems.reduce((a,b)=>a+b.total,0),
-               paymentStatus: 'Pending Payment',
-               timestamp: Date.now(),
-               dispensedDate: new Date().toDateString(),
-               patientEmail: selectedPatient?.email || 'N/A'
-         });
-         dispenseDocId = newDispenseRec.id;
-      }
+      // 3. Create a dispensing record (Queue for pharmacist)
+      const newDispenseRec = await addDispensedRecord({
+            rxId: activeRxId,
+            isDigital: activeIsDigital,
+            orderItems: orderItems,
+            verifiedPatient: selectedPatient?.name,
+            patientId: selectedPatient?.id,
+            total: orderItems.reduce((a, b) => a + b.total, 0),
+            paymentStatus: 'Pending Payment', // Customer needs to pay first
+            timestamp: Date.now(),
+            dispensedDate: new Date().toDateString(),
+            patientEmail: selectedPatient?.email || 'N/A'
+      });
 
-      setDispenseRecordId(dispenseDocId);
+      setDispenseRecordId(newDispenseRec.id);
     } catch(e) { 
       console.error(e); 
-      alert("Database Error: " + e.message);
-      return; // Stop the success modal from showing
+      alert("Error during approval: " + e.message);
+      return;
     }
 
     setShowApproveSuccess(true);
@@ -206,12 +203,12 @@ const PharmacistVerification = () => {
             paymentStatus: 'Pending Payment'
          }
        });
-    }, 1500); // Quick turnaround
+    }, 1500);
   };
 
   const handleAddPatient = () => {
     if (!newPatient.firstName) return;
-    const newId = '#' + Math.floor(Math.random() * 900000 + 100000);
+    const newId = `#PT-${Date.now().toString().slice(-6)}`;
     const dobObj = new Date(newPatient.dob);
     const dobString = isNaN(dobObj) ? 'Jan 01, 1990' : dobObj.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
     const age = isNaN(dobObj) ? 34 : new Date().getFullYear() - dobObj.getFullYear();
@@ -479,7 +476,20 @@ const PharmacistVerification = () => {
                          </div>
                        </div>
                        <button 
-                         onClick={() => setOrderItems(orderItems.filter((_, i) => i !== idx))}
+                         onClick={async () => {
+                            const itemToRemove = orderItems[idx];
+                            if (itemToRemove.inventoryId) {
+                               const invItem = inventoryMeds.find(m => m.id === itemToRemove.inventoryId);
+                               if (invItem) {
+                                  const restoredStock = invItem.stock + itemToRemove.qty;
+                                  setInventoryMeds(inventoryMeds.map(m => m.id === itemToRemove.inventoryId ? { ...m, stock: restoredStock } : m));
+                                  try {
+                                     await updateInventoryItem(itemToRemove.inventoryId, { stock: restoredStock, qty: restoredStock, quantity: restoredStock });
+                                  } catch (err) { console.error("Failed to restore inventory", err); }
+                               }
+                            }
+                            setOrderItems(orderItems.filter((_, i) => i !== idx));
+                          }}
                          className="text-slate-400 hover:text-red-500 transition-colors bg-white rounded-full p-1 border border-slate-200 shadow-sm"
                        >
                          <X className="w-3.5 h-3.5" />
@@ -516,62 +526,68 @@ const PharmacistVerification = () => {
             )}
             
             <div className={`space-y-4 ${orderItems.length > 0 ? 'border-t border-slate-100 pt-5' : ''}`}>
-               <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Add Item to Bill & Prescription</h4>
-              <div className="relative">
-                <label className="block text-xs font-semibold text-slate-500 mb-1.5">Search PharmacistInventory (Auto-prices applied)</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
-                  <input 
-                    type="text" 
-                    value={searchQuery}
-                    onChange={(e) => {
-                       setSearchQuery(e.target.value);
-                       setCurrentDrug(e.target.value);
-                       setShowSuggestions(true);
-                    }}
-                    placeholder="Type drug name..." 
-                    className="w-full pl-9 pr-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 font-medium focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition-all font-bold" 
-                  />
-                  {showSuggestions && searchQuery && (
-                    <div className="absolute bottom-full mb-1 left-0 z-50 w-full mt-1 bg-white border border-slate-200 shadow-2xl rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                      {inventoryMeds.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).map((m, i) => (
-                         <div 
-                          key={i}
-                          onClick={() => {
-                            setSearchQuery('');
-                            setCurrentDrug('');
-                            setOrderItems([...orderItems, { 
-                               id: Date.now(), 
-                               name: m.name, 
-                               qty: currentQty || 10, 
-                               form: currentDosage || 'Oral Tablet', 
-                               freq: currentFreq || 'Once Daily', 
-                               refills: currentRefills || 0,
-                               unitPrice: m.unitPrice,
-                               total: (currentQty || 10) * m.unitPrice
-                            }]);
-                            setShowSuggestions(false);
-                          }}
-                          className="px-4 py-3 hover:bg-emerald-50 cursor-pointer flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors"
-                        >
-                          <div>
-                             <span className="font-black text-sm text-slate-800 block">{m.name}</span>
-                             <span className="text-xs text-emerald-600 font-bold mt-0.5 block">Rs. {m.unitPrice.toFixed(2)} per unit</span>
-                          </div>
-                          <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase tracking-wider">{m.stock} In Stock</span>
-                        </div>
-                      ))}
-                      {inventoryMeds.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                        <div className="px-4 py-3 text-sm text-slate-500 font-medium text-center">No results in inventory.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Add Item to Bill & Prescription</h4>
               
               <div className="grid grid-cols-2 gap-4">
+                <div className="relative col-span-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Medication Name</label>
+                  <div className="relative">
+                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${showSuggestions ? 'text-blue-500 animate-pulse' : 'text-slate-400'}`} />
+                    <input 
+                      type="text" 
+                      value={currentDrug}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCurrentDrug(val);
+                        setSearchQuery(val);
+                        setShowSuggestions(true);
+                        
+                        // Auto-match exact name for price update
+                        const exactMatch = inventoryMeds.find(m => m.name.toLowerCase() === val.toLowerCase());
+                        if (exactMatch) {
+                           setCurrentPrice(exactMatch.unitPrice);
+                           setSelectedInventoryItem(exactMatch);
+                        } else {
+                           setSelectedInventoryItem(null);
+                        }
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
+                      placeholder="e.g. Amoxicillin 500mg" 
+                      className="w-full pl-9 pr-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all" 
+                    />
+                    
+                    {showSuggestions && searchQuery && (
+                      <div className="absolute top-full left-0 z-[60] w-full mt-1 bg-white border border-slate-200 shadow-2xl rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                        {inventoryMeds.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).map((m, i) => (
+                          <div 
+                            key={i}
+                            onClick={() => {
+                              setCurrentDrug(m.name);
+                              setCurrentPrice(m.unitPrice);
+                              setSelectedInventoryItem(m);
+                              setShowSuggestions(false);
+                            }}
+                            className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors"
+                          >
+                            <div>
+                               <span className="font-bold text-sm text-slate-800 block">{m.name}</span>
+                               <span className="text-[10px] text-blue-600 font-bold mt-0.5 block">Price: Rs. {m.unitPrice.toFixed(2)}</span>
+                            </div>
+                            <div className="text-right">
+                               <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-wider">{m.stock} In Stock</span>
+                            </div>
+                          </div>
+                        ))}
+                        {inventoryMeds.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                          <div className="px-4 py-3 text-sm text-slate-500 font-medium text-center">No matching medicines found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Dosage Form</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Dosage Form</label>
                   <select 
                     value={currentDosage}
                     onChange={(e) => setCurrentDosage(e.target.value)}
@@ -585,21 +601,76 @@ const PharmacistVerification = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Default Frequency</label>
-                  <input type="text" value={currentFreq} onChange={e => setCurrentFreq(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Once Daily" />
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Timing / Frequency</label>
+                  <input 
+                    type="text" 
+                    value={currentFreq} 
+                    onChange={e => setCurrentFreq(e.target.value)} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    placeholder="e.g. BD (Twice daily)" 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Quantity</label>
+                  <input 
+                    type="number" 
+                    value={currentQty} 
+                    onChange={e => setCurrentQty(parseInt(e.target.value) || 0)} 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Unit Price (Rs.)</label>
+                  <input 
+                    type="number" 
+                    value={currentPrice} 
+                    onChange={e => setCurrentPrice(parseFloat(e.target.value) || 0)}
+                    readOnly={!!selectedInventoryItem}
+                    className={`w-full px-4 py-3 border border-slate-200 rounded-lg text-slate-800 font-bold focus:outline-none transition-all ${selectedInventoryItem ? 'bg-slate-100 text-slate-500' : 'bg-white focus:ring-2 focus:ring-blue-500'}`} 
+                  />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Default Quantity</label>
-                  <input type="number" value={currentQty} onChange={e => setCurrentQty(parseInt(e.target.value) || 1)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1.5">Refills</label>
-                  <input type="number" value={currentRefills} onChange={e => setCurrentRefills(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
+              <button 
+                onClick={async () => {
+                  if (!currentDrug) return;
+                  const newItem = { 
+                     id: Date.now(), 
+                     inventoryId: selectedInventoryItem?.id || null,
+                     name: currentDrug, 
+                     qty: currentQty, 
+                     form: currentDosage, 
+                     freq: currentFreq, 
+                     refills: currentRefills,
+                     unitPrice: currentPrice,
+                     total: currentQty * currentPrice
+                  };
+
+                  setOrderItems([...orderItems, newItem]);
+
+                  // Deduct from inventory in real-time
+                  if (selectedInventoryItem) {
+                     const updatedStock = Math.max(0, selectedInventoryItem.stock - currentQty);
+                     setInventoryMeds(inventoryMeds.map(m => m.id === selectedInventoryItem.id ? { ...m, stock: updatedStock } : m));
+                     try {
+                        await updateInventoryItem(selectedInventoryItem.id, { stock: updatedStock, qty: updatedStock, quantity: updatedStock });
+                     } catch (err) { console.error("Failed to update inventory", err); }
+                  }
+
+                  // Reset form
+                  setCurrentDrug('');
+                  setCurrentQty(1);
+                  setCurrentPrice(0);
+                  setCurrentFreq('');
+                  setSelectedInventoryItem(null);
+                  setSearchQuery('');
+                  setShowSuggestions(false);
+                }}
+                className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95"
+              >
+                <Plus className="w-4 h-4" /> Add Medication to List
+              </button>
             </div>
           </div>
 

@@ -1,10 +1,6 @@
-
 import { useState, useRef, useEffect } from "react";
-import { db } from "../../services/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { UploadCloud, X } from "lucide-react";
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:          "#f8fafc",
   surface:     "#ffffff",
@@ -18,10 +14,10 @@ const C = {
 
 const FONT = { body: "'DM Sans', sans-serif" };
 
-/**
- * Field – labelled wrapper for any form control.
- * @param {string} label - Uppercase label shown above the control.
- */
+// Backend endpoint for all brand CRUD operations
+const BRANDS_API = 'http://localhost:5000/api/brands';
+
+// Reusable labelled field wrapper used across all form inputs
 function Field({ label, children }) {
   return (
     <div className="flex flex-col gap-[5px]">
@@ -42,12 +38,15 @@ export default function AddBrandForm() {
   });
 
   const [loading, setLoading]           = useState(false);
-  const [isDragging, setIsDragging]     = useState(false); // highlights drop zone on drag-over
-  const [imageFile, setImageFile]       = useState(null);  // raw File object (for display name)
-  const [imagePreview, setImagePreview] = useState(null);  // base64 data URL for preview & storage
-  const fileInputRef = useRef(null);                       // hidden <input type="file"> ref
+  const [isDragging, setIsDragging]     = useState(false);
+  // Holds the raw File object for the uploaded image
+  const [imageFile, setImageFile]       = useState(null);
+  // Holds the base64 data URL used for previewing the selected image
+  const [imagePreview, setImagePreview] = useState(null);
+  // Ref to the hidden file input so the drop zone can trigger it programmatically
+  const fileInputRef = useRef(null);
 
-  // Inject placeholder colour once; cleaned up on unmount
+  // Injects a global style to override placeholder color on brand inputs
   useEffect(() => {
     const style = document.createElement("style");
     style.textContent = `.brand-input::placeholder { color: rgba(30,41,59,0.4) !important; }`;
@@ -55,12 +54,10 @@ export default function AddBrandForm() {
     return () => document.head.removeChild(style);
   }, []);
 
+  // Generic change handler for all text/number inputs using field name attribute
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  /**
-   * Validates and reads the selected file as a base64 data URL.
-   * The resulting preview is what gets saved to Firestore (no separate storage upload).
-   */
+  // Validates and reads an image file into a base64 preview using FileReader
   const handleImageFile = (file) => {
     if (!file || !file.type.startsWith("image/")) { alert("Please select a valid image file."); return; }
     setImageFile(file);
@@ -69,39 +66,44 @@ export default function AddBrandForm() {
     reader.readAsDataURL(file);
   };
 
-  // Drag-and-drop handlers
+  // Drag-and-drop event handlers for the image upload zone
   const handleDragOver  = (e) => { e.preventDefault(); setIsDragging(true);  };
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
   const handleDrop      = (e) => { e.preventDefault(); setIsDragging(false); const file = e.dataTransfer.files[0]; if (file) handleImageFile(file); };
+  // Handles image selection via the hidden file input
   const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleImageFile(file); };
 
-  /** Clears image selection and resets the hidden file input */
+  // Clears the uploaded image and resets both the preview and imageUrl form field
   const removeImage = () => {
     setImageFile(null); setImagePreview(null);
     setForm({ ...form, imageUrl: "" });
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  /**
-   * Writes the brand document to Firestore.
-   * Numeric fields (rating, products, established) are coerced from string to Number.
-   * imageUrl priority: drag-dropped preview > typed URL.
-   */
+  // Submits the brand to the backend — uses base64 preview if uploaded, else the pasted URL
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await addDoc(collection(db, "brands"), {
-        ...form,
-        imageUrl: imagePreview || form.imageUrl || "",
-        rating: Number(form.rating),
-        products: Number(form.products),
-        established: Number(form.established),
-        createdAt: serverTimestamp(),
+      await fetch(BRANDS_API, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          ...form,
+          // Prefer uploaded image preview; fall back to pasted URL; default to empty string
+          imageUrl:    imagePreview || form.imageUrl || '',
+          // Cast numeric string fields to numbers before sending
+          rating:      Number(form.rating),
+          products:    Number(form.products),
+          established: Number(form.established),
+        }),
       });
+
       alert("Brand added successfully!");
+      // Reset all form fields and image state after successful submission
       setForm({ name: "", tagline: "", description: "", category: "", rating: "", products: "", established: "", country: "", imageUrl: "" });
-      setImageFile(null); setImagePreview(null);
+      setImageFile(null);
+      setImagePreview(null);
     } catch (err) {
       alert(`Error: ${err.message}`);
     } finally {
@@ -161,6 +163,7 @@ export default function AddBrandForm() {
 
       {/* ── Image upload: drag-and-drop zone or URL fallback ── */}
       <Field label="Brand Image">
+        {/* Show drop zone when no image is selected; show preview once one is loaded */}
         {!imagePreview ? (
           <div
             onDragOver={handleDragOver}
@@ -176,7 +179,7 @@ export default function AddBrandForm() {
             <UploadCloud size={28} color={C.accent} className="mx-auto mb-2" />
             <p className="text-[13px] font-semibold text-[#1e293b]">Drag & drop brand image here</p>
             <p className="text-[11px] text-[#64748b] mt-1">or click to browse</p>
-            {/* Hidden file input triggered programmatically via ref */}
+            {/* Hidden input triggered by clicking the drop zone or camera button */}
             <input
               ref={fileInputRef}
               type="file"
@@ -186,7 +189,7 @@ export default function AddBrandForm() {
             />
           </div>
         ) : (
-          /* Preview panel shown after an image is selected */
+          /* Image preview with overlay showing filename and a remove button */
           <div className="relative rounded-[10px] overflow-hidden border border-[rgba(26,135,225,0.18)]">
             <img
               src={imagePreview}
@@ -200,13 +203,14 @@ export default function AddBrandForm() {
             >
               <X size={11} /> Remove
             </button>
+            {/* Filename overlay at the bottom of the preview */}
             <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-[11px] px-[10px] py-1">
               {imageFile?.name}
             </div>
           </div>
         )}
 
-        {/* URL input is only shown when no image file has been selected */}
+        {/* URL input fallback — only shown when no file has been uploaded */}
         {!imagePreview && (
           <div className="mt-2">
             <p className="text-[11px] text-[#64748b] text-center mb-[6px]">— or paste image URL —</p>
@@ -221,7 +225,7 @@ export default function AddBrandForm() {
         )}
       </Field>
 
-      {/* Two-column row for numeric meta fields */}
+      {/* Rating and product count side by side */}
       <div className="grid grid-cols-2 gap-[14px]">
         <Field label="Rating">
           <input
@@ -248,6 +252,7 @@ export default function AddBrandForm() {
         </Field>
       </div>
 
+      {/* Established year and country of origin side by side */}
       <div className="grid grid-cols-2 gap-[14px]">
         <Field label="Established Year">
           <input
@@ -270,6 +275,7 @@ export default function AddBrandForm() {
         </Field>
       </div>
 
+      {/* Submit button — faded and disabled while the request is in flight */}
       <button
         type="submit"
         disabled={loading}

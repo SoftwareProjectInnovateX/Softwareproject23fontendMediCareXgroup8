@@ -8,24 +8,25 @@ import { openWhatsApp, WHATSAPP_COLOR, WHATSAPP_LABEL } from './utils/whatsapp';
 import { HERO_BADGE_LABEL, HERO_CAROUSEL_HEIGHT, HERO_IMAGE_HEIGHT } from './utils/constants';
 // ── Slide data ────────────────────────────────────────────────────────────────
 const heroSlides = [
-  {
-    title:       "Care You Can Trust",
-    description: "High-quality medicines for your family.",
-    image:       "https://beebom.com/wp-content/uploads/2024/03/WhatsApp-Polls-feature.jpg",
-    gradient:    "linear-gradient(135deg, #0f5e18 0%, #1ae14c 100%)",
-  },
-  {
-    title:       "MediCareX - Smart Pharmacy",
-    description: "Safe, easy and reliable medicine delivery system.",
-    image:       "https://www.pharmaceutical-technology.com/wp-content/uploads/sites/24/2024/04/shutterstock_2338683055.jpg",
-    gradient:    "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)",
-  },
-  {
-    title:       "Care You Can Trust",
-    description: "High-quality medicines for your family.",
-    image:       "https://blog.hettshow.co.uk/hubfs/electronic%20patient%20record.png#keepProtocol",
-    gradient:    "linear-gradient(135deg, #1f0f5e 0%, #1aa9e1 100%)",
-  },
+  
+ {
+  title: "Your Health, Our Priority",
+  description: "We make getting your medicines simple, safe, and stress-free.",
+  image: "https://www.pharmaceutical-technology.com/wp-content/uploads/sites/24/2024/04/shutterstock_2338683055.jpg",
+  gradient: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)",
+},
+{
+  title: "Care You Can Rely On",
+  description: "Trusted medicines and support for you and your loved ones.",
+  image: "https://beebom.com/wp-content/uploads/2024/03/WhatsApp-Polls-feature.jpg",
+  gradient: "linear-gradient(135deg, #0f5e18 0%, #1ae14c 100%)",
+},
+{
+  title: "Health Made Simple",
+  description: "Order, track, and receive your medicines with ease.",
+  image: "https://blog.hettshow.co.uk/hubfs/electronic%20patient%20record.png#keepProtocol",
+  gradient: "linear-gradient(135deg, #1f0f5e 0%, #1aa9e1 100%)",
+},
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ export default function HeroCarousel() {
                 <div className="flex flex-col gap-3" style={{ flex: "0 0 34%" }}>
 
                   <span
-                    className="self-start text-[10px] font-bold uppercase tracking-[0.12em] rounded-full px-3 py-0.5"
+                    className="self-start text-[12px] font-bold uppercase tracking-[0.12em] rounded-full px-3 py-0.5"
                     style={{
                       color:      C.bannerSubtitle,
                       background: C.bannerBtnBg,
@@ -68,7 +69,7 @@ export default function HeroCarousel() {
                     {HERO_BADGE_LABEL}
                   </span>
 
-                  <h1 className="text-2xl font-bold text-white m-0 leading-[1.25]">
+                  <h1 className="text-3xl font-bold text-white m-0 leading-[1.25]">
                     {slide.title}
                   </h1>
 
@@ -78,7 +79,7 @@ export default function HeroCarousel() {
                   />
 
                   <p
-                    className="text-[12.5px] m-0 leading-relaxed"
+                    className="text-[15px] m-0 leading-relaxed"
                     style={{ color: C.bannerSubtitle }}
                   >
                     {slide.description}

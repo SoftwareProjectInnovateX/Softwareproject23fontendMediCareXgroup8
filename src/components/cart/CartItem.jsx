@@ -1,6 +1,7 @@
 import { useCartStore } from '../../stores/cartStore';
 import { Package, X, Trash2 } from 'lucide-react';
 
+// ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
   bg:          "var(--bg-primary)",
   surface:     "var(--bg-secondary)",
@@ -12,13 +13,21 @@ const C = {
   dangerBg:    "rgba(239,68,68,0.07)",
 };
 
+// Renders a single cart line item with image, name, unit price,
+// quantity controls, line total, and a remove button.
 export default function CartItem({ item, onRemove }) {
   const { addItem } = useCartStore();
+
+  // Pre-calculated line total for this item (unit price × qty)
   const lineTotal = (item.price * item.qty).toFixed(2);
+
+  // Resolve image URL from whichever field the product data provides
   const imageUrl = item.image || item.imageUrl || item.img || item.picture || null;
 
-  const handleDecrease = () => {
-    if (item.qty === 1) onRemove(item.id);
+  // Decrease qty by 1; if qty is already 1, remove the item entirely.
+  // async so the delete is properly awaited before UI updates.
+  const handleDecrease = async () => {
+    if (item.qty === 1) await onRemove();  // onRemove already captures item.id in CartPage
     else addItem({ ...item }, -1);
   };
 
@@ -27,7 +36,7 @@ export default function CartItem({ item, onRemove }) {
       className="flex items-center gap-[14px] rounded-xl px-[18px] py-[14px] mb-[10px]"
       style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(26,135,225,0.07)" }}
     >
-      {/* Image */}
+      {/* ── Product thumbnail ── */}
       <div
         className="w-12 h-12 shrink-0 rounded-[10px] overflow-hidden flex items-center justify-center"
         style={{ background: C.bg, border: `1px solid ${C.border}` }}
@@ -37,6 +46,7 @@ export default function CartItem({ item, onRemove }) {
             src={imageUrl}
             alt={item.name}
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            // If the image fails to load, replace it with a fallback box icon
             onError={e => {
               e.currentTarget.style.display = "none";
               e.currentTarget.parentElement.innerHTML =
@@ -50,11 +60,12 @@ export default function CartItem({ item, onRemove }) {
             }}
           />
         ) : (
+          // No image URL available — show a generic package icon
           <Package size={20} color={C.textMuted} />
         )}
       </div>
 
-      {/* Name & price */}
+      {/* ── Product name and unit price ── */}
       <div className="flex-1 min-w-0">
         <p className="text-[14px] font-semibold mb-[3px] whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: C.textPrimary }}>
           {item.name}
@@ -64,8 +75,9 @@ export default function CartItem({ item, onRemove }) {
         </p>
       </div>
 
-      {/* Qty controls */}
+      {/* ── Quantity controls ── */}
       <div className="flex items-center gap-[8px] shrink-0">
+        {/* Decrease / remove button — turns red with a trash icon when qty === 1 */}
         <button
           onClick={handleDecrease}
           style={{
@@ -84,10 +96,12 @@ export default function CartItem({ item, onRemove }) {
           {item.qty === 1 ? <Trash2 size={12} /> : "−"}
         </button>
 
+        {/* Current quantity display */}
         <span style={{ minWidth: 28, textAlign: "center", fontSize: 14, fontWeight: 600, color: C.textPrimary }}>
           {item.qty}
         </span>
 
+        {/* Increase quantity button */}
         <button
           onClick={() => addItem({ ...item }, 1)}
           style={{
@@ -106,14 +120,15 @@ export default function CartItem({ item, onRemove }) {
         </button>
       </div>
 
-      {/* Line total */}
+      {/* ── Line total (unit price × qty) ── */}
       <p className="text-[14px] font-semibold min-w-[96px] text-right shrink-0" style={{ color: C.textPrimary }}>
         Rs. {lineTotal}
       </p>
 
-      {/* Remove */}
+      {/* ── Remove button — removes the item entirely regardless of qty.
+          onRemove() has item.id captured in CartPage so no args needed. ── */}
       <button
-        onClick={() => onRemove(item.id)}
+        onClick={() => onRemove()}
         className="bg-transparent border-none cursor-pointer p-1 flex items-center shrink-0"
         style={{ color: C.textMuted }}
         onMouseEnter={e => (e.currentTarget.style.color = C.danger)}

@@ -50,6 +50,8 @@ import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
 import Checkout from './pages/customer/Checkout';
 import Success from './pages/customer/Success';
 import Cancel from './pages/customer/Cancel';
+import CustomerSettings from './pages/customer/CustomerSettings';
+
 
 /* PHARMACIST */
 
@@ -157,6 +159,7 @@ export default function App() {
         <Route path="prescription" element={<PrescriptionPage />} />
         <Route path="returns" element={<ReturnPage />} />
         <Route path="/customer/profile" element={<CustomerProfilePage />} />
+        <Route path="/customer/settings" element={<CustomerSettings />} />
       </Route>
 
       {/* PHARMACIST */}

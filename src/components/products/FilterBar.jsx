@@ -1,16 +1,27 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { Search, ChevronDown } from 'lucide-react';
-import { CATEGORIES } from '../../data/categories';
+import { ChevronDown } from 'lucide-react';
+import { CATEGORIES }  from '../../data/categories';
+import SmartSearch      from '../SmartSearch';
 import { getCategoryIcon, C, FONT } from './categoryConfig';
 
+// Prepend "All Products" so it appears at the top of the dropdown
 const ALL_CATEGORIES = [{ id: 'all', name: 'All Products' }, ...CATEGORIES];
 
-export default function FilterBar({ searchTerm, onSearch, selectedCategory, onCategory }) {
-  const [open, setOpen] = useState(false);
-  const dropdownRef     = useRef(null);
+// Sticky filter bar rendered below the main navigation.
+// Provides a SmartSearch input and a category dropdown to narrow the product list.
+export default function FilterBar({
+  selectedCategory,
+  onCategory,
+  smartResults,
+  onSmartResults,
+}) {
+  // Controls open/closed state of the category dropdown
+  const [open, setOpen]   = useState(false);
+  const dropdownRef       = useRef(null);
 
+  // Close the dropdown when the user clicks outside of it
   useEffect(() => {
     const handler = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setOpen(false);
@@ -19,30 +30,37 @@ export default function FilterBar({ searchTerm, onSearch, selectedCategory, onCa
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // Resolve the display name for the currently selected category
   const activeName = ALL_CATEGORIES.find((c) => c.id === selectedCategory)?.name ?? 'All Products';
+
+  // True when any category other than "all" is active — used to apply accent styling
   const isFiltered = selectedCategory !== 'all';
 
   return (
+    // Sticky bar sits just below the top navigation (top-[122px])
     <div
-      className="sticky top-[72px] z-40"
+      className="sticky top-[122px] z-40"
       style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(26,135,225,0.07)' }}
     >
       <div className="max-w-[1200px] mx-auto px-6 py-3.5 flex gap-3 items-center flex-wrap">
 
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={15} color={C.textMuted} className="absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            placeholder="Search products..."
-            value={searchTerm}
-            onChange={(e) => onSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-[9px] rounded-xl text-[13px] outline-none box-border"
-            style={{ border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body, background: C.bg }}
-          />
+        {/* ── Smart Search input ── */}
+        <div className="flex-1 min-w-[200px] flex items-center gap-2">
+          <SmartSearch onResults={onSmartResults} onLoading={() => {}} />
+          {/* "Show All" reset button — only visible while smart results are active */}
+          {smartResults !== null && (
+            <button
+              onClick={() => onSmartResults(null)}
+              className="px-3 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 whitespace-nowrap border border-slate-200 rounded-lg"
+            >
+              ← Show All
+            </button>
+          )}
         </div>
 
-        {/* Category Dropdown */}
+        {/* ── Category dropdown ── */}
         <div ref={dropdownRef} className="relative flex-shrink-0">
+          {/* Trigger button — turns blue when a non-"all" category is selected */}
           <button
             onClick={() => setOpen((o) => !o)}
             className="flex items-center gap-2 px-3.5 py-[9px] rounded-xl text-[13px] font-semibold outline-none cursor-pointer min-w-[180px] transition-all duration-150"
@@ -55,9 +73,11 @@ export default function FilterBar({ searchTerm, onSearch, selectedCategory, onCa
             }}
           >
             <span className="flex items-center gap-1.5 flex-1">
+              {/* Dynamically resolve the icon for the active category */}
               {(() => { const Icon = getCategoryIcon(activeName); return <Icon size={14} color={isFiltered ? C.accent : C.textMuted} />; })()}
               {activeName}
             </span>
+            {/* Chevron rotates 180° when the dropdown is open */}
             <ChevronDown
               size={15}
               color={isFiltered ? C.accent : C.textMuted}
@@ -65,13 +85,20 @@ export default function FilterBar({ searchTerm, onSearch, selectedCategory, onCa
             />
           </button>
 
+          {/* ── Dropdown menu — rendered only when open ── */}
           {open && (
             <div
-              className="absolute top-[calc(100%+6px)] left-0 min-w-full z-[100] rounded-xl overflow-hidden"
-              style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 8px 24px rgba(15,42,94,0.13)' }}
+              className="absolute top-[calc(100%+6px)] left-0 min-w-full z-[100] rounded-xl overflow-y-auto"
+              style={{
+                maxHeight:  '500px',
+                background: C.surface,
+                border:     `1px solid ${C.border}`,
+                boxShadow:  '0 8px 24px rgba(15,42,94,0.13)',
+              }}
             >
               {ALL_CATEGORIES.map((cat) => {
                 const active = selectedCategory === cat.id;
+                const Icon   = getCategoryIcon(cat.name);
                 return (
                   <button
                     key={cat.id}
@@ -84,10 +111,11 @@ export default function FilterBar({ searchTerm, onSearch, selectedCategory, onCa
                       background:   active ? 'rgba(26,135,225,0.07)' : 'transparent',
                       borderBottom: `1px solid ${C.border}`,
                     }}
+                    // Hover highlight — skipped for the already-active item
                     onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = 'rgba(26,135,225,0.04)'; }}
                     onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
                   >
-                    {(() => { const Icon = getCategoryIcon(cat.name); return <Icon size={14} color={active ? C.accent : C.textMuted} />; })()}
+                    <Icon size={14} color={active ? C.accent : C.textMuted} />
                     {cat.name}
                   </button>
                 );

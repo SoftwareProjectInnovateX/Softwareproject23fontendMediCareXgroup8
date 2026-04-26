@@ -1,7 +1,8 @@
-import React, { useContext, useState, useEffect, useRef } from 'react';
+import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Bell, Plus, User, FileText, Pill } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlertContext } from '../layouts/PharmacistLayout';
+import { getPatients, getPrescriptions, getInventory } from '../services/pharmacistService';
 
 const PharmacistHeader = () => {
   const navigate = useNavigate();
@@ -10,8 +11,10 @@ const PharmacistHeader = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [results, setResults] = useState({ patients: [], prescriptions: [], drugs: [] });
+  const [isSearching, setIsSearching] = useState(false);
   
   const searchRef = useRef(null);
+  const debounceRef = useRef(null);
 
   const displayAvatar = userProfile?.avatarUrl || `https://ui-avatars.com/api/?name=${(userProfile?.name || 'Pharmacist').replace(' ', '+')}&background=ffffff&color=084298`;
 
@@ -26,7 +29,7 @@ const PharmacistHeader = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Perform Search against LocalStorage Caches
+  // Perform Search against real Firebase backend with 300ms debounce
   useEffect(() => {
     if (!searchQuery.trim()) {
       setResults({ patients: [], prescriptions: [], drugs: [] });
@@ -34,40 +37,51 @@ const PharmacistHeader = () => {
       return;
     }
 
-    const q = searchQuery.toLowerCase();
-    
-    // Parse Local Storage Caches safely
-    let pCache = [], rxCache = [], dCache = [];
-    try { pCache = JSON.parse(localStorage.getItem('medicarex_patients') || '[]'); } catch(e){}
-    try { rxCache = JSON.parse(localStorage.getItem('medicarex_prescriptions_queue') || '[]'); } catch(e){}
-    try { dCache = JSON.parse(localStorage.getItem('pharmacist_drug_catalog') || '[]'); } catch(e){}
+    // Debounce — wait 300ms after user stops typing
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      const q = searchQuery.toLowerCase();
 
-    // Filter
-    const matchedPatients = pCache.filter(p => 
-      (p.name && p.name.toLowerCase().includes(q)) || 
-      (p.phone && p.phone.toLowerCase().includes(q)) ||
-      (p.id && p.id.toLowerCase().includes(q))
-    ).slice(0, 3); // Max 3 items
+      try {
+        const [pList, rxList, invList] = await Promise.all([
+          getPatients().catch(() => []),
+          getPrescriptions().catch(() => []),
+          getInventory().catch(() => [])
+        ]);
 
-    const matchedRx = rxCache.filter(rx => 
-      (rx.patientName && rx.patientName.toLowerCase().includes(q)) || 
-      (rx.id && `rx-${rx.id}`.toLowerCase().includes(q)) ||
-      (rx.id && rx.id.toLowerCase().includes(q))
-    ).slice(0, 3);
+        const matchedPatients = pList.filter(p =>
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.phone && p.phone.toLowerCase().includes(q)) ||
+          (p.id && p.id.toLowerCase().includes(q))
+        ).slice(0, 3);
 
-    const matchedDrugs = dCache.filter(d => 
-      (d.name && d.name.toLowerCase().includes(q)) || 
-      (d.ndc && d.ndc.toLowerCase().includes(q)) ||
-      (d.category && d.category.toLowerCase().includes(q))
-    ).slice(0, 3);
+        const matchedRx = rxList.filter(rx =>
+          (rx.patientName && rx.patientName.toLowerCase().includes(q)) ||
+          (rx.id && `rx-${rx.id}`.toLowerCase().includes(q)) ||
+          (rx.id && rx.id.toLowerCase().includes(q))
+        ).slice(0, 3);
 
-    setResults({
-      patients: matchedPatients,
-      prescriptions: matchedRx,
-      drugs: matchedDrugs
-    });
-    
-    setIsDropdownOpen(true);
+        const matchedDrugs = invList.filter(d => {
+          const name = d.name || d.productName || '';
+          return name.toLowerCase().includes(q) ||
+            (d.category && d.category.toLowerCase().includes(q));
+        }).slice(0, 3).map(d => ({
+          ...d,
+          name: d.name || d.productName || 'Unknown',
+          stock: d.stock ?? d.qty ?? d.quantity ?? d.currentStock ?? 0
+        }));
+
+        setResults({ patients: matchedPatients, prescriptions: matchedRx, drugs: matchedDrugs });
+        setIsDropdownOpen(true);
+      } catch (e) {
+        console.error('Search error:', e);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [searchQuery]);
 
   const handleResultClick = (targetType, targetValue) => {
@@ -109,7 +123,7 @@ const PharmacistHeader = () => {
       {/* Title / Search */}
       <div className="flex-1 max-w-2xl relative" ref={searchRef}>
         <div className="relative z-10 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${isSearching ? 'text-blue-500 animate-pulse' : 'text-gray-500'}`} />
           <input 
             type="text" 
             placeholder="Search Rx#, Patient, or Drug..." 

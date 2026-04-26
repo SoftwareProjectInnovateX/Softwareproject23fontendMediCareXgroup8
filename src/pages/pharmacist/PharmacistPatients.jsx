@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getPatients, addPatient, updatePatient } from '../../services/pharmacistService';
+import { updatePatient } from '../../services/pharmacistService';
+import { db } from '../../lib/firebase';
+import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { 
   Search, 
   UserPlus, 
@@ -21,39 +23,56 @@ const PharmacistPatients = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-     const initData = async () => {
-         try {
-             let pts = await getPatients();
+    setIsLoading(true);
+    const q = query(collection(db, 'users'), where('role', '==', 'customer'));
+    
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const data = snap.docs.map(d => {
+        const d2 = d.data();
+        return {
+          id: d.id,
+          customerId: d2.customerId || d2.walkinId || d.id,
+          name: d2.fullName || d2.name || 'Walk-in Guest',
+          email: d2.email || '',
+          phone: d2.phone || 'N/A',
+          dob: d2.dob || '—',
+          age: d2.age || '—',
+          address: d2.address || '—',
+          gender: d2.gender || '—',
+          physician: 'Walk-in POS',
+          status: d2.status || 'active',
+          registrationSource: d2.registrationSource || 'app',
+          lastVisit: d2.lastVisit || null,
+          medications: (d2.medications || []).map(m => ({
+            name: m.name || 'Unknown',
+            form: m.category === 'rx' ? `Qty: ${m.qty}` : 'OTC/General',
+            sig: `Qty: ${m.qty} · Rs. ${Number(m.price || 0).toFixed(2)} each`,
+            date: m.date || '—',
+            timestamp: m.timestamp || 0,
+            prescriber: m.dispensedAt || 'Walk-in POS',
+            status: 'Active',
+            paymentMethod: m.paymentMethod || '—',
+          })),
+          activeCount: (d2.medications || []).length,
+          fading: false,
+          avatarColor: d2.registrationSource === 'walkin' ? '047857' : '1d4ed8',
+          avatarBg:    d2.registrationSource === 'walkin' ? 'd1fae5' : 'dbeafe',
+          timestamp: d2.createdAt?.toMillis?.() || 0,
+          notes: [],
+        };
+      })
+      .sort((a, b) => b.timestamp - a.timestamp);
 
-             // Auto-delete medications older than 6 months locally or just filter them visually
-             const sixMonthsAgo = new Date();
-             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-             const cutoffTime = sixMonthsAgo.getTime();
+      setPatients(data);
+      setIsLoading(false);
+    }, (error) => {
+      console.error('Real-time patients sync error:', error);
+      setIsLoading(false);
+    });
 
-             const processed = pts.map(p => {
-                if (p.medications) {
-                   p.medications = p.medications.filter(med => {
-                      let medTime = med.timestamp;
-                      if (!medTime && med.date) {
-                          const dateStr = med.date.includes(' at ') ? med.date.split(' at ')[0] : med.date;
-                          medTime = new Date(dateStr).getTime();
-                      }
-                      return isNaN(medTime) ? true : medTime >= cutoffTime;
-                   });
-                   p.activeCount = p.medications.filter(m => m.status === 'Active').length;
-                }
-                return p;
-             });
-
-             setPatients(processed);
-             setIsLoading(false);
-         } catch(e) {
-             console.error(e);
-             setIsLoading(false);
-         }
-     };
-     initData();
+    return () => unsubscribe();
   }, []);
+
   const [sortBy, setSortBy] = useState('Recent');
   const [searchQuery, setSearchQuery] = useState('');
   const [medFilter, setMedFilter] = useState('Active PharmacistPrescriptions');
@@ -81,10 +100,13 @@ const PharmacistPatients = () => {
   const activePatient = patients.find(p => p.id === activePatientId) || null;
 
   const processedPatients = [...patients]
-    .filter((patient, index, self) => 
-      index === self.findIndex((p) => p.name.toLowerCase() === patient.name.toLowerCase())
+    .filter(p =>
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.customerId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.phone || '').includes(searchQuery)
     )
-    .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.id.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'Recent') return b.timestamp - a.timestamp;
       if (sortBy === 'Name (A-Z)') return a.name.localeCompare(b.name);
@@ -93,7 +115,7 @@ const PharmacistPatients = () => {
 
   const handleAddPatient = () => {
     if (!newPatient.firstName) return;
-    const newId = '#' + Math.floor(Math.random() * 900000 + 100000);
+    const newId = `#PT-${Date.now().toString().slice(-6)}`;
     const p = {
       id: newId,
       name: `${newPatient.firstName} ${newPatient.lastName}`,
@@ -211,7 +233,7 @@ const PharmacistPatients = () => {
         {/* List PharmacistHeader */}
         <div className="p-6 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-slate-800">PharmacistPatients</h1>
+            <h1 className="text-xl font-bold text-slate-800">Customers</h1>
             <button 
               onClick={() => setIsAddingPatient(true)}
               className="bg-slate-100 p-2 rounded-md hover:bg-slate-200 transition-colors text-slate-600"
@@ -256,19 +278,26 @@ const PharmacistPatients = () => {
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className={`font-bold leading-tight text-lg ${isActive ? 'text-white' : 'text-slate-800'}`}>{patient.name}</h3>
-                    <p className={`text-lg mt-0.5 font-medium ${isActive ? 'text-blue-200' : 'text-slate-500'}`}>ID: {patient.id}</p>
+                    <div className="flex items-center gap-1.5">
+                      <h3 className={`font-bold leading-tight ${isActive ? 'text-white' : 'text-slate-800'}`}>{patient.name}</h3>
+                      {patient.registrationSource === 'walkin' && (
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0 ${
+                          isActive ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-100 text-emerald-700'
+                        }`}>Walk-in</span>
+                      )}
+                    </div>
+                    <p className={`text-xs mt-0.5 font-medium ${isActive ? 'text-blue-200' : 'text-slate-500'}`}>{patient.phone}</p>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider ${
-                    isActive ? 'bg-blue-700 text-blue-100' : 
-                    patient.fading ? 'bg-slate-100 text-slate-400' : 'bg-slate-100 text-slate-600'
+                    isActive ? 'bg-blue-700 text-blue-100' :
+                    patient.status === 'active' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'
                   }`}>
-                    {patient.activeCount} Active
+                    {patient.status || 'active'}
                   </span>
                 </div>
-                <div className="flex justify-between items-end mt-4">
-                   <p className={`text-xs font-medium flex items-center gap-1 ${isActive ? 'text-blue-100' : 'text-slate-500'}`}>
-                     <span className={`text-[10px] ${isActive ? '' : 'text-slate-400'}`}>🎂</span> {patient.dob} ({patient.age}y)
+                <div className="flex justify-between items-end mt-3">
+                   <p className={`text-xs font-medium ${isActive ? 'text-blue-100' : 'text-slate-400'}`}>
+                     {patient.lastVisit ? `Last: ${patient.lastVisit}` : (patient.email || '—')}
                    </p>
                    {isActive && <span className="text-xs font-bold text-white hover:underline cursor-pointer">View Profile</span>}
                 </div>
@@ -375,9 +404,15 @@ const PharmacistPatients = () => {
                   </div>
                   <div>
                      <h2 className="text-3xl font-black text-slate-800">{activePatient.name}</h2>
-                     <div className="flex gap-2 mt-2">
-                        <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1 rounded-full">{activePatient.gender}</span>
-                        <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1 rounded-full">{activePatient.age} Years Old</span>
+                     <div className="flex gap-2 mt-2 flex-wrap">
+                        {activePatient.registrationSource === 'walkin' ? (
+                          <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">🚶 Walk-in Customer</span>
+                        ) : (
+                          <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full">📱 App Registered</span>
+                        )}
+                        {activePatient.age && activePatient.age !== '—' && (
+                          <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1 rounded-full">{activePatient.age} Yrs</span>
+                        )}
                      </div>
                   </div>
                </div>
@@ -400,12 +435,20 @@ const PharmacistPatients = () => {
                      <span className="font-semibold text-slate-700 whitespace-pre-wrap">{activePatient.address}</span>
                   </div>
                   <div>
-                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Insurance</span>
-                     <span className="font-semibold text-slate-700">{activePatient.insurance}<br/><span className="text-slate-400 text-xs font-medium">{activePatient.insuranceId}</span></span>
+                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Last Visit</span>
+                     <span className={`font-semibold ${activePatient.lastVisit ? 'text-slate-700' : 'text-slate-400'}`}>
+                       {activePatient.lastVisit || 'No visits yet'}
+                     </span>
+                  </div>
+                  <div>
+                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Purchases</span>
+                     <span className="font-bold text-blue-600">
+                       {activePatient.activeCount} item{activePatient.activeCount !== 1 ? 's' : ''}
+                     </span>
                   </div>
                   <div className="md:col-span-2">
-                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Primary Physician</span>
-                     <span className="font-bold text-blue-600 cursor-pointer hover:underline">{activePatient.physician}</span>
+                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Channel</span>
+                     <span className="font-semibold text-slate-600">{activePatient.physician}</span>
                   </div>
                </div>
 

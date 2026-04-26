@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import { db } from "../../services/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { useState, useEffect, useRef } from "react";
 import { Package } from "lucide-react";
+
+// Base URL for all API calls — falls back to localhost in development
+const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 
 const C = {
   bg:          "#f1f5f9",
@@ -15,12 +16,27 @@ const C = {
 
 export default function MyProducts() {
   const [products, setProducts] = useState([]);
+  // Ref to the polling interval so it can be cleared on unmount
+  const pollRef = useRef(null);
 
+  // Fetches all pharmacist products from the backend
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/products`);
+      if (!res.ok) throw new Error("Failed to fetch products");
+      const data = await res.json();
+      setProducts(data);
+    } catch (err) {
+      console.error("Failed to fetch products:", err);
+    }
+  };
+
+  // Fetch on mount, then poll every 30 seconds — matches the backend's stock cache TTL
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "pharmacistProducts"), snap => {
-      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-    return () => unsub();
+    fetchProducts();
+    pollRef.current = setInterval(fetchProducts, 30000);
+    // Clear the interval when the component unmounts to prevent memory leaks
+    return () => clearInterval(pollRef.current);
   }, []);
 
   return (
@@ -34,6 +50,7 @@ export default function MyProducts() {
         </p>
       </div>
 
+      {/* Empty state — shown when no products have been added yet */}
       {products.length === 0 ? (
         <div className="text-center py-[60px] text-[#64748b]">
           <Package size={44} color={C.textMuted} className="mx-auto mb-[14px]" />
@@ -41,6 +58,7 @@ export default function MyProducts() {
           <p className="text-[12px] mt-1 text-[#64748b]">Add your first product using the form.</p>
         </div>
       ) : (
+        /* Responsive product grid — auto-fills columns with minimum 220px width */
         <div
           className="grid gap-4"
           style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}
@@ -57,10 +75,12 @@ export default function MyProducts() {
               />
 
               <div className="px-[14px] py-3">
+                {/* Category pill */}
                 <span className="text-[10px] font-bold bg-[rgba(26,135,225,0.1)] text-[#1a87e1] px-2 py-[2px] rounded-[6px] uppercase tracking-[0.06em]">
                   {p.category}
                 </span>
 
+                {/* Promotional tag badges — only rendered when tags are present */}
                 {p.tags && p.tags.length > 0 && (
                   <div className="flex gap-1 mt-[6px] flex-wrap">
                     {p.tags.includes("newArrival") && (
@@ -84,6 +104,7 @@ export default function MyProducts() {
                   {p.description}
                 </p>
 
+                {/* Price — uses retailPrice if available, otherwise falls back to price */}
                 <p className="text-[14px] font-bold text-[#1a87e1] mt-[10px]">
                   Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : Number(p.price).toFixed(2)}
                 </p>
