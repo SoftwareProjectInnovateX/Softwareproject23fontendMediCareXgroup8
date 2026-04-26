@@ -84,7 +84,16 @@ const ROUTES = {
   CHECKOUT_CANCEL:  "/customer/checkout/cancel",
 };
 
+import React, { useEffect } from 'react';
+import { auth } from "./services/firebase";
+import { signInAnonymously } from "firebase/auth";
+
 export default function App() {
+  useEffect(() => {
+    // Ensure we have a Firebase session for Firestore rules
+    signInAnonymously(auth).catch(err => console.error("Firebase Anonymous Auth Failed:", err));
+  }, []);
+
   return (
     <Routes>
 

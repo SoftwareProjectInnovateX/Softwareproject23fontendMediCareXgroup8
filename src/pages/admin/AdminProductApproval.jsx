@@ -1,6 +1,7 @@
-// AdminProductApproval.jsx
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/Card';
+import { db } from '../../services/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -78,7 +79,7 @@ export default function AdminProductApproval() {
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert('Failed to approve product');
+      alert(`Failed to approve product: ${err.message}`);
     } finally {
       setActionLoading(null);
     }

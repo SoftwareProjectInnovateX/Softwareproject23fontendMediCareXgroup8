@@ -4,16 +4,19 @@ import {
   getDocs,
   updateDoc,
   addDoc,
+  deleteDoc,
   doc,
   Timestamp,
   query,
   where,
   onSnapshot,
   getDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import SmartSearch from "../../components/SmartSearch";
 import SearchResultCard from "../../components/SearchResultCard";
+import { Trash2, PackagePlus, Plus, X } from "lucide-react";
 
 const CATEGORIES = ["All", "Medicine", "Baby Items", "Skin Care", "Medical Equipment"];
 
@@ -25,9 +28,58 @@ export default function Products() {
   const [category, setCategory] = useState("All");
   const [pendingOrders, setPendingOrders] = useState({});
   const [showOrderForm, setShowOrderForm] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderQty, setOrderQty] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  const [newProduct, setNewProduct] = useState({
+    productName: '',
+    category: 'Medicine',
+    stock: 0,
+    retailPrice: 0,
+    wholesalePrice: 0,
+    manufacturer: '',
+    supplierName: 'Direct Stock'
+  });
+
+  const handleAddManualProduct = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const response = await fetch(`${API_BASE}/admin/pending-products/manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProduct)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Failed to add product via server');
+      }
+
+      alert("Product added successfully!");
+      setShowAddForm(false);
+      setNewProduct({
+        productName: '',
+        category: 'Medicine',
+        stock: 0,
+        retailPrice: 0,
+        wholesalePrice: 0,
+        manufacturer: '',
+        supplierName: 'Direct Stock'
+      });
+      loadProducts();
+    } catch (err) {
+      console.error(err);
+      alert(`Failed to add product: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Smart Search state ──────────────────────────────────────────
   // null  = not searched yet → show normal filtered table
@@ -94,6 +146,29 @@ export default function Products() {
           });
         }
       }
+    }
+  };
+
+  const handleDeleteProduct = async (product) => {
+    if (!window.confirm(`Are you sure you want to remove "${product.productName}" from inventory?`)) return;
+    try {
+      setLoading(true);
+      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      
+      const response = await fetch(`${API_BASE}/admin/pending-products/remove/${product.id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Failed to remove product via server');
+      }
+      alert("Product removed from inventory.");
+      loadProducts();
+    } catch (err) {
+      console.error(err);
+      alert(`Failed to remove product: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -242,10 +317,20 @@ export default function Products() {
     <div className="p-8 bg-[#f5f9ff] min-h-screen">
 
       {/* Page Header */}
-      <h1 className="text-3xl font-bold text-slate-800 mb-2">Inventory Management</h1>
-      <p className="text-slate-500 text-[15px] font-medium mb-7">
-        Admin Dashboard - Consolidated Inventory
-      </p>
+      <div className="flex justify-between items-end mb-7">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Inventory Management</h1>
+          <p className="text-slate-500 text-[15px] font-medium m-0">
+            Admin Dashboard - Consolidated Inventory
+          </p>
+        </div>
+        <button 
+          onClick={() => setShowAddForm(true)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 flex items-center gap-2"
+        >
+          <PackagePlus size={18} /> Add New Item
+        </button>
+      </div>
 
       {/* ── Smart Search Bar ─────────────────────────────────────── */}
       <div className="mb-5">
@@ -418,15 +503,24 @@ export default function Products() {
                     </td>
 
                     <td className="px-4 py-4">
-                      {p.stock <= 100 && (
+                      <div className="flex gap-2">
+                        {p.stock <= 100 && (
+                          <button
+                            onClick={() => openOrderForm(p)}
+                            disabled={pendingOrders[p.id]?.status === "PENDING"}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
+                          >
+                            {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
+                          </button>
+                        )}
                         <button
-                          onClick={() => openOrderForm(p)}
-                          disabled={pendingOrders[p.id]?.status === "PENDING"}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md disabled:translate-y-0 disabled:shadow-none"
+                          onClick={() => handleDeleteProduct(p)}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border-none cursor-pointer"
+                          title="Remove Product"
                         >
-                          {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
+                          <Trash2 size={16} />
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -520,15 +614,111 @@ export default function Products() {
         </div>
       )}
 
+      {/* ── Add Product Modal ────────────────────────────────────── */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-[2000] p-5 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-indigo-50">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Add Manual Inventory</h3>
+                <p className="text-xs font-medium text-slate-500 mt-0.5">Enter product details for direct addition</p>
+              </div>
+              <button onClick={() => setShowAddForm(false)} className="p-2 hover:bg-white rounded-full transition-colors text-slate-400">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddManualProduct} className="p-8">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Product Name</label>
+                  <input 
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none"
+                    placeholder="Enter full product name..."
+                    value={newProduct.productName}
+                    onChange={e => setNewProduct({...newProduct, productName: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Category</label>
+                  <select 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                    value={newProduct.category}
+                    onChange={e => setNewProduct({...newProduct, category: e.target.value})}
+                  >
+                    {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Manufacturer</label>
+                  <input 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                    placeholder="Brand/Maker"
+                    value={newProduct.manufacturer}
+                    onChange={e => setNewProduct({...newProduct, manufacturer: e.target.value})}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Initial Stock</label>
+                  <input 
+                    type="number" required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                    value={newProduct.stock}
+                    onChange={e => setNewProduct({...newProduct, stock: e.target.value})}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 col-span-2">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Wholesale Price (Rs.)</label>
+                    <input 
+                      type="number" step="0.01" required
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                      value={newProduct.wholesalePrice}
+                      onChange={e => setNewProduct({...newProduct, wholesalePrice: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Retail Price (Rs.)</label>
+                    <input 
+                      type="number" step="0.01" required
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
+                      value={newProduct.retailPrice}
+                      onChange={e => setNewProduct({...newProduct, retailPrice: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-8">
+                <button 
+                  type="submit" disabled={loading}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
+                >
+                  {loading ? 'Processing...' : 'Confirm Addition'}
+                </button>
+                <button 
+                  type="button" onClick={() => setShowAddForm(false)}
+                  className="px-8 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-2xl font-bold transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from { transform: translateY(20px); opacity: 0; }
-          to   { transform: translateY(0);    opacity: 1; }
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-in { animation-fill-mode: forwards; }
+        .fade-in { animation: fadeIn 0.2s ease-out; }
+        .slide-in-from-bottom-8 { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
       `}</style>
     </div>
   );

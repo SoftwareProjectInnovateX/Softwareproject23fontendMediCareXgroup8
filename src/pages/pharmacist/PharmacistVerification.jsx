@@ -36,19 +36,50 @@ const PharmacistVerification = () => {
   const [patients, setPatients] = useState([]);
   const [inventoryMeds, setInventoryMeds] = useState([]);
   
+  const loadInventory = async (attempt = 1) => {
+    try {
+      const inv = await getInventory();
+      if (Array.isArray(inv)) {
+        const mapped = inv.map(item => ({
+          id: item.id,
+          name: item.name || item.productName || item.itemName || 'Unknown',
+          category: item.category || 'other',
+          stock: Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0),
+          unitPrice: Number(item.retailPrice || item.price || item.unitPrice || item.sellingPrice || item.cost || item.amount || 0),
+        })).filter(m => m.name !== 'Unknown' && m.category.toLowerCase() === 'medicine');
+        setInventoryMeds(mapped);
+      }
+    } catch (err) {
+      console.error(`Inventory load attempt ${attempt} failed:`, err);
+      if (attempt < 3) setTimeout(() => loadInventory(attempt + 1), 2000 * attempt);
+    }
+  };
+
   useEffect(() => {
      getPatients().then(setPatients).catch(console.error);
-     // Load real inventory from Firebase/backend — no hardcoded data
-     getInventory().then(inv => {
-       const mapped = inv.map(item => ({
-         id: item.id,
-         name: item.name || item.productName || 'Unknown',
-         stock: Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0),
-         unitPrice: Number(item.retailPrice || item.price || item.unitPrice || item.sellingPrice || item.cost || 0),
-       })).filter(m => m.name !== 'Unknown');
-       setInventoryMeds(mapped);
-     }).catch(console.error);
+     loadInventory();
   }, []);
+
+  // Detailed Timing States
+  const [selTimes, setSelTimes] = useState([]); // ['Morning', 'Afternoon', 'Night']
+  const [selFood, setSelFood] = useState('');   // 'Before Food' or 'After Food'
+  const [duration, setDuration] = useState(1);  // Number of days
+
+  // Helper to parse numeric dosage (e.g., "2 tablets" -> 2)
+  const parseDosage = (d) => {
+    const match = d.match(/(\d+(\.\d+)?)/);
+    return match ? parseFloat(match[0]) : 1;
+  };
+
+  // Auto-calculate quantity
+  useEffect(() => {
+    if (selTimes.length > 0) {
+      const dosageVal = parseDosage(currentDosage);
+      const freq = selTimes.length;
+      const total = Math.ceil(freq * dosageVal * duration);
+      setCurrentQty(total);
+    }
+  }, [selTimes, currentDosage, duration]);
 
   const [patientSearch, setPatientSearch] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -525,152 +556,279 @@ const PharmacistVerification = () => {
                </div>
             )}
             
-            <div className={`space-y-4 ${orderItems.length > 0 ? 'border-t border-slate-100 pt-5' : ''}`}>
-              <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Add Item to Bill & Prescription</h4>
+            {/* Section: Precision Prescription Processor */}
+            <div className={`space-y-5 ${orderItems.length > 0 ? 'border-t border-slate-100 pt-6' : ''}`}>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="relative col-span-2">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Medication Name</label>
-                  <div className="relative">
-                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${showSuggestions ? 'text-blue-500 animate-pulse' : 'text-slate-400'}`} />
-                    <input 
-                      type="text" 
-                      value={currentDrug}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setCurrentDrug(val);
-                        setSearchQuery(val);
-                        setShowSuggestions(true);
-                        
-                        // Auto-match exact name for price update
-                        const exactMatch = inventoryMeds.find(m => m.name.toLowerCase() === val.toLowerCase());
-                        if (exactMatch) {
-                           setCurrentPrice(exactMatch.unitPrice);
-                           setSelectedInventoryItem(exactMatch);
-                        } else {
-                           setSelectedInventoryItem(null);
-                        }
-                      }}
-                      onFocus={() => setShowSuggestions(true)}
-                      placeholder="e.g. Amoxicillin 500mg" 
-                      className="w-full pl-9 pr-4 py-3 bg-white border border-slate-200 rounded-lg text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all" 
-                    />
-                    
-                    {showSuggestions && searchQuery && (
-                      <div className="absolute top-full left-0 z-[60] w-full mt-1 bg-white border border-slate-200 shadow-2xl rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                        {inventoryMeds.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).map((m, i) => (
-                          <div 
-                            key={i}
-                            onClick={() => {
-                              setCurrentDrug(m.name);
-                              setCurrentPrice(m.unitPrice);
-                              setSelectedInventoryItem(m);
-                              setShowSuggestions(false);
-                            }}
-                            className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-100 last:border-0 transition-colors"
-                          >
-                            <div>
-                               <span className="font-bold text-sm text-slate-800 block">{m.name}</span>
-                               <span className="text-[10px] text-blue-600 font-bold mt-0.5 block">Price: Rs. {m.unitPrice.toFixed(2)}</span>
-                            </div>
-                            <div className="text-right">
-                               <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-wider">{m.stock} In Stock</span>
-                            </div>
-                          </div>
-                        ))}
-                        {inventoryMeds.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                          <div className="px-4 py-3 text-sm text-slate-500 font-medium text-center">No matching medicines found</div>
-                        )}
+              {/* Added Medications Tray - High Density List */}
+              {orderItems.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                       <History className="w-3 h-3" /> Added Items ({orderItems.length})
+                    </h4>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-1.5 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+                    {orderItems.map((item, idx) => (
+                      <div key={idx} className="group bg-slate-50 border border-slate-200 rounded-xl p-3 hover:bg-white hover:border-blue-200 transition-all flex items-center gap-3 relative overflow-hidden">
+                        <div className="w-8 h-8 rounded-lg bg-white border border-slate-100 text-slate-400 flex items-center justify-center shrink-0 group-hover:text-blue-500 transition-colors">
+                           <Pill className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                           <p className="text-[12px] font-bold text-slate-800 truncate leading-none">{item.name}</p>
+                           <p className="text-[9px] text-slate-500 font-bold mt-1">{item.qty} units • {item.freq}</p>
+                        </div>
+                        <div className="text-right">
+                           <p className="text-[11px] font-black text-slate-800">Rs. {item.total.toFixed(2)}</p>
+                           <button 
+                             onClick={() => setOrderItems(orderItems.filter((_, i) => i !== idx))}
+                             className="text-[8px] font-black text-red-400 hover:text-red-600 uppercase tracking-tighter block w-full text-right"
+                           >
+                             Delete
+                           </button>
+                        </div>
                       </div>
-                    )}
+                    ))}
+                  </div>
+
+                  <div className="bg-[#020b2d] rounded-xl p-4 text-white flex justify-between items-center shadow-md">
+                     <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                           <Send className="w-4 h-4 text-blue-300" />
+                        </div>
+                        <div>
+                           <p className="text-[8px] font-black text-blue-200 uppercase tracking-widest">Estimated Bill Total</p>
+                           <p className="text-[18px] font-black leading-none">Rs. {orderItems.reduce((a, b) => a + b.total, 0).toFixed(2)}</p>
+                        </div>
+                     </div>
+                     <span className="text-[9px] font-black bg-blue-500/20 text-blue-200 px-2 py-1 rounded-md uppercase">Calculated</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Compact Entry Terminal */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-5 shadow-sm relative overflow-hidden">
+                
+                <div className="flex items-center justify-between mb-1">
+                   <div className="flex items-center gap-1.5">
+                      <div className="w-1 h-3 bg-blue-500 rounded-full"></div>
+                      <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Entry Terminal</h3>
+                   </div>
+                   <span className="text-[8px] font-black text-slate-300 uppercase">Ver: 2.0.4</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  {/* Medication Search */}
+                  <div className="md:col-span-2 relative">
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-0.5">Drug Identification</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <input 
+                        type="text" 
+                        value={currentDrug}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCurrentDrug(val);
+                          setSearchQuery(val);
+                          setShowSuggestions(true);
+                          const exactMatch = inventoryMeds.find(m => m.name.toLowerCase() === val.toLowerCase());
+                          if (exactMatch) {
+                             setCurrentPrice(exactMatch.unitPrice);
+                             setSelectedInventoryItem(exactMatch);
+                          } else {
+                             setSelectedInventoryItem(null);
+                          }
+                        }}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                        placeholder="Search inventory..." 
+                        className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-blue-500 transition-all" 
+                      />
+                      
+                      {showSuggestions && (searchQuery || inventoryMeds.length > 0) && (
+                        <div className="absolute top-full left-0 z-[100] w-full mt-1 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                          {inventoryMeds.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase())).map((m, i) => (
+                            <div 
+                              key={i}
+                              onClick={() => {
+                                setCurrentDrug(m.name);
+                                setCurrentPrice(m.unitPrice);
+                                setSelectedInventoryItem(m);
+                                setShowSuggestions(false);
+                              }}
+                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50 last:border-0"
+                            >
+                              <div>
+                                 <span className="font-bold text-xs text-slate-800 block">{m.name}</span>
+                                 <span className="text-[9px] text-blue-500 font-black uppercase">Rs. {m.unitPrice.toFixed(2)}</span>
+                              </div>
+                              <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{m.stock}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dosage & Days */}
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-0.5">Dosage</label>
+                    <select 
+                      value={currentDosage} 
+                      onChange={e => setCurrentDosage(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="">Select...</option>
+                      <option>1 Tab</option>
+                      <option>2 Tabs</option>
+                      <option>1 Cap</option>
+                      <option>5ml</option>
+                      <option>10ml</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-0.5">Days</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={duration}
+                      onChange={e => setDuration(parseInt(e.target.value) || 1)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 transition-all text-center"
+                    />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Dosage Form</label>
-                  <select 
-                    value={currentDosage}
-                    onChange={(e) => setCurrentDosage(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                  >
-                     <option>Oral Tablet</option>
-                     <option>Oral Capsule</option>
-                     <option>Liquid</option>
-                     <option>Topical Cream</option>
-                     <option>Inhaler</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Timing / Frequency</label>
-                  <input 
-                    type="text" 
-                    value={currentFreq} 
-                    onChange={e => setCurrentFreq(e.target.value)} 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    placeholder="e.g. BD (Twice daily)" 
-                  />
+                {/* Timing - Compact Toggles */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                     <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-0.5">Schedule</label>
+                     <div className="flex gap-1.5">
+                       {['Morning', 'Afternoon', 'Night'].map(t => (
+                         <button
+                           key={t}
+                           type="button"
+                           onClick={() => {
+                             if (selTimes.includes(t)) setSelTimes(selTimes.filter(x => x !== t));
+                             else setSelTimes([...selTimes, t]);
+                           }}
+                           className={`flex-1 py-1.5 rounded-lg text-[9px] font-black transition-all border ${
+                             selTimes.includes(t) 
+                               ? 'bg-blue-600 border-blue-600 text-white' 
+                               : 'bg-white border-slate-200 text-slate-500 hover:border-blue-200'
+                           }`}
+                         >
+                           {t}
+                         </button>
+                       ))}
+                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                     <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-0.5">Food</label>
+                     <div className="flex gap-1.5">
+                       {['Before', 'After'].map(f => (
+                         <button
+                           key={f}
+                           type="button"
+                           onClick={() => setSelFood(selFood === f ? '' : f)}
+                           className={`flex-1 py-1.5 rounded-lg text-[9px] font-black transition-all border ${
+                             selFood === f 
+                               ? 'bg-emerald-600 border-emerald-600 text-white' 
+                               : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-200'
+                           }`}
+                         >
+                           {f}
+                         </button>
+                       ))}
+                     </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Quantity</label>
-                  <input 
-                    type="number" 
-                    value={currentQty} 
-                    onChange={e => setCurrentQty(parseInt(e.target.value) || 0)} 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Unit Price (Rs.)</label>
-                  <input 
-                    type="number" 
-                    value={currentPrice} 
-                    onChange={e => setCurrentPrice(parseFloat(e.target.value) || 0)}
-                    readOnly={!!selectedInventoryItem}
-                    className={`w-full px-4 py-3 border border-slate-200 rounded-lg text-slate-800 font-bold focus:outline-none transition-all ${selectedInventoryItem ? 'bg-slate-100 text-slate-500' : 'bg-white focus:ring-2 focus:ring-blue-500'}`} 
-                  />
+                {/* Totals & Add Button */}
+                <div className="flex items-end gap-3 pt-3 border-t border-slate-100">
+                   <div className="flex-1">
+                      <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-0.5">Unit Price (Rs.)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-[10px]">Rs.</span>
+                        <input 
+                          type="number" 
+                          value={currentPrice} 
+                          onChange={e => setCurrentPrice(parseFloat(e.target.value) || 0)}
+                          readOnly={!!selectedInventoryItem}
+                          className={`w-full pl-8 pr-3 py-2 border rounded-lg text-xs font-bold text-slate-800 focus:outline-none transition-all ${selectedInventoryItem ? 'bg-slate-100 border-transparent text-slate-400' : 'bg-white border-slate-200 focus:border-blue-500'}`} 
+                        />
+                      </div>
+                   </div>
+                   <div className="bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 flex flex-col items-end shrink-0">
+                      <span className="text-[8px] font-black text-blue-400 uppercase leading-none mb-1">Item Total</span>
+                      <span className="text-xs font-black text-blue-700 leading-none">Rs. {((currentQty || (selTimes.length * duration)) * currentPrice).toFixed(2)}</span>
+                   </div>
+                   <button 
+                     onClick={async () => {
+                       if (!currentDrug) return;
+                       const finalQty = currentQty || (selTimes.length * duration);
+                       const combinedTiming = [...selTimes, selFood, currentFreq].filter(Boolean).join(' - ');
+                       const newItem = { 
+                          id: Date.now(), 
+                          inventoryId: selectedInventoryItem?.id || null,
+                          name: currentDrug, 
+                          qty: finalQty, 
+                          form: currentDosage, 
+                          freq: combinedTiming, 
+                          refills: currentRefills,
+                          unitPrice: currentPrice,
+                          total: finalQty * currentPrice
+                       };
+
+                       setOrderItems([...orderItems, newItem]);
+
+                       if (selectedInventoryItem) {
+                          const updatedStock = Math.max(0, selectedInventoryItem.stock - finalQty);
+                          setInventoryMeds(inventoryMeds.map(m => m.id === selectedInventoryItem.id ? { ...m, stock: updatedStock } : m));
+                          try {
+                             await updateInventoryItem(selectedInventoryItem.id, { stock: updatedStock, qty: updatedStock, quantity: updatedStock });
+                          } catch (err) { console.error("Failed to update inventory", err); }
+                       }
+
+                        setCurrentDrug('');
+                        setCurrentQty(1);
+                        setCurrentPrice(0);
+                        setCurrentFreq('');
+                        setDuration(1);
+                        setSelTimes([]);
+                        setSelFood('');
+                       setSelectedInventoryItem(null);
+                       setSearchQuery('');
+                       setShowSuggestions(false);
+                     }}
+                     className="bg-blue-600 text-white hover:bg-blue-700 h-9 px-4 rounded-lg text-[10px] font-black transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                   >
+                     <Plus className="w-3.5 h-3.5" /> ADD ITEM
+                   </button>
                 </div>
               </div>
 
-              <button 
-                onClick={async () => {
-                  if (!currentDrug) return;
-                  const newItem = { 
-                     id: Date.now(), 
-                     inventoryId: selectedInventoryItem?.id || null,
-                     name: currentDrug, 
-                     qty: currentQty, 
-                     form: currentDosage, 
-                     freq: currentFreq, 
-                     refills: currentRefills,
-                     unitPrice: currentPrice,
-                     total: currentQty * currentPrice
-                  };
-
-                  setOrderItems([...orderItems, newItem]);
-
-                  // Deduct from inventory in real-time
-                  if (selectedInventoryItem) {
-                     const updatedStock = Math.max(0, selectedInventoryItem.stock - currentQty);
-                     setInventoryMeds(inventoryMeds.map(m => m.id === selectedInventoryItem.id ? { ...m, stock: updatedStock } : m));
-                     try {
-                        await updateInventoryItem(selectedInventoryItem.id, { stock: updatedStock, qty: updatedStock, quantity: updatedStock });
-                     } catch (err) { console.error("Failed to update inventory", err); }
-                  }
-
-                  // Reset form
-                  setCurrentDrug('');
-                  setCurrentQty(1);
-                  setCurrentPrice(0);
-                  setCurrentFreq('');
-                  setSelectedInventoryItem(null);
-                  setSearchQuery('');
-                  setShowSuggestions(false);
-                }}
-                className="w-full mt-4 flex items-center justify-center gap-2 py-3 bg-white border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95"
-              >
-                <Plus className="w-4 h-4" /> Add Medication to List
-              </button>
+              {/* Compact Footer Actions */}
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                 <button 
+                    onClick={() => setShowRejectModal(true)}
+                    className="flex items-center justify-center gap-1.5 h-10 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm"
+                 >
+                    <X className="w-3.5 h-3.5" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Reject</span>
+                 </button>
+                 
+                 <button className="flex items-center justify-center h-10 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 transition-all shadow-sm px-4">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-center">Preview Bill</span>
+                 </button>
+                 
+                 <button 
+                    onClick={handleApprove}
+                    className="flex items-center justify-center gap-1.5 h-10 bg-blue-600 border border-blue-700 rounded-xl text-white hover:bg-blue-700 shadow-md transition-all active:scale-95"
+                 >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Approve</span>
+                 </button>
+              </div>
             </div>
           </div>
 

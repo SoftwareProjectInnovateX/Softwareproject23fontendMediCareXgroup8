@@ -27,13 +27,13 @@ const Checkout = () => {
 
     const [orderData, setOrderData] = useState({
         email: '',
-        firstName: '',
-        lastName: '',
+        firstName: queryParams.get('fname') || '',
+        lastName:  queryParams.get('lname') || '',
         country: 'Sri Lanka',
-        houseNumber: '',
-        laneStreet: '',
+        houseNumber: queryParams.get('addr')?.split(',')[0]?.trim() || '',
+        laneStreet:  queryParams.get('addr')?.split(',').slice(1).join(',')?.trim() || '',
         city: '',
-        phone: '',
+        phone: queryParams.get('phone') || '',
         orderNotes: '',
         agreeTerms: false,
         paymentMethod: 'ONLINE'
@@ -138,20 +138,57 @@ const Checkout = () => {
             });
 
             if (response.ok) {
-                // If this was a prescription order, update the dispensing queue status
+                // If this was a prescription order, sync with Dispensing Queue and Firestore
                 if (rxId) {
                     try {
-                        const history = await getDispensedHistory();
-                        const record = history.find(h => h.rxId === rxId);
-                        if (record) {
-                            await updateDispensedRecord(record.firebaseId || record.id, {
-                                paymentStatus: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Pending-COD',
-                                paymentMethod: orderData.paymentMethod
+                        const { db } = await import('../../lib/firebase');
+                        const { doc, getDoc, updateDoc, Timestamp } = await import('firebase/firestore');
+                        
+                        // 1. Fetch full prescription details from Firestore
+                        const rxRef = doc(db, 'prescriptions', rxId);
+                        const rxSnap = await getDoc(rxRef);
+                        const rxData = rxSnap.exists() ? rxSnap.data() : null;
+
+                        if (rxData) {
+                            // 2. Update/Create Dispensing Queue Record (Backend API)
+                            const history = await getDispensedHistory();
+                            const existingRecord = history.find(h => h.rxId === rxId);
+                            
+                            const dispensePayload = {
+                                rxId: rxId,
+                                patientName: `${orderData.firstName} ${orderData.lastName}`,
+                                verifiedPatient: `${orderData.firstName} ${orderData.lastName}`,
+                                phone: orderData.phone,
+                                address: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`,
+                                orderItems: rxData.orderItems || rxData.medications || [],
+                                total: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
+                                paymentStatus: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'COD',
+                                paymentMethod: orderData.paymentMethod,
+                                createdAt: new Date().toISOString(),
+                                finalized: false
+                            };
+
+                            if (existingRecord) {
+                                await updateDispensedRecord(existingRecord.firebaseId || existingRecord.id, dispensePayload);
+                            } else {
+                                const { addDispensedRecord } = await import('../../services/pharmacistService');
+                                await addDispensedRecord(dispensePayload);
+                            }
+
+                            // 3. Update Prescription Status in Firestore
+                            await updateDoc(rxRef, {
+                                status: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Ready to Collect',
+                                customerConfirmed: true,
+                                paymentMethod: orderData.paymentMethod,
+                                confirmedAt: Timestamp.now(),
+                                // Update address in Firestore too
+                                customerAddress: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`
                             });
-                            console.log("Dispensing record updated successfully for RX:", rxId);
+                            
+                            console.log("Prescription and Dispensing records synchronized for RX:", rxId);
                         }
                     } catch (err) {
-                        console.error("Failed to update dispensing status:", err);
+                        console.error("Critical: Failed to sync prescription/dispensing data:", err);
                     }
                 }
 
@@ -197,6 +234,8 @@ const Checkout = () => {
                             handleInputChange={handleInputChange}
                             handlePlaceOrder={handlePlaceOrder}
                             isLoading={isLoading}
+                            prescriptionTotal={rxId ? rxAmount : null}
+                            prescriptionItems={queryParams.get('items')}
                         />
                     </aside>
                 </div>

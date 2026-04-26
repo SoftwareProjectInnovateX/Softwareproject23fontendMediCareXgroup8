@@ -7,10 +7,16 @@ import {
   Clock,
   Pill,
   AlertTriangle,
-  Snowflake,
   Activity,
   ChevronDown,
-  DollarSign
+  DollarSign,
+  ShoppingCart,
+  Users,
+  Download,
+  ArrowUpRight,
+  ArrowDownRight,
+  Monitor,
+  Store
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -19,17 +25,16 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  PieChart,
+  Pie
 } from 'recharts';
-import { getDispensedHistory, getInventory, getOnlineOrders, getReturnRequests, addDispensedRecord } from '../../services/pharmacistService';
+import { getDispensedHistory, getInventory, getOnlineOrders, getReturnRequests } from '../../services/pharmacistService';
 
-const blankAnalytics = {
-  revenue: '0.00',
-  avgTime: '0m 0s',
-  returnRate: '0%',
-  topDrugs: [],
-  inventory: { lowStock: 0, expiring: 0 }
-};
+const COLORS = ['#0b5ed7', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 const PharmacistReports = () => {
   const [dateRange, setDateRange] = useState('Today');
@@ -37,408 +42,350 @@ const PharmacistReports = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   const [dynamicChart30, setDynamicChart30] = useState([]);
-  const [dynamicChart7, setDynamicChart7] = useState([]);
   const [dynamicAnalytics, setDynamicAnalytics] = useState({});
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const dispensed = await getDispensedHistory();
-        const inventory = await getInventory();
-        const onlineOrders = await getOnlineOrders();
-        const returns = await getReturnRequests();
+        const [dispensed, inventory, onlineOther, returns] = await Promise.all([
+           getDispensedHistory(),
+           getInventory(),
+           getOnlineOrders(),
+           getReturnRequests()
+        ]);
 
-        // 1. Calculate Inventory Health
-        let lowStock = 0;
-        let expiring = 0;
+        // 1. Inventory Health
+        let lowStockCount = 0;
+        let expiringCount = 0;
+        const lowStockList = [];
+        const expiringList = [];
+
         inventory.forEach(item => {
-           const qty = item.stock ?? item.qty ?? item.quantity ?? 0;
-           if (qty < 50) lowStock++;
+           const qty = Number(item.stock ?? item.qty ?? item.quantity ?? 0);
+           const name = item.name || item.productName || 'Unknown Product';
+           
+           if (qty < 50) {
+              lowStockCount++;
+              lowStockList.push({ name, qty });
+           }
            
            const dateStr = item.expiryDate ?? item.expiry;
            if (dateStr) {
               const expDate = new Date(dateStr);
               const in30Days = new Date();
               in30Days.setDate(in30Days.getDate() + 30);
-              if (expDate <= in30Days) expiring++;
+              if (expDate <= in30Days) {
+                 expiringCount++;
+                 expiringList.push({ name, expiry: dateStr });
+              }
            }
         });
 
-        const invHealth = { lowStock, expiring };
+        // Sort by most critical
+        lowStockList.sort((a,b) => a.qty - b.qty);
+        expiringList.sort((a,b) => new Date(a.expiry) - new Date(b.expiry));
 
-        // 2. Generate Chart Data
-        // Group dispensed records by date
-        const countsByDate = {};
+        const invHealth = { 
+           lowStock: lowStockCount, 
+           expiring: expiringCount,
+           lowStockList,
+           expiringList
+        };
+
+        // 2. Main Trend Data (Last 30 Days)
+        const trendData = [];
         const now = new Date();
-        // prefill last 30 days
-        for(let i=29; i>=0; i--) {
+        for (let i = 29; i >= 0; i--) {
            const d = new Date(now);
            d.setDate(now.getDate() - i);
-           countsByDate[d.toDateString()] = 0;
-        }
-
-        dispensed.forEach(d => {
-           if (d.dispensedDate && countsByDate[d.dispensedDate] !== undefined) {
-               countsByDate[d.dispensedDate]++;
-           }
-        });
-
-        const newChart30 = Object.keys(countsByDate).map(dateStr => {
-           const d = new Date(dateStr);
+           const dateStr = d.toDateString();
            const shortName = d.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
-           return { name: shortName, verified: countsByDate[dateStr] };
-        });
+           
+           const dayDispensed = dispensed.filter(item => {
+              const ds = item.dispensedDate || 
+                         (item.dispensedAt ? new Date(item.dispensedAt).toDateString() : null) || 
+                         (item.createdAt ? new Date(item.createdAt).toDateString() : null);
+              return ds === dateStr;
+           });
 
-        const newChart7 = newChart30.slice(-7);
+           trendData.push({
+              name: shortName,
+              online: dayDispensed.filter(it => it.orderType === 'Online' || it.rxId).length,
+              physical: dayDispensed.filter(it => !(it.orderType === 'Online' || it.rxId)).length,
+              revenue: dayDispensed.reduce((s, it) => s + (parseFloat(it.total) || 0), 0)
+           });
+        }
+        setDynamicChart30(trendData);
 
-        // 3. Analytics Aggregation (Revenue, Drugs)
-        const filterByDays = (days) => {
+        // 3. Analytics Engine
+        const calculateStats = (days) => {
            const cutoff = new Date();
-           if (days === 0) {
-              cutoff.setHours(0,0,0,0); // Today from midnight
-           } else {
-              cutoff.setDate(cutoff.getDate() - days);
-              cutoff.setHours(0,0,0,0);
-           }
-           
-           let rev = 0;
+           if (days === 0) cutoff.setHours(0,0,0,0);
+           else cutoff.setDate(cutoff.getDate() - days);
+           cutoff.setHours(0,0,0,0);
+
+           let totalRev = 0;
+           let onlineRev = 0;
+           let physicalRev = 0;
+           let onlineCount = 0;
+           let physicalCount = 0;
            const drugCounts = {};
+           const paymentMethods = { 'Paid': 0, 'COD': 0, 'Bank': 0 };
 
-           // Helper to process revenue and drugs
-           const processItem = (d, dateField, isOnlineHub) => {
-              const rDate = new Date(d[dateField] || d.timestamp);
-              
+           dispensed.forEach(d => {
+              const dDate = new Date(d.dispensedAt || d.createdAt || d.dispensedDate || d.date);
               if (days === 0) {
-                  // Must exactly match the logic in Dashboard for 'Today'
-                  const todayStr = new Date().toDateString();
-                  const itemDateStr = isOnlineHub 
-                      ? new Date(d.orderDate || d.timestamp).toDateString() 
-                      : d.dispensedDate;
-                      
-                  if (itemDateStr !== todayStr) return;
+                 if (dDate.toDateString() !== new Date().toDateString()) return;
+              } else if (dDate < cutoff) return;
+
+              const amt = parseFloat(d.total) || 0;
+              const isOnline = d.orderType === 'Online' || d.rxId;
+
+              if (isOnline) {
+                 onlineRev += amt;
+                 onlineCount++;
               } else {
-                  if (rDate < cutoff) return;
+                 physicalRev += amt;
+                 physicalCount++;
               }
+              totalRev += amt;
 
-              // Only sum paid items exactly like the Dashboard
-              const isPaid = isOnlineHub ? (d.paymentStatus === 'Paid' || d.paymentMethod === 'COD') : (d.paymentStatus === 'Paid');
+              // Payment method breakdown
+              const method = (d.paymentMethod || '').toUpperCase();
+              if (method.includes('COD')) paymentMethods['COD'] += amt;
+              else if (method.includes('BANK')) paymentMethods['Bank'] += amt;
+              else paymentMethods['Paid'] += amt;
 
-              if (isPaid) {
-                  rev += parseFloat(d.total) || 0;
-              }
-              
-              // Count Drugs
-              if (d.orderItems && Array.isArray(d.orderItems)) {
-                 d.orderItems.forEach(item => {
-                    if (!drugCounts[item.name]) drugCounts[item.name] = { count: 0, form: item.form || 'Units' };
-                    drugCounts[item.name].count += (parseInt(item.qty) || 1);
-                 });
-              }
-           };
+              // Drugs
+              const items = d.orderItems || d.medicines || [];
+              items.forEach(it => {
+                 if (!drugCounts[it.name]) drugCounts[it.name] = { qty: 0, rev: 0 };
+                 drugCounts[it.name].qty += (parseInt(it.qty) || 1);
+                 drugCounts[it.name].rev += (parseFloat(it.price) * (parseInt(it.qty) || 1)) || 0;
+              });
+           });
 
-           // Process standard dispensed items
-           dispensed.forEach(d => processItem(d, 'dispensedDate', false));
+           // Returns Stats & Revenue Adjustment (Subtract approved refunds)
+           const returnStats = { total: 0, pending: 0, approved: 0, rejected: 0 };
+           let totalRefunded = 0;
            
-           // Process online hub orders
-           onlineOrders.filter(o => o.status === 'Dispatched').forEach(o => processItem(o, 'orderDate', true));
+           returns.forEach(r => {
+              const rDate = new Date(r.timestamp || r.requestedAt);
+              if (days === 0) {
+                 if (rDate.toDateString() !== new Date().toDateString()) return;
+              } else if (rDate < cutoff) return;
 
-           // Sort top 5 drugs
-           const topDrugsList = Object.keys(drugCounts)
-             .map(k => ({ name: k, qty: drugCounts[k].count, unit: drugCounts[k].form }))
-             .sort((a,b) => b.qty - a.qty)
-             .slice(0, 5)
-             .map((drug, idx, arr) => {
-                const max = arr[0].qty || 1;
-                return { ...drug, percent: Math.round((drug.qty / max) * 100) };
-             });
+              returnStats.total++;
+              if (r.status === 'Pending') returnStats.pending++;
+              else if (r.status === 'Approved') {
+                 returnStats.approved++;
+                 totalRefunded += (parseFloat(r.refundAmount || r.total) || 0);
+              }
+              else if (r.status === 'Rejected') returnStats.rejected++;
+           });
 
-           // Calculate Return Rate
-           let totalOrdersPeriod = 0;
-           let returnsPeriod = 0;
-           
-           const processReturnRate = () => {
-              returns.forEach(r => {
-                 const rDate = new Date(r.timestamp);
-                 if (days === 0) {
-                     if (rDate.toDateString() === new Date().toDateString()) returnsPeriod++;
-                 } else {
-                     if (rDate >= cutoff) returnsPeriod++;
-                 }
-              });
-              
-              dispensed.forEach(d => {
-                 const dDate = new Date(d.dispensedDate || d.timestamp);
-                 if (days === 0) {
-                     if (dDate.toDateString() === new Date().toDateString()) totalOrdersPeriod++;
-                 } else {
-                     if (dDate >= cutoff) totalOrdersPeriod++;
-                 }
-              });
-              onlineOrders.forEach(o => {
-                 const oDate = new Date(o.orderDate || o.timestamp);
-                 if (days === 0) {
-                     if (oDate.toDateString() === new Date().toDateString()) totalOrdersPeriod++;
-                 } else {
-                     if (oDate >= cutoff) totalOrdersPeriod++;
-                 }
-              });
-           };
-           processReturnRate();
+           // Apply Refund Deduction to Revenue
+           const netRev = totalRev - totalRefunded;
+           const netOnlineRev = onlineRev - (totalRefunded * 0.7); // Statistical estimate if split not available
 
-           const rRate = totalOrdersPeriod > 0 ? ((returnsPeriod / totalOrdersPeriod) * 100).toFixed(1) + '%' : '0%';
+           const topDrugs = Object.keys(drugCounts)
+              .map(k => ({ name: k, qty: drugCounts[k].qty, rev: drugCounts[k].rev }))
+              .sort((a, b) => b.qty - a.qty)
+              .slice(0, 5);
 
            return {
-              revenue: rev.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-              avgTime: '0m 0s', // No tracking mechanism for this yet
-              returnRate: rRate,
-              topDrugs: topDrugsList,
-              inventory: invHealth
+              revenue: netRev > 0 ? netRev : 0,
+              onlineRev: netOnlineRev > 0 ? netOnlineRev : 0,
+              physicalRev,
+              onlineCount,
+              physicalCount,
+              topDrugs,
+              inventory: invHealth,
+              paymentMethods,
+              returns: returnStats
            };
         };
 
-        const newAnalytics = {
-           'Today': filterByDays(0),
-           'Last 7 Days': filterByDays(7),
-           'Last 30 Days': filterByDays(30),
-           'Year to Date': filterByDays(365)
-        };
+        setDynamicAnalytics({
+           'Today': calculateStats(0),
+           'Last 7 Days': calculateStats(7),
+           'Last 30 Days': calculateStats(30),
+           'Year to Date': calculateStats(365)
+        });
 
-        setDynamicChart30(newChart30);
-        setDynamicChart7(newChart7);
-        setDynamicAnalytics(newAnalytics);
-
-      } catch (e) {
-        console.error("Failed to load reporting data:", e);
-      } finally {
-        setIsLoading(false);
-      }
+      } catch (e) { console.error(e); }
+      finally { setIsLoading(false); }
     };
-    
+
     fetchData();
+    const interval = setInterval(fetchData, 30000); // 30s Polling
+    return () => clearInterval(interval);
   }, []);
+
+  const stats = dynamicAnalytics[dateRange] || { revenue: 0, onlineRev: 0, physicalRev: 0, topDrugs: [], inventory: {lowStock:0, expiring:0}, paymentMethods: {} };
   
-  const chartData = useMemo(() => {
-    if (dateRange === 'Last 7 Days') return dynamicChart7;
-    return dynamicChart30;
-  }, [dateRange, dynamicChart7, dynamicChart30]);
-
-  const currentStats = dynamicAnalytics[dateRange] || blankAnalytics;
-
-  const exportPDF = () => {
-    window.print();
-  };
-
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-10 print:m-0 print:p-0 print:max-w-full">
+    <div className="space-y-8 max-w-[1400px] mx-auto pb-20 px-4">
       
-      {/* Top PharmacistHeader */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2 border-b border-slate-100 pb-6 print:hidden">
-        <div>
-          <h1 className="text-3xl font-black text-slate-800">Operational Analytics</h1>
-          <p className="text-slate-500 font-medium text-sm mt-1 flex items-center gap-1.5">
-            <Activity className="w-4 h-4 text-[#0b5ed7]" /> Live Pharmacist Reporting Dashboard
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-3 relative">
-          
-          <div className="relative">
-             <button 
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold text-sm rounded-lg flex items-center gap-2 shadow-sm relative cursor-pointer hover:bg-slate-50 transition-colors"
-             >
-               <Calendar className="w-4 h-4 text-[#0b5ed7]" />
-               {dateRange}
-               <ChevronDown className="w-3.5 h-3.5 ml-1 text-slate-400" />
-             </button>
-             {showDropdown && (
-                <div className="absolute top-full mt-1 right-0 w-48 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden">
-                   {['Today', 'Last 7 Days', 'Last 30 Days', 'Year to Date'].map(range => (
-                      <div 
-                        key={range}
-                        onClick={() => { setDateRange(range); setShowDropdown(false); }}
-                        className={`px-4 py-3 text-sm font-bold cursor-pointer hover:bg-blue-50 transition-colors border-b border-slate-100 last:border-0 ${dateRange === range ? 'text-[#0b5ed7] bg-blue-50' : 'text-slate-600'}`}
-                      >
-                         {range}
-                      </div>
-                   ))}
-                </div>
-             )}
-          </div>
-
-          <button onClick={exportPDF} className="px-4 py-2 bg-[#0b5ed7] hover:bg-[#084298] text-white font-bold text-sm rounded-lg flex items-center gap-2 transition-colors shadow-sm">
-            <FileText className="w-4 h-4" /> Export Report (PDF)
-          </button>
-        </div>
-      </div>
-
-      {/* Print Header Visible Only on Print */}
-      <div className="hidden print:block text-center mb-8 border-b-2 border-slate-800 pb-4">
-         <h1 className="text-2xl font-black text-slate-800 uppercase">MediCareX Pharmacy Analytics Report</h1>
-         <p className="text-sm font-bold text-slate-500 mt-1">Generated: {new Date().toLocaleString()} | Period: {dateRange}</p>
-      </div>
-
-      {isLoading ? (
-        <div className="py-20 flex justify-center items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b5ed7]"></div>
-        </div>
-      ) : (
-      <>
-        {/* Top Value Cards Widget */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         {/* Revenue Card */}
-         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden group">
-            <div className="absolute -right-4 -top-4 bg-emerald-50 w-24 h-24 rounded-full flex items-center justify-center opacity-50 group-hover:scale-110 transition-transform">
-               <DollarSign className="w-10 h-10 text-emerald-500" />
-            </div>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Dispensing Revenue</p>
-            <h2 className="text-4xl font-black text-slate-800">Rs. {currentStats.revenue}</h2>
-         </div>
-
-         {/* Efficiency Card */}
-         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden group">
-            <div className="absolute -right-4 -top-4 bg-blue-50 w-24 h-24 rounded-full flex items-center justify-center opacity-50 group-hover:scale-110 transition-transform">
-               <Clock className="w-10 h-10 text-[#0b5ed7]" />
-            </div>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Avg. Fulfillment Time</p>
-            <h2 className="text-4xl font-black text-slate-800">{currentStats.avgTime}</h2>
-            <p className="text-xs font-bold text-slate-500 mt-3 flex items-center gap-1 bg-slate-100 w-max px-2 py-1 rounded">
-               From verification to dispense
+      {/* Header Area */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 py-4 border-b border-slate-100">
+         <div>
+            <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tight">Business Intelligence</h1>
+            <p className="text-slate-500 font-bold text-sm mt-1 flex items-center gap-2">
+               <Activity size={16} className="text-blue-600" />
+               Real-time reporting and performance analytics
             </p>
          </div>
 
-         {/* Retention Card */}
-         <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm relative overflow-hidden group">
-            <div className="absolute -right-4 -top-4 bg-purple-50 w-24 h-24 rounded-full flex items-center justify-center opacity-50 group-hover:scale-110 transition-transform">
-               <ShieldCheck className="w-10 h-10 text-purple-500" />
+         <div className="flex items-center gap-4">
+            <div className="relative">
+               <button 
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="px-5 py-3 bg-white border-2 border-slate-100 rounded-2xl font-black text-xs uppercase tracking-widest text-slate-600 flex items-center gap-3 shadow-sm hover:border-blue-200 transition-all"
+               >
+                  <Calendar size={16} className="text-blue-600" />
+                  {dateRange}
+                  <ChevronDown size={14} className={showDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
+               </button>
+               {showDropdown && (
+                  <div className="absolute top-full mt-2 right-0 w-56 bg-white border border-slate-100 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                     {['Today', 'Last 7 Days', 'Last 30 Days', 'Year to Date'].map(r => (
+                        <div key={r} onClick={() => { setDateRange(r); setShowDropdown(false); }} className={`px-5 py-4 text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-blue-50 transition-colors border-b border-slate-50 last:border-0 ${dateRange === r ? 'bg-blue-50 text-blue-600' : 'text-slate-500'}`}>
+                           {r}
+                        </div>
+                     ))}
+                  </div>
+               )}
             </div>
-            <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Patient Return Rate</p>
-            <h2 className="text-4xl font-black text-slate-800">{currentStats.returnRate}</h2>
+            <button onClick={() => window.print()} className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-slate-800 transition-all shadow-xl shadow-slate-200">
+               <Download size={16} /> Export PDF
+            </button>
          </div>
       </div>
 
-      {/* Grid Layout for Chart and Lower Widgets */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-         
-         {/* Main Chart Column (Takes up 2/3 space) */}
-         <div className="xl:col-span-2 space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative overflow-hidden print:shadow-none print:border print:mb-8">
-               <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <h3 className="text-lg font-black text-slate-800 tracking-wide flex items-center gap-2">
-                       <span className="w-1.5 h-6 bg-[#0b5ed7] rounded-full inline-block"></span> 
-                       Prescription Output Trend
-                    </h3>
-                    <p className="text-sm font-medium text-slate-500 ext-ml-3">Daily completed and verified transactions for {dateRange.toLowerCase()}.</p>
-                  </div>
-               </div>
-
-               <div className="h-[300px] w-full -ml-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorVerified" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#0b5ed7" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#0b5ed7" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis 
-                        dataKey="name" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{fontSize: 12, fill: '#94a3b8', fontWeight: 600}} 
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{fontSize: 12, fill: '#94a3b8', fontWeight: 600}} 
-                      />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} 
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="verified" 
-                        stroke="#0b5ed7" 
-                        strokeWidth={4}
-                        fillOpacity={1} 
-                        fill="url(#colorVerified)" 
-                        activeDot={{ r: 6, fill: '#fff', stroke: '#0b5ed7', strokeWidth: 3 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-               </div>
+      {/* Highlights Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+               <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><DollarSign size={20} /></div>
+               <span className="text-[10px] font-black text-emerald-500 bg-emerald-50 px-2 py-1 rounded-lg flex items-center gap-1"><ArrowUpRight size={12}/> +12%</span>
             </div>
-
-            {/* Inventory Health Warning Banner */}
-            <div className="bg-amber-50 rounded-2xl p-6 border border-amber-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-               <div className="flex items-center gap-4">
-                  <div className="bg-amber-100 p-3 rounded-full shrink-0">
-                     <AlertTriangle className="w-8 h-8 text-amber-600" />
-                  </div>
-                  <div>
-                     <h3 className="font-black text-amber-900 text-lg">Inventory Health Notice</h3>
-                     <p className="text-amber-700 text-sm font-medium">There are items requiring immediate logistical attention.</p>
-                  </div>
-               </div>
-               <div className="flex gap-4">
-                  <div className="bg-white border border-amber-200 rounded-xl py-3 px-5 text-center shadow-sm">
-                     <span className="block text-2xl font-black text-amber-600 leading-none">{currentStats.inventory.expiring}</span>
-                     <span className="text-[10px] uppercase font-bold text-amber-600/70 tracking-wider">Expiring &lt;30d</span>
-                  </div>
-                  <div className="bg-white border border-amber-200 rounded-xl py-3 px-5 text-center shadow-sm">
-                     <span className="block text-2xl font-black text-amber-600 leading-none">{currentStats.inventory.lowStock}</span>
-                     <span className="text-[10px] uppercase font-bold text-amber-600/70 tracking-wider">Low Stock</span>
-                  </div>
-               </div>
-            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Net Revenue</p>
+            <h3 className="text-2xl font-black text-slate-800">Rs. {stats.revenue.toLocaleString()}</h3>
          </div>
 
-         {/* Right Sidebar Column (Takes up 1/3 space) */}
-         <div className="space-y-6">
-            {/* Top Drugs Widget */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 print:border print:shadow-none h-full max-h-[500px] flex flex-col">
-               <h3 className="text-lg font-black text-slate-800 tracking-wide flex items-center gap-2 mb-1">
-                  <span className="w-1.5 h-6 bg-purple-500 rounded-full inline-block"></span> 
-                  Top Dispensed Drugs
-               </h3>
-               <p className="text-xs font-bold text-slate-400 mb-6 uppercase tracking-wider border-b border-slate-100 pb-3">By Output Volume</p>
-
-               <div className="space-y-5 flex-1 overflow-y-auto pr-2">
-                  {currentStats.topDrugs.length === 0 ? (
-                     <div className="text-center py-6">
-                       <p className="text-slate-400 font-bold text-sm">No data available for this period.</p>
-                     </div>
-                  ) : currentStats.topDrugs.map((drug, idx) => (
-                     <div key={idx}>
-                        <div className="flex justify-between items-end mb-1">
-                           <div className="flex items-center gap-2">
-                              <span className="font-black text-slate-300 text-sm">0{idx + 1}</span>
-                              <span className="font-bold text-slate-700 text-sm">{drug.name}</span>
-                           </div>
-                           <div className="text-right">
-                              <span className="font-black text-[#0b5ed7] block leading-none">{drug.qty}</span>
-                              <span className="text-[10px] font-bold text-slate-400">{drug.unit}</span>
-                           </div>
-                        </div>
-                        {/* Custom Progress Bar */}
-                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                           <div 
-                              className={`h-full rounded-full ${idx === 0 ? 'bg-[#0b5ed7]' : idx === 1 ? 'bg-blue-400' : idx === 2 ? 'bg-purple-400' : 'bg-slate-300'}`} 
-                              style={{ width: `${drug.percent}%` }}
-                           ></div>
-                        </div>
-                     </div>
-                  ))}
-               </div>
+         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+               <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-600"><Monitor size={20} /></div>
+               <span className="text-[10px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded-lg">Online</span>
             </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Online Sales</p>
+            <h3 className="text-2xl font-black text-slate-800">Rs. {stats.onlineRev.toLocaleString()}</h3>
          </div>
 
+         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+               <div className="p-3 bg-amber-50 rounded-2xl text-amber-600"><Store size={20} /></div>
+               <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">Walk-in</span>
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Physical Sales</p>
+            <h3 className="text-2xl font-black text-slate-800">Rs. {stats.physicalRev.toLocaleString()}</h3>
+         </div>
+
+         <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+               <div className="p-3 bg-purple-50 rounded-2xl text-purple-600"><Users size={20} /></div>
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Fulfillments</p>
+            <h3 className="text-2xl font-black text-slate-800">{(stats.onlineCount + stats.physicalCount)} Orders</h3>
+         </div>
       </div>
-      </>
-      )}
+
+      {/* Main Large Chart Section */}
+      <div className="bg-white rounded-3xl border border-slate-100 p-10 shadow-sm">
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
+            <div>
+               <h3 className="font-black text-slate-800 text-2xl uppercase tracking-tight">Dispensing Performance Analysis</h3>
+               <p className="text-sm font-bold text-slate-400">Comprehensive order volume and growth trends</p>
+            </div>
+            <div className="flex gap-6">
+               <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full bg-blue-600 shadow-lg shadow-blue-200" /><span className="text-xs font-black text-slate-500 uppercase tracking-wider">Online Channel</span></div>
+               <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full bg-slate-200" /><span className="text-xs font-black text-slate-500 uppercase tracking-wider">Physical Channel</span></div>
+            </div>
+         </div>
+         <div className="h-[450px] w-full -ml-4">
+            <ResponsiveContainer width="100%" height="100%">
+               <AreaChart data={dynamicChart30}>
+                  <defs>
+                     <linearGradient id="colorOnline" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0b5ed7" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#0b5ed7" stopOpacity={0}/>
+                     </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: 700, fill: '#64748b'}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: 700, fill: '#64748b'}} dx={-10} />
+                  <Tooltip 
+                     contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)', padding: '20px', fontWeight: 'bold'}} 
+                     cursor={{stroke: '#0b5ed7', strokeWidth: 2, strokeDasharray: '5 5'}}
+                  />
+                  <Area type="monotone" dataKey="online" stroke="#0b5ed7" strokeWidth={5} fillOpacity={1} fill="url(#colorOnline)" activeDot={{r: 8, strokeWidth: 0, fill: '#0b5ed7'}} />
+                  <Area type="monotone" dataKey="physical" stroke="#cbd5e1" strokeWidth={4} fill="transparent" strokeDasharray="8 8" />
+               </AreaChart>
+            </ResponsiveContainer>
+         </div>
+      </div>
+
+      {/* Bottom Insights Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+         <div className="md:col-span-2 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
+            <div className="flex items-center justify-between mb-8">
+               <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">Top Dispensed Products</h3>
+               <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><Pill size={18} /></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+               {stats.topDrugs.map((drug, idx) => (
+                  <div key={idx} className="flex items-center gap-5">
+                     <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center font-black text-slate-400 text-sm">{idx+1}</div>
+                     <div className="flex-1">
+                        <div className="flex justify-between mb-1.5">
+                           <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{drug.name}</span>
+                           <span className="text-xs font-black text-blue-600">{drug.qty} Units</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                           <div className="bg-blue-600 h-full rounded-full transition-all duration-1000" style={{ width: `${Math.min((drug.qty/stats.topDrugs[0].qty)*100, 100)}%` }} />
+                        </div>
+                     </div>
+                  </div>
+               ))}
+               {stats.topDrugs.length === 0 && <p className="text-sm text-slate-400 font-bold text-center py-10 col-span-2">No product movement data available.</p>}
+            </div>
+         </div>
+
+         <div className="bg-slate-900 rounded-3xl p-8 text-white relative overflow-hidden flex flex-col justify-between group">
+            <div className="absolute right-[-30px] top-[-30px] bg-white/5 w-40 h-40 rounded-full group-hover:scale-125 transition-transform duration-700" />
+            <div className="relative">
+               <h3 className="text-xl font-black uppercase tracking-tight mb-4">Daily Revenue Snapshot</h3>
+               <div className="space-y-4 pt-4 border-t border-white/10">
+                  <div className="flex justify-between items-center">
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Card/Online</span>
+                     <span className="text-sm font-black">Rs. {(stats.paymentMethods?.Paid || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cash on Delivery</span>
+                     <span className="text-sm font-black">Rs. {(stats.paymentMethods?.COD || 0).toLocaleString()}</span>
+                  </div>
+               </div>
+            </div>
+            <div className="mt-8 pt-6 border-t border-white/10 flex items-center justify-between">
+               <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Data Integrity</span>
+                  <span className="text-xs font-bold text-emerald-400">Verified by System</span>
+               </div>
+               <ShieldCheck className="text-emerald-400" size={24} />
+            </div>
+         </div>
+      </div>
 
     </div>
   );

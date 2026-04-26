@@ -6,7 +6,10 @@ import {
   collection, addDoc, serverTimestamp,
   query, where, onSnapshot
 } from 'firebase/firestore';
-import { Send, Mail, CheckCircle, MailOpen, Clock, Pill, MessageSquare } from 'lucide-react';
+import { 
+  Send, Mail, CheckCircle, MailOpen, Clock, 
+  Pill, MessageSquare, Image, Mic, XCircle, Trash2 
+} from 'lucide-react';
 
 const C = {
   bg:          "#f1f5f9",
@@ -37,6 +40,13 @@ export default function ContactPage() {
   const [submittedEmail, setSubmittedEmail] = useState('');
   const unsubRef = useRef(null);
 
+  // Multimedia States
+  const [customerImage, setCustomerImage] = useState(null);
+  const [customerVoice, setCustomerVoice] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
   useEffect(() => {
     if (!submittedEmail) return;
     if (unsubRef.current) unsubRef.current();
@@ -51,13 +61,51 @@ export default function ContactPage() {
     return () => { if (unsubRef.current) unsubRef.current(); };
   }, [submittedEmail]);
 
+  // Multimedia Logic
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setCustomerImage(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => setCustomerVoice(reader.result);
+        reader.readAsDataURL(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) { console.error("Mic access denied", err); }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name || !email || !message) { alert('Please fill all fields'); return; }
+    if (!name || !email || (!message && !customerImage && !customerVoice)) { alert('Please fill all fields'); return; }
     setSending(true);
     try {
       await addDoc(collection(db, 'contactMessages'), {
         name, email, message,
+        customerImage,
+        customerVoice,
         reply: '',
         status: 'unread',
         createdAt: serverTimestamp(),
@@ -65,6 +113,8 @@ export default function ContactPage() {
       setSubmittedEmail(email);
       setSent(true);
       setMessage('');
+      setCustomerImage(null);
+      setCustomerVoice(null);
       setTimeout(() => setSent(false), 4000);
     } catch (err) {
       alert(`Failed to send: ${err.message}`);
@@ -100,12 +150,7 @@ export default function ContactPage() {
             >
               <Mail size={20} color={C.accent} />
             </div>
-            <h1
-              className="text-2xl font-semibold mb-[6px]"
-              
-            >
-              Contact Us
-            </h1>
+            <h1 className="text-2xl font-semibold mb-[6px]">Contact Us</h1>
             <p className="text-[13px]" style={{ color: C.textMuted }}>
               Send us a message and our pharmacist will reply shortly.
             </p>
@@ -113,173 +158,124 @@ export default function ContactPage() {
 
           {/* Success banner */}
           {sent && (
-            <div
-              className="flex items-center gap-2 rounded-lg px-[14px] py-[10px] mb-[18px]"
-              style={{
-                background: "rgba(16,185,129,0.08)",
-                border: "1px solid rgba(16,185,129,0.25)",
-              }}
-            >
+            <div className="flex items-center gap-2 rounded-lg px-[14px] py-[10px] mb-[18px]" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }}>
               <CheckCircle size={15} color="#059669" />
-              <span className="text-[13px] font-medium" style={{ color: "#059669" }}>
-                Message sent! We'll get back to you soon.
-              </span>
+              <span className="text-[13px] font-medium" style={{ color: "#059669" }}>Message sent! We'll get back to you soon.</span>
             </div>
           )}
 
           {/* Contact form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <input
-              type="text"
-              placeholder="Your Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border"
-              style={{
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                color: C.textPrimary,
-                fontFamily: FONT.body,
-              }}
-              required
-            />
-            <input
-              type="email"
-              placeholder="Your Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border"
-              style={{
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                color: C.textPrimary,
-                fontFamily: FONT.body,
-              }}
-              required
-            />
-            <textarea
-              placeholder="Your Message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border h-[120px] resize-none"
-              style={{
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                color: C.textPrimary,
-                fontFamily: FONT.body,
-              }}
-              required
-            />
+            <div className="flex gap-3">
+               <input
+                 type="text" placeholder="Your Name" value={name}
+                 onChange={(e) => setName(e.target.value)}
+                 className="flex-1 rounded-lg px-[14px] py-[10px] text-[13px] outline-none border border-[rgba(26,135,225,0.18)]"
+                 required
+               />
+               <input
+                 type="email" placeholder="Your Email" value={email}
+                 onChange={(e) => setEmail(e.target.value)}
+                 className="flex-1 rounded-lg px-[14px] py-[10px] text-[13px] outline-none border border-[rgba(26,135,225,0.18)]"
+                 required
+               />
+            </div>
+
+            <div className="relative">
+               <textarea
+                 placeholder="Your Message" value={message}
+                 onChange={(e) => setMessage(e.target.value)}
+                 className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none border border-[rgba(26,135,225,0.18)] h-[120px] resize-none"
+               />
+               <div className="absolute bottom-3 right-3 flex gap-2">
+                  <button type="button" onClick={() => document.getElementById('cust-img').click()} className="p-2 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-blue-500 shadow-sm"><Image size={14} /></button>
+                  <button type="button" onMouseDown={startRecording} onMouseUp={stopRecording} className={`p-2 rounded-lg border shadow-sm ${isRecording ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-white text-slate-500 border-slate-200'}`}><Mic size={14} /></button>
+               </div>
+               <input type="file" id="cust-img" className="hidden" accept="image/*" onChange={handleImageSelect} />
+            </div>
+
+            {/* Multimedia Previews */}
+            {(customerImage || customerVoice) && (
+              <div className="flex gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                {customerImage && (
+                  <div className="relative group">
+                    <img src={customerImage} className="w-16 h-16 rounded-lg object-cover border border-white shadow-sm" alt="Preview" />
+                    <button type="button" onClick={() => setCustomerImage(null)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"><XCircle size={10} /></button>
+                  </div>
+                )}
+                {customerVoice && (
+                  <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-slate-500 uppercase">Voice Ready</span>
+                    <button type="button" onClick={() => setCustomerVoice(null)} className="ml-auto text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
-              type="submit"
-              disabled={sending}
-              className="flex items-center justify-center gap-[7px] text-white border-none rounded-[9px] py-3 text-[14px] font-semibold"
-              style={{
-                background: sending ? "rgba(26,135,225,0.4)" : C.accent,
-                cursor: sending ? "not-allowed" : "pointer",
-                fontFamily: FONT.body,
-                boxShadow: sending ? "none" : "0 4px 12px rgba(26,135,225,0.25)",
-              }}
+              type="submit" disabled={sending}
+              className="flex items-center justify-center gap-[7px] text-white border-none rounded-[9px] py-3 text-[14px] font-bold shadow-lg"
+              style={{ background: sending ? "rgba(26,135,225,0.4)" : C.accent }}
             >
-              <Send size={14} />
-              {sending ? "Sending..." : "Send Message"}
+              <Send size={14} /> {sending ? "Sending..." : "Send Message"}
             </button>
+            {isRecording && <p className="text-center text-[10px] font-black text-red-500 animate-pulse uppercase tracking-widest">Recording Voice Message...</p>}
           </form>
         </div>
 
         {/* ── Message history ── */}
         {myMessages.length > 0 && (
-          <div
-            className="rounded-2xl px-7 py-6"
-            style={{
-              background: C.surface,
-              border: `1px solid ${C.border}`,
-              boxShadow: "0 1px 4px rgba(26,135,225,0.07)",
-            }}
-          >
-            <div className="flex items-center gap-2 mb-[18px]">
+          <div className="rounded-2xl px-7 py-6 bg-white border border-[rgba(26,135,225,0.18)] shadow-sm">
+            <div className="flex items-center gap-2 mb-6">
               <MessageSquare size={16} color={C.accent} />
-              <h2 className="text-[15px] font-bold" style={{ color: C.textPrimary }}>
-                Your Messages
-              </h2>
+              <h2 className="text-[15px] font-bold" style={{ color: C.textPrimary }}>Your Conversations</h2>
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {myMessages.map((msg) => {
                 const s = statusStyle(msg.status);
                 const StatusIcon = s.icon;
                 return (
-                  <div
-                    key={msg.id}
-                    className="rounded-xl overflow-hidden"
-                    style={{ border: `1px solid ${C.border}` }}
-                  >
+                  <div key={msg.id} className="rounded-2xl overflow-hidden border border-[rgba(26,135,225,0.12)] shadow-sm">
                     {/* Customer's original message */}
-                    <div className="px-4 py-[14px]" style={{ background: C.bg }}>
-                      <div className="flex justify-between items-center mb-2">
-                        <p
-                          className="text-[10px] font-bold uppercase tracking-[0.08em]"
-                          style={{ color: C.textMuted }}
-                        >
-                          Your Message
-                        </p>
-                        {/* Status badge */}
-                        <span
-                          className="text-[10px] font-bold px-[10px] py-[3px] rounded-[20px] uppercase tracking-[0.06em] inline-flex items-center gap-1"
-                          style={{
-                            background: s.bg,
-                            color: s.color,
-                            border: `1px solid ${s.border}`,
-                          }}
-                        >
-                          <StatusIcon size={10} /> {s.label}
-                        </span>
+                    <div className="px-5 py-4 bg-slate-50/50">
+                      <div className="flex justify-between items-center mb-3">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Inquiry</p>
+                        <span className="text-[10px] font-bold px-[10px] py-[3px] rounded-full uppercase tracking-widest inline-flex items-center gap-1" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}><StatusIcon size={10} /> {s.label}</span>
                       </div>
-                      <p
-                        className="text-[13px] leading-[1.6]"
-                        style={{ color: C.textPrimary }}
-                      >
-                        {msg.message}
-                      </p>
+                      <p className="text-[13px] leading-relaxed text-slate-700">{msg.message}</p>
+                      
+                      {/* Customer Multimedia History */}
+                      {(msg.customerImage || msg.customerVoice) && (
+                        <div className="mt-4 flex flex-col gap-3 pt-3 border-t border-slate-200/50">
+                          {msg.customerImage && <img src={msg.customerImage} className="max-w-full rounded-xl border-2 border-white shadow-sm" alt="Your attachment" />}
+                          {msg.customerVoice && <audio controls src={msg.customerVoice} className="w-full h-8" />}
+                        </div>
+                      )}
                     </div>
 
                     {/* Pharmacist reply */}
                     {msg.reply ? (
-                      <div
-                        className="px-4 py-[14px]"
-                        style={{
-                          background: "rgba(26,135,225,0.04)",
-                          borderTop: `1px solid ${C.border}`,
-                        }}
-                      >
-                        <div className="flex items-center gap-[6px] mb-2">
-                          <Pill size={12} color={C.accent} />
-                          <p
-                            className="text-[10px] font-bold uppercase tracking-[0.08em]"
-                            style={{ color: C.accent }}
-                          >
-                            Pharmacist Reply
-                          </p>
+                      <div className="px-5 py-4 bg-blue-50/30 border-t border-[rgba(26,135,225,0.08)]">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-1 h-3 rounded-full bg-blue-500" />
+                          <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Pharmacist Feedback</p>
                         </div>
-                        <p
-                          className="text-[13px] leading-[1.6]"
-                          style={{ color: C.textPrimary }}
-                        >
-                          {msg.reply}
-                        </p>
+                        <p className="text-[13px] leading-relaxed text-slate-800">{msg.reply}</p>
+                        
+                        {/* Pharmacist Multimedia History */}
+                        {(msg.replyImage || msg.replyVoice) && (
+                          <div className="mt-4 flex flex-col gap-3 pt-3 border-t border-blue-200/20">
+                            {msg.replyImage && <img src={msg.replyImage} className="max-w-full rounded-xl border-2 border-white shadow-sm" alt="Pharmacist attachment" />}
+                            {msg.replyVoice && <audio controls src={msg.replyVoice} className="w-full h-8" />}
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <div
-                        className="px-4 py-3 flex items-center justify-center gap-[6px]"
-                        style={{
-                          background: "rgba(245,158,11,0.04)",
-                          borderTop: "1px solid rgba(245,158,11,0.2)",
-                        }}
-                      >
-                        <Clock size={12} color="#d97706" />
-                        <p className="text-[12px] font-medium" style={{ color: "#d97706" }}>
-                          Waiting for pharmacist reply...
-                        </p>
+                      <div className="px-5 py-3 bg-amber-50/20 border-t border-amber-100 flex items-center justify-center gap-2 text-amber-600">
+                        <Clock size={12} className="animate-spin" />
+                        <p className="text-[11px] font-bold uppercase tracking-widest">Consultation in Progress...</p>
                       </div>
                     )}
                   </div>

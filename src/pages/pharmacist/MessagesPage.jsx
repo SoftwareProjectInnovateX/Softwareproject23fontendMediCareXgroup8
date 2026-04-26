@@ -1,13 +1,14 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { db } from '../../lib/firebase';
 import {
   collection, onSnapshot, orderBy,
-  query, doc, updateDoc
+  query, doc, updateDoc, deleteDoc
 } from 'firebase/firestore';
 import {
   MessageSquare, Mail, Send, Inbox,
   CheckCheck, MailOpen, Clock,
+  Image, Mic, XCircle, Trash2
 } from 'lucide-react';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
@@ -55,14 +56,88 @@ export default function MessagesPage() {
   const [reply, setReply]           = useState('');   // draft reply text
   const [sending, setSending]       = useState(false);
 
-  // Real-time listener – messages ordered newest-first
+  // Multimedia States
+  const [replyImage, setReplyImage] = useState(null);
+  const [replyVoice, setReplyVoice] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  // Real-time listener – messages ordered newest-first, filtering out soft-deleted ones
   useEffect(() => {
     const q = query(collection(db, 'contactMessages'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // Robust filter: ignore case and handle potential undefined status
+      setMessages(all.filter(m => {
+        const s = (m.status || '').toLowerCase();
+        return s !== 'deleted';
+      }));
     });
     return () => unsub();
   }, []);
+
+  /**
+   * Soft-deletes a message from view by setting status to 'deleted'.
+   * Performs an optimistic update to make the removal feel instant.
+   */
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to remove this message?')) return;
+    
+    // Optimistic Update: Remove from local state instantly
+    setMessages(prev => prev.filter(m => m.id !== id));
+    if (selectedId === id) setSelectedId(null);
+
+    try {
+      await updateDoc(doc(db, 'contactMessages', id), { status: 'deleted' });
+    } catch (err) {
+      alert(`Failed to remove: ${err.message}`);
+      // Re-fetch or rely on next snapshot if it fails
+    }
+  };
+
+  // Multimedia Logic
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setReplyImage(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => setReplyVoice(reader.result);
+        reader.readAsDataURL(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Mic access denied", err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   // Derive selected message object from ID
   const selected = messages.find((m) => m.id === selectedId);
@@ -74,23 +149,30 @@ export default function MessagesPage() {
   const handleSelect = async (msg) => {
     setSelectedId(msg.id);
     setReply(msg.reply || '');
+    setReplyImage(msg.replyImage || null);
+    setReplyVoice(msg.replyVoice || null);
     if (msg.status === 'unread') {
       await updateDoc(doc(db, 'contactMessages', msg.id), { status: 'read' });
     }
   };
 
   /**
-   * Saves the reply text to Firestore and sets status to "replied".
-   * Does not send an actual email – the reply is stored for display only.
+   * Saves the reply text (and any multimedia) to Firestore and sets status to "replied".
    */
   const handleReply = async () => {
-    if (!reply.trim()) return;
+    if (!reply.trim() && !replyImage && !replyVoice) return;
     setSending(true);
     try {
       await updateDoc(doc(db, 'contactMessages', selectedId), {
         reply,
+        replyImage,
+        replyVoice,
         status: 'replied',
+        repliedAt: new Date(),
       });
+      setReply('');
+      setReplyImage(null);
+      setReplyVoice(null);
       alert('Reply sent successfully.');
     } catch (err) {
       alert(`Failed: ${err.message}`);
@@ -147,7 +229,16 @@ export default function MessagesPage() {
                     <p className={`text-[13px] ${isUnread ? "font-bold" : "font-semibold"} text-[#1e293b] overflow-hidden text-ellipsis whitespace-nowrap flex-1`}>
                       {msg.name}
                     </p>
-                    <StatusBadge status={msg.status} />
+                    <div className="flex items-center gap-2 group/item">
+                       <StatusBadge status={msg.status} />
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); handleDelete(msg.id); }}
+                         className="opacity-0 group-hover/item:opacity-100 p-1 rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                         title="Quick Delete"
+                       >
+                         <Trash2 size={12} />
+                       </button>
+                    </div>
                   </div>
                   <p className="text-[11px] text-[#64748b] mt-[3px]">{msg.email}</p>
                   {/* Truncated message preview */}
@@ -186,7 +277,16 @@ export default function MessagesPage() {
                       <p className="text-[12px] text-[#64748b]">{selected.email}</p>
                     </div>
                   </div>
-                  <StatusBadge status={selected.status} />
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={selected.status} />
+                    <button 
+                      onClick={() => handleDelete(selected.id)}
+                      className="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all border border-transparent hover:border-red-100"
+                      title="Delete Conversation"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -196,9 +296,20 @@ export default function MessagesPage() {
                   Customer Message
                 </p>
                 <div className="bg-[#f1f5f9] border border-[rgba(26,135,225,0.18)] rounded-[10px] px-4 py-3">
-                  <p className="text-[13px] text-[#1e293b] leading-[1.7]">
+                  <p className="text-[13px] text-[#1e293b] leading-[1.7] mb-3">
                     {selected.message}
                   </p>
+                  {/* Customer Multimedia */}
+                  {(selected.customerImage || selected.customerVoice) && (
+                    <div className="flex flex-col gap-3 mt-3 pt-3 border-t border-slate-200">
+                      {selected.customerImage && (
+                        <img src={selected.customerImage} className="max-w-full rounded-lg shadow-sm border border-white" alt="Customer attachment" />
+                      )}
+                      {selected.customerVoice && (
+                        <audio controls src={selected.customerVoice} className="w-full h-8" />
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -208,18 +319,73 @@ export default function MessagesPage() {
                   <p className="text-[10px] font-bold text-[#1a87e1] uppercase tracking-[0.08em] mb-[10px]">
                     Your Reply
                   </p>
-                  <p className="text-[13px] text-[#1e293b] leading-[1.7]">
+                  <p className="text-[13px] text-[#1e293b] leading-[1.7] mb-3">
                     {selected.reply}
                   </p>
+                  {/* Pharmacist Multimedia */}
+                  {(selected.replyImage || selected.replyVoice) && (
+                    <div className="flex flex-col gap-3 mt-3 pt-3 border-t border-blue-200/30">
+                      {selected.replyImage && (
+                        <img src={selected.replyImage} className="max-w-full rounded-lg shadow-sm border border-white" alt="Pharmacist attachment" />
+                      )}
+                      {selected.replyVoice && (
+                        <audio controls src={selected.replyVoice} className="w-full h-8" />
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Sticky reply composer at the bottom */}
             <div className="border-t border-[rgba(26,135,225,0.18)] bg-white px-5 py-4">
-              <p className="text-[11px] font-bold text-[#64748b] uppercase tracking-[0.08em] mb-2">
-                {selected.reply ? 'Update Reply' : 'Write a Reply'}
-              </p>
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-[11px] font-bold text-[#64748b] uppercase tracking-[0.08em]">
+                  {selected.reply ? 'Update Reply' : 'Write a Reply'}
+                </p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => document.getElementById('reply-img-input').click()}
+                    className="p-2 rounded-lg bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-500 transition-colors border border-slate-200"
+                    title="Attach Image"
+                  >
+                    <Image size={14} />
+                  </button>
+                  <button 
+                    onMouseDown={startRecording}
+                    onMouseUp={stopRecording}
+                    className={`p-2 rounded-lg transition-colors border ${isRecording ? 'bg-red-50 text-red-500 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-amber-50 hover:text-amber-500'}`}
+                    title="Hold to Record Voice"
+                  >
+                    <Mic size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <input 
+                type="file" id="reply-img-input" className="hidden" 
+                accept="image/*" onChange={handleImageSelect} 
+              />
+
+              {/* Multimedia Previews */}
+              {(replyImage || replyVoice) && (
+                <div className="mb-3 flex gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  {replyImage && (
+                    <div className="relative group">
+                      <img src={replyImage} className="w-16 h-16 rounded-lg object-cover border border-white shadow-sm" alt="Preview" />
+                      <button onClick={() => setReplyImage(null)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><XCircle size={10} /></button>
+                    </div>
+                  )}
+                  {replyVoice && (
+                    <div className="flex-1 flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
+                      <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Voice Note Ready</span>
+                      <button onClick={() => setReplyVoice(null)} className="ml-auto text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <textarea
                 rows={3}
                 value={reply}
@@ -227,19 +393,22 @@ export default function MessagesPage() {
                 placeholder="Type your reply here..."
                 className="w-full border border-[rgba(26,135,225,0.18)] rounded-[10px] px-[14px] py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none resize-none bg-[#f1f5f9] box-border"
               />
-              {/* Send button disabled while sending or when reply is empty */}
-              <button
-                onClick={handleReply}
-                disabled={sending || !reply.trim()}
-                className={`mt-[10px] inline-flex items-center gap-[7px] text-white border-none rounded-[9px] px-5 py-[10px] text-[13px] font-semibold font-['DM_Sans',sans-serif] transition-all ${
-                  sending || !reply.trim()
-                    ? "bg-[rgba(26,135,225,0.35)] cursor-not-allowed shadow-none"
-                    : "bg-[#1a87e1] cursor-pointer shadow-[0_4px_12px_rgba(26,135,225,0.25)]"
-                }`}
-              >
-                <Send size={13} />
-                {sending ? 'Sending...' : selected.reply ? 'Update Reply' : 'Send Reply'}
-              </button>
+              
+              <div className="flex justify-between items-center mt-3">
+                <button
+                  onClick={handleReply}
+                  disabled={sending || (!reply.trim() && !replyImage && !replyVoice)}
+                  className={`inline-flex items-center gap-[7px] text-white border-none rounded-[9px] px-5 py-[10px] text-[13px] font-semibold font-['DM_Sans',sans-serif] transition-all ${
+                    sending || (!reply.trim() && !replyImage && !replyVoice)
+                      ? "bg-[rgba(26,135,225,0.35)] cursor-not-allowed shadow-none"
+                      : "bg-[#1a87e1] cursor-pointer shadow-[0_4px_12px_rgba(26,135,225,0.25)]"
+                  }`}
+                >
+                  <Send size={13} />
+                  {sending ? 'Sending...' : selected.reply ? 'Update Reply' : 'Send Reply'}
+                </button>
+                {isRecording && <span className="text-[10px] font-black text-red-500 animate-pulse uppercase tracking-widest">Recording...</span>}
+              </div>
             </div>
           </>
         )}
