@@ -24,9 +24,9 @@ export default function MyProducts() {
   }, []);
 
   return (
-    <div className="font-['DM_Sans',sans-serif]">
+    <div className="font-['Inter',sans-serif]">
       <div className="mb-6">
-        <h1 className="font-['Playfair_Display',serif] text-[26px] text-[#1e293b] font-semibold">
+        <h1 className="font-['Inter',sans-serif] text-[26px] text-[#1e293b] font-semibold">
           My Products
         </h1>
         <p className="text-[13px] text-[#64748b] mt-[5px]">

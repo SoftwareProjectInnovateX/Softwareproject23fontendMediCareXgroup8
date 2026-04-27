@@ -43,16 +43,19 @@ const PharmacistPatients = () => {
           status: d2.status || 'active',
           registrationSource: d2.registrationSource || 'app',
           lastVisit: d2.lastVisit || null,
-          medications: (d2.medications || []).map(m => ({
-            name: m.name || 'Unknown',
-            form: m.category === 'rx' ? `Qty: ${m.qty}` : 'OTC/General',
-            sig: `Qty: ${m.qty} · Rs. ${Number(m.price || 0).toFixed(2)} each`,
-            date: m.date || '—',
-            timestamp: m.timestamp || 0,
-            prescriber: m.dispensedAt || 'Walk-in POS',
-            status: 'Active',
-            paymentMethod: m.paymentMethod || '—',
-          })),
+          medications: (d2.medications || []).map(m => {
+            const isRx = m.category === 'rx' || (m.form && m.form.toLowerCase().includes('qty'));
+            return {
+              name: m.name || 'Unknown',
+              form: isRx ? (m.form || `Qty: ${m.qty}`) : 'OTC/General',
+              sig: m.sig || `Qty: ${m.qty} · Rs. ${Number(m.price || 0).toFixed(2)} each`,
+              date: m.date || '—',
+              timestamp: m.timestamp || 0,
+              prescriber: m.dispensedAt || m.prescriber || 'Walk-in POS',
+              status: m.status || 'Active',
+              paymentMethod: m.paymentMethod || '—',
+            };
+          }),
           activeCount: (d2.medications || []).length,
           fading: false,
           avatarColor: d2.registrationSource === 'walkin' ? '047857' : '1d4ed8',
@@ -426,13 +429,13 @@ const PharmacistPatients = () => {
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Phone</span>
                      <span className="font-semibold text-slate-700">{activePatient.phone}</span>
                   </div>
-                  <div>
+                  <div className="md:col-span-1">
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</span>
                      <span className="font-semibold text-slate-700 break-all">{activePatient.email || 'N/A'}</span>
                   </div>
-                  <div>
+                  <div className="md:col-span-3">
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Address</span>
-                     <span className="font-semibold text-slate-700 whitespace-pre-wrap">{activePatient.address}</span>
+                     <span className="font-semibold text-slate-700">{activePatient.address}</span>
                   </div>
                   <div>
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Last Visit</span>
@@ -443,10 +446,10 @@ const PharmacistPatients = () => {
                   <div>
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Purchases</span>
                      <span className="font-bold text-blue-600">
-                       {activePatient.activeCount} item{activePatient.activeCount !== 1 ? 's' : ''}
+                       {activePatient.medications.length} item{activePatient.medications.length !== 1 ? 's' : ''}
                      </span>
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Channel</span>
                      <span className="font-semibold text-slate-600">{activePatient.physician}</span>
                   </div>

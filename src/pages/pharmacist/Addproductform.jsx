@@ -192,7 +192,7 @@ export default function AddProductForm() {
   };
 
   return (
-    <div className="flex flex-col gap-6 font-['DM_Sans',sans-serif]">
+    <div className="flex flex-col gap-6 font-['Inter',sans-serif]">
 
       {/* ── Pending Products from Admin ── */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">

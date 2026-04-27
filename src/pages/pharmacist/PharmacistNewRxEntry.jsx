@@ -111,6 +111,8 @@ const PharmacistNewRxEntry = () => {
           phone: d2.phone || cleaned,
           age: d2.age || '',
           address: d2.address || '',
+          medications: d2.medications || [],
+          activeCount: d2.activeCount || 0
         };
         setLinkedCustomer(cust);
         setPhoneStatus('found');
@@ -308,7 +310,13 @@ const PharmacistNewRxEntry = () => {
         
         // Save to Firebase
         const dbId = updatedPatients[pIdx].firebaseId || updatedPatients[pIdx].id;
-        if (dbId) updatePatient(dbId, { medications: updatedPatients[pIdx].medications, activeCount: updatedPatients[pIdx].activeCount }).catch(console.error);
+        if (dbId) {
+          updatePatient(dbId, { 
+            medications: updatedPatients[pIdx].medications, 
+            activeCount: updatedPatients[pIdx].medications.length,
+            lastVisit: dateStr 
+          }).catch(console.error);
+        }
         
       } else if (patientName || phone) {
         // Register new patient automatically only if at least name or phone is provided
@@ -358,10 +366,15 @@ const PharmacistNewRxEntry = () => {
           paymentMethod: paymentMethod === 'card' ? 'Card' : 'Cash',
           dispensedAt: 'Walk-in POS',
         }));
+        
+        const existingMeds = linkedCustomer.medications || [];
+        const finalMeds = [...purchasedMeds, ...existingMeds];
+        
         // Use backend service instead of direct updateDoc
         await updatePatient(linkedCustomer.firebaseUid, {
           lastVisit: dateStr,
-          medications: purchasedMeds, // backend should handle arrayUnion if implemented, or we send full list
+          medications: finalMeds,
+          activeCount: finalMeds.length
         });
       } catch (e) {
         console.error('Failed to update customer Firebase record:', e);
@@ -396,11 +409,15 @@ const PharmacistNewRxEntry = () => {
           );
           if (!chk.empty) {
             // Customer found (maybe role differs) — just update their record
-            const existId = chk.docs[0].id;
+            const existData = chk.docs[0].data();
+            const existingMeds = existData.medications || [];
+            const finalMeds = [...purchasedMeds, ...existingMeds];
+            
             // Use backend service
             await updatePatient(existId, {
               lastVisit: dateStr,
-              medications: purchasedMeds,
+              medications: finalMeds,
+              activeCount: finalMeds.length
             });
             alreadyExists = true;
           }

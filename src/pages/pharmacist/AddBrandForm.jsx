@@ -16,7 +16,7 @@ const C = {
   textSoft:    "#475569",
 };
 
-const FONT = { body: "'DM Sans', sans-serif" };
+const FONT = { body: "'Inter', sans-serif" };
 
 /**
  * Field – labelled wrapper for any form control.
@@ -112,7 +112,7 @@ export default function AddBrandForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-[14px] max-w-[520px] font-['DM_Sans',sans-serif]"
+      className="flex flex-col gap-[14px] max-w-[520px] font-['Inter',sans-serif]"
     >
 
       <Field label="Brand Name">
@@ -121,7 +121,7 @@ export default function AddBrandForm() {
           placeholder="e.g. Pfizer"
           value={form.name}
           onChange={handleChange}
-          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border"
           required
         />
       </Field>
@@ -132,7 +132,7 @@ export default function AddBrandForm() {
           placeholder="e.g. Premium Respiratory Care"
           value={form.tagline}
           onChange={handleChange}
-          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border"
         />
       </Field>
 
@@ -143,7 +143,7 @@ export default function AddBrandForm() {
           value={form.description}
           onChange={handleChange}
           rows={4}
-          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border resize-y"
+          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border resize-y"
           required
         />
       </Field>
@@ -154,7 +154,7 @@ export default function AddBrandForm() {
           placeholder="e.g. Respiratory, Wellness"
           value={form.category}
           onChange={handleChange}
-          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+          className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border"
           required
         />
       </Field>
@@ -215,7 +215,7 @@ export default function AddBrandForm() {
               placeholder="https://example.com/image.jpg"
               value={form.imageUrl}
               onChange={handleChange}
-              className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+              className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border"
             />
           </div>
         )}
@@ -233,7 +233,7 @@ export default function AddBrandForm() {
             max="5"
             value={form.rating}
             onChange={handleChange}
-            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border"
           />
         </Field>
         <Field label="No. of Products">
@@ -243,7 +243,7 @@ export default function AddBrandForm() {
             type="number"
             value={form.products}
             onChange={handleChange}
-            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border"
           />
         </Field>
       </div>
@@ -256,7 +256,7 @@ export default function AddBrandForm() {
             type="number"
             value={form.established}
             onChange={handleChange}
-            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border"
           />
         </Field>
         <Field label="Country">
@@ -265,7 +265,7 @@ export default function AddBrandForm() {
             placeholder="e.g. Germany"
             value={form.country}
             onChange={handleChange}
-            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-full box-border"
+            className="brand-input bg-white border border-[rgba(26,135,225,0.4)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none w-full box-border"
           />
         </Field>
       </div>
@@ -273,7 +273,7 @@ export default function AddBrandForm() {
       <button
         type="submit"
         disabled={loading}
-        className={`border-none rounded-[10px] px-3 py-3 text-[14px] font-semibold font-['DM_Sans',sans-serif] mt-1 text-white transition-all ${
+        className={`border-none rounded-[10px] px-3 py-3 text-[14px] font-semibold font-['Inter',sans-serif] mt-1 text-white transition-all ${
           loading
             ? "bg-[rgba(26,135,225,0.4)] cursor-not-allowed shadow-none"
             : "bg-[#1a87e1] cursor-pointer shadow-[0_4px_12px_rgba(26,135,225,0.25)]"

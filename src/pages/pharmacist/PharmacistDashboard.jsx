@@ -250,12 +250,18 @@ const PharmacistDashboard = () => {
         });
       });
 
-      entries.sort((a, b) => a.ts - b.ts);
       const formatted = entries.slice(-15).map(e => ({
         ...e,
         timeLabel: e.ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       }));
-      if (formatted.length > 0) setActivityLog(formatted);
+
+      setActivityLog(prev => {
+        const merged = [...formatted, ...prev.filter(p => 
+          !formatted.some(f => f.text === p.text && f.timeLabel === p.timeLabel)
+        )];
+        merged.sort((a, b) => b.ts - a.ts);
+        return merged.slice(-30);
+      });
       setLastUpdated(new Date());
 
     } catch(e) {
@@ -318,8 +324,8 @@ const PharmacistDashboard = () => {
     fetchInventoryData();
     updatePatientCount();
 
-    // Auto-refresh main dashboard data every 30 seconds
-    const dataTimer = setInterval(fetchAllDashboardData, 30000);
+    // Auto-refresh main dashboard data every 15 seconds for more responsive updates
+    const dataTimer = setInterval(fetchAllDashboardData, 15000);
 
     // 1-second live clock (no API calls, local only)
     const clockTimer = setInterval(() => {
@@ -368,7 +374,7 @@ const PharmacistDashboard = () => {
         const merged = [...prescEntries, ...prev.filter(p =>
           !prescEntries.some(pe => pe && pe.text === p.text && pe.timeLabel === p.timeLabel)
         )];
-        merged.sort((a, b) => a.ts - b.ts);
+        merged.sort((a, b) => b.ts - a.ts);
         return merged.slice(-30);
       });
       setLastUpdated(new Date());
@@ -409,7 +415,81 @@ const PharmacistDashboard = () => {
         const merged = [...notifEntries, ...prev.filter(p =>
           !notifEntries.some(ne => ne && ne.text === p.text && ne.timeLabel === p.timeLabel)
         )];
-        merged.sort((a, b) => a.ts - b.ts);
+        merged.sort((a, b) => b.ts - a.ts);
+        return merged.slice(-30);
+      });
+      setLastUpdated(new Date());
+    });
+
+    // --- Firebase onSnapshot - online orders real-time ------------------------
+    const ordersQ = query(
+      collection(db, 'CustomerOrders'),
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    );
+    const unsubOrders = onSnapshot(ordersQ, (snap) => {
+      const orderEntries = snap.docs.map(doc => {
+        const d = doc.data();
+        const ts = d.createdAt?.toDate ? d.createdAt.toDate() :
+                   d.createdAt ? new Date(d.createdAt) : new Date();
+        if (!isToday(ts)) return null;
+        const status = d.status || 'Received';
+        const color = status === 'Dispatched' ? 'bg-blue-500' :
+                      status === 'Cancelled'  ? 'bg-red-400'  : 'bg-amber-400';
+        const hlColor = status === 'Dispatched' ? 'text-blue-600' :
+                        status === 'Cancelled'  ? 'text-red-500'  : 'text-amber-600';
+        const patient = d.customerName || d.patient || 'Customer';
+        return {
+          ts, color,
+          text: `Online order ${status} - ${patient}`,
+          highlight: status,
+          highlightColor: hlColor,
+          timeLabel: ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        };
+      }).filter(Boolean);
+
+      setActivityLog(prev => {
+        const merged = [...orderEntries, ...prev.filter(p =>
+          !orderEntries.some(oe => oe && oe.text === p.text && oe.timeLabel === p.timeLabel)
+        )];
+        merged.sort((a, b) => b.ts - a.ts);
+        return merged.slice(-30);
+      });
+      setLastUpdated(new Date());
+    });
+
+    // --- Firebase onSnapshot - return requests real-time ----------------------
+    const returnsQ = query(
+      collection(db, 'CustomerReturns'),
+      orderBy('createdAt', 'desc'),
+      limit(10)
+    );
+    const unsubReturns = onSnapshot(returnsQ, (snap) => {
+      const returnEntries = snap.docs.map(doc => {
+        const d = doc.data();
+        const ts = d.createdAt?.toDate ? d.createdAt.toDate() :
+                   d.createdAt ? new Date(d.createdAt) : new Date();
+        if (!isToday(ts)) return null;
+        const status = d.status || 'Pending';
+        const color = status === 'Approved' ? 'bg-emerald-400' :
+                      status === 'Rejected' ? 'bg-red-400'     : 'bg-slate-400';
+        const hlColor = status === 'Approved' ? 'text-emerald-600' :
+                        status === 'Rejected' ? 'text-red-500'     : 'text-slate-500';
+        const item = d.itemName || d.medicineName || 'Item';
+        return {
+          ts, color,
+          text: `Return request ${status} - ${item}`,
+          highlight: status,
+          highlightColor: hlColor,
+          timeLabel: ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        };
+      }).filter(Boolean);
+
+      setActivityLog(prev => {
+        const merged = [...returnEntries, ...prev.filter(p =>
+          !returnEntries.some(re => re && re.text === p.text && re.timeLabel === p.timeLabel)
+        )];
+        merged.sort((a, b) => b.ts - a.ts);
         return merged.slice(-30);
       });
       setLastUpdated(new Date());
@@ -424,13 +504,15 @@ const PharmacistDashboard = () => {
       window.removeEventListener('patient_registered', updatePatientCount);
       unsubPrescriptions();
       unsubNotifications();
+      unsubOrders();
+      unsubReturns();
     };
   }, []);
 
-  // Auto-scroll to bottom when new log entries arrive
+  // Newest at top, no need to auto-scroll to bottom
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTop = 0;
     }
   }, [activityLog]);
 

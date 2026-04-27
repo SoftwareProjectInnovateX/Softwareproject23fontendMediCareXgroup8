@@ -21,11 +21,6 @@ const C = {
   textSoft:    "#475569",
 };
 
-const FONT = {
-  display: "'Playfair Display', serif",
-  body:    "'DM Sans', sans-serif",
-};
-
 // ── Style helpers ─────────────────────────────────────────────────────────────
 function orderStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
@@ -90,7 +85,6 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
         color:      disabled ? C.textMuted : color,
         border:     `1px solid ${disabled ? C.border : border}`,
         cursor:     disabled ? "not-allowed" : "pointer",
-        fontFamily: FONT.body,
       }}
     >
       <Icon size={13} strokeWidth={2.5} />
@@ -184,7 +178,6 @@ function OrderRow({ order, returnDoc, onStatusUpdate, updating }) {
         <button
           onClick={() => setExpanded(e => !e)}
           className="bg-[#f1f5f9] border border-[rgba(26,135,225,0.18)] rounded-lg px-3 py-[6px] cursor-pointer text-[#475569] text-[12px] flex items-center gap-[5px] font-semibold"
-          style={{ fontFamily: FONT.body }}
         >
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           {expanded ? "Hide" : "Details"}
@@ -422,9 +415,9 @@ export default function Orders() {
   });
 
   return (
-    <div className="font-['DM_Sans',sans-serif]">
+    <div>
       <div className="mb-6">
-        <h1 className="font-['Playfair_Display',serif] text-[26px] text-[#1e293b] font-semibold">Orders</h1>
+        <h1 className="text-[26px] text-[#1e293b] font-semibold">Orders</h1>
         <p className="text-[13px] text-[#64748b] mt-[5px]">Manage orders, approve delivery, and handle feedback.</p>
       </div>
 
@@ -455,7 +448,6 @@ export default function Orders() {
             onClick={() => setFilter(f.key)}
             className="text-[12px] font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer transition-all duration-150 border"
             style={{
-              fontFamily: FONT.body,
               background:
                 filter === f.key
                   ? f.key === "cod"     ? "rgba(245,158,11,0.12)"
@@ -485,7 +477,6 @@ export default function Orders() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="ml-auto bg-white border border-[rgba(26,135,225,0.18)] rounded-lg px-3 py-[7px] text-[12px] text-[#1e293b] outline-none w-60"
-          style={{ fontFamily: FONT.body }}
         />
       </div>
 

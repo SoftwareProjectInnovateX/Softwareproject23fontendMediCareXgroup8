@@ -60,25 +60,44 @@ export default function Prescriptions() {
     }
   }, [selTimes, currentMed.dosage, duration]);
 
-  // Fetch prescriptions - limit to 50 latest to save quota
-  const fetchPrescriptions = async () => {
+  // Real-time prescriptions subscription
+  useEffect(() => {
     setLoading(true);
-    try {
-      const q = query(collection(db, "prescriptions"), orderBy("createdAt", "desc"), limit(50));
-      const snap = await getDocs(q);
+    // Initial query sorts by date, we'll do secondary sorting in the callback
+    const q = query(collection(db, "prescriptions"), orderBy("createdAt", "desc"), limit(50));
+    
+    const unsubscribe = onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setPrescriptions(data);
       
-      if (selectedRx) {
-        const updated = data.find(item => item.id === selectedRx.id);
-        if (updated) setSelectedRx(updated);
-      }
-    } catch (err) {
-      console.error("Fetch error:", err);
-    } finally {
+      // Sort logic: 'Pending' status always at the top
+      const sorted = [...data].sort((a, b) => {
+        const statusA = (a.status || 'Pending').toLowerCase();
+        const statusB = (b.status || 'Pending').toLowerCase();
+        
+        if (statusA === 'pending' && statusB !== 'pending') return -1;
+        if (statusA !== 'pending' && statusB === 'pending') return 1;
+        
+        // If statuses are the same (or both not pending), maintain date sorting
+        return 0; 
+      });
+
+      setPrescriptions(sorted);
+      
+      // Sync selected prescription if it changes in background
+      setSelectedRx(prev => {
+        if (!prev) return null;
+        const updated = sorted.find(item => item.id === prev.id);
+        return updated || prev;
+      });
+      
       setLoading(false);
-    }
-  };
+    }, (err) => {
+      console.error("Prescription sync error:", err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const loadInventory = async (attempt = 1) => {
     try {
@@ -100,7 +119,6 @@ export default function Prescriptions() {
   };
 
   useEffect(() => {
-    fetchPrescriptions();
     loadInventory();
   }, []);
 
@@ -180,7 +198,6 @@ export default function Prescriptions() {
       setShowBillPreview(false);
       setSelectedRx(null);
       setMeds([]);
-      fetchPrescriptions();
     } catch (err) {
       alert(`Failed to approve: ${err.message}`);
     } finally {
@@ -200,7 +217,6 @@ export default function Prescriptions() {
       });
       alert("Prescription rejected.");
       setSelectedRx(null);
-      fetchPrescriptions();
     } catch (err) {
       alert(`Failed to reject: ${err.message}`);
     } finally {
@@ -221,13 +237,12 @@ export default function Prescriptions() {
               <ClipboardList className="text-blue-600" />
               Prescriptions
             </h1>
-            <button 
-              onClick={fetchPrescriptions}
-              className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500"
-              title="Refresh List"
+            <div 
+              className="p-2 bg-blue-50 text-blue-600 rounded-full animate-pulse"
+              title="Real-time Sync Active"
             >
               <Clock size={18} />
-            </button>
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full uppercase tracking-wider">

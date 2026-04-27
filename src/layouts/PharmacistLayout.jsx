@@ -57,7 +57,7 @@ const PharmacistLayout = () => {
 
   return (
     <AlertContext.Provider value={{ unreadAlerts, setUnreadAlerts, pendingRxCount, updateQueueCount, userProfile, setUserProfile }}>
-      <div className="flex bg-[#f5f9ff] min-h-screen font-sans transition-colors duration-200">
+      <div className="flex bg-[#f5f9ff] min-h-screen font-['Inter',sans-serif] transition-colors duration-200">
         <PharmacistSidebar />
         <div className="ml-64 flex-1 flex flex-col h-screen">
           <PharmacistHeader />

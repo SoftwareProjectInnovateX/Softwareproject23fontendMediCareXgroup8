@@ -23,7 +23,7 @@ const C = {
   textSoft:    "#475569",
 };
 
-const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
+const FONT = { display: "'Inter', sans-serif", body: "'Inter', sans-serif" };
 
 /**
  * Returns background, text colour, border and icon for a message status.
@@ -184,7 +184,7 @@ export default function MessagesPage() {
   const unreadCount = messages.filter((m) => m.status === 'unread').length;
 
   return (
-    <div className="flex overflow-hidden font-['DM_Sans',sans-serif] gap-0" style={{ height: "calc(100vh - 60px)" }}>
+    <div className="flex overflow-hidden font-['Inter',sans-serif] gap-0" style={{ height: "calc(100vh - 60px)" }}>
 
       {/* ── Left panel: scrollable message list ── */}
       <div className="w-[300px] shrink-0 bg-white border-r border-[rgba(26,135,225,0.18)] flex flex-col rounded-[14px_0_0_14px] overflow-hidden shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
@@ -391,14 +391,14 @@ export default function MessagesPage() {
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
                 placeholder="Type your reply here..."
-                className="w-full border border-[rgba(26,135,225,0.18)] rounded-[10px] px-[14px] py-[10px] text-[13px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none resize-none bg-[#f1f5f9] box-border"
+                className="w-full border border-[rgba(26,135,225,0.18)] rounded-[10px] px-[14px] py-[10px] text-[13px] text-[#1e293b] font-['Inter',sans-serif] outline-none resize-none bg-[#f1f5f9] box-border"
               />
               
               <div className="flex justify-between items-center mt-3">
                 <button
                   onClick={handleReply}
                   disabled={sending || (!reply.trim() && !replyImage && !replyVoice)}
-                  className={`inline-flex items-center gap-[7px] text-white border-none rounded-[9px] px-5 py-[10px] text-[13px] font-semibold font-['DM_Sans',sans-serif] transition-all ${
+                  className={`inline-flex items-center gap-[7px] text-white border-none rounded-[9px] px-5 py-[10px] text-[13px] font-semibold font-['Inter',sans-serif] transition-all ${
                     sending || (!reply.trim() && !replyImage && !replyVoice)
                       ? "bg-[rgba(26,135,225,0.35)] cursor-not-allowed shadow-none"
                       : "bg-[#1a87e1] cursor-pointer shadow-[0_4px_12px_rgba(26,135,225,0.25)]"

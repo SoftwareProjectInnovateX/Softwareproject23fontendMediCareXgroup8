@@ -18,8 +18,8 @@ const C = {
 };
 
 const FONT = {
-  display: "'Playfair Display', serif",
-  body:    "'DM Sans', sans-serif",
+  display: "'Inter', sans-serif",
+  body:    "'Inter', sans-serif",
 };
 
 function returnStatusStyle(status) {
