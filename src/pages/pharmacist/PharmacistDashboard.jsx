@@ -134,10 +134,11 @@ const PharmacistDashboard = () => {
       setPhysicalDispensedCount(physicalPatients.size);
 
       // ── Unified Revenue Calculation (Online + Dispensed) ──────────────────
+      const processedOnlineOrderIds = new Set();
       let opPaid = 0, opCod = 0;
       let orPaid = 0, orCod = 0;
 
-      // 1. First, process Online Orders (Incoming/Recent)
+      // 1. Process Online Orders (Incoming/Recent)
       onlineOrders.forEach(o => {
         const ts = o.createdAt?._seconds ? new Date(o.createdAt._seconds * 1000) :
                    o.createdAt?.toDate   ? o.createdAt.toDate() :
@@ -146,10 +147,16 @@ const PharmacistDashboard = () => {
 
         if (!ts || isNaN(ts.getTime()) || !isToday(ts)) return;
 
+        const orderId = o.id || o.firebaseId;
+        if (orderId) processedOnlineOrderIds.add(orderId);
+
         const amt = parseFloat(o.totalAmount || o.total || 0);
         const isPaid = (o.paymentStatus || "").toLowerCase() === 'paid' || 
-                       (o.paymentMethod || "").toLowerCase() === 'online';
-        const isCOD  = (o.paymentMethod || "").toLowerCase() === 'cod';
+                       (o.paymentMethod || "").toLowerCase() === 'online' ||
+                       (o.status || "").toLowerCase() === 'paid';
+        const isCOD  = (o.paymentMethod || "").toLowerCase() === 'cod' || 
+                       (o.paymentStatus || "").toLowerCase() === 'cod';
+
         const hasRxItems = o.types?.some(item => 
           (item.id && item.id.toString().toLowerCase().includes('rx')) || 
           (item.name && item.name.toLowerCase().includes('prescription'))
@@ -159,42 +166,49 @@ const PharmacistDashboard = () => {
         if (isRx) {
           if (isPaid) opPaid += amt;
           else if (isCOD) opCod += amt;
+          else opPaid += amt; // Default to Paid for legacy/other records
         } else {
           if (isPaid) orPaid += amt;
           else if (isCOD) orCod += amt;
+          else orPaid += amt;
         }
       });
 
-      // 2. Second, merge with today's Dispensed items (Ensures real-time sync during dispensing)
+      // 2. Merge with today's Dispensed items (Avoid double counting)
       todayDispensed.forEach(d => {
+        // Strictly check for Online orders. 
+        // Physical prescriptions have isPrescription:true but are NOT Online.
+        const isOnline = d.orderType === 'Online' || (!!d.rxId && d.rxId !== 'null' && d.rxId !== '');
+        if (!isOnline) return;
+
+        const orderId = d.id || d.firebaseId || d.rxId;
+        if (orderId && processedOnlineOrderIds.has(orderId)) {
+           return; 
+        }
+
         const amt = parseFloat(d.total || d.totalAmount || 0);
-        const isOnline = d.orderType === 'Online' || !!d.rxId || !!d.isPrescription;
-        if (!isOnline) return; // Only process online/prescription related dispensed items here
-
         const isPaid = (d.paymentStatus || "").toLowerCase() === 'paid' || 
-                       (d.paymentMethod || "").toLowerCase() === 'online';
+                       (d.paymentMethod || "").toLowerCase() === 'online' ||
+                       (d.status || "").toLowerCase() === 'successful';
         const isCOD  = (d.paymentMethod || "").toLowerCase() === 'cod';
-        const isRx   = !!(d.rxId || d.isPrescription || d.id?.toString().includes('RX'));
+        
+        // It's a prescription if it has an rxId or explicit isPrescription flag
+        const isRx   = !!(d.rxId || d.isPrescription);
 
-        // Avoid double counting if it's already in onlineOrders (usually they are different collections)
-        // But for safety, we treat them as complementary
         if (isRx) {
           if (isPaid) opPaid += amt;
           else if (isCOD) opCod += amt;
+          else opPaid += amt;
         } else {
           if (isPaid) orPaid += amt;
           else if (isCOD) orCod += amt;
+          else orPaid += amt;
         }
       });
 
-      // Update states for "Online Prescriptions" card (Left)
-      // Note: We take the MAX or a clever merge to avoid double counting if the collections overlap
-      // For now, let's assume they are unique entries in the business flow
       setPrescTotalRev(opPaid + opCod); 
       setPrescPaidRev(opPaid); 
       setPrescCodRev(opCod);  
-
-      // Update states for "Online Other Order" card (Middle)
       setOtherPaidRev(orPaid);
       setOtherCodRev(orCod);
 
@@ -834,7 +848,8 @@ const PharmacistDashboard = () => {
         {/* Right Column (Recent Activity & Alerts) */}
         <div className="space-y-6">
           
-          {pendingReturns > 0 && (
+          {/* Return Requests alert hidden as requested */}
+          {/* {pendingReturns > 0 && (
             <div 
                className="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm cursor-pointer hover:bg-amber-100 transition-colors"
                onClick={() => navigate('/pharmacist/returns')}
@@ -848,7 +863,7 @@ const PharmacistDashboard = () => {
                <p className="text-sm text-amber-700 font-medium">You have <span className="font-black text-amber-900">{pendingReturns}</span> pending return requests that need your attention.</p>
                <button className="mt-3 text-xs font-bold text-amber-600 uppercase tracking-wider hover:text-amber-800">Review Now &rarr;</button>
             </div>
-          )}
+          )} */}
 
           {/* Activity section - header outside card, same as Revenue Overview */}
           <div>

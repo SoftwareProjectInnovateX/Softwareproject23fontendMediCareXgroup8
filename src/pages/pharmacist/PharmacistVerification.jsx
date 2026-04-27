@@ -213,6 +213,9 @@ const PharmacistVerification = () => {
             patientEmail: selectedPatient?.email || 'N/A'
       });
 
+      // Trigger real-time UI refresh on Dashboard
+      window.dispatchEvent(new Event('dispensed_updated'));
+
       setDispenseRecordId(newDispenseRec.id);
     } catch(e) { 
       console.error(e); 

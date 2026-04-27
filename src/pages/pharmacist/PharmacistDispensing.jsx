@@ -35,7 +35,9 @@ const PharmacistDispensing = () => {
           const todayStr = new Date().toDateString();
           const todayRecords = h.filter(d => {
             const ds = d.dispensedDate || (d.dispensedAt ? new Date(d.dispensedAt).toDateString() : null) || (d.createdAt ? new Date(d.createdAt).toDateString() : null);
-            return ds === todayStr && d.paymentStatus === 'Paid';
+            // Count Paid, COD, or already finalized Successful orders in today's revenue
+            const isRevenue = d.paymentStatus === 'Paid' || d.paymentStatus === 'COD' || d.status === 'Successful' || d.finalized === true;
+            return ds === todayStr && isRevenue;
           });
           setDailyRevenue(todayRecords.reduce((sum, d) => sum + (parseFloat(d.total) || 0), 0));
 
@@ -63,6 +65,7 @@ const PharmacistDispensing = () => {
     const order = dispOrders.find(o => o.rxId === orderId);
     if (!order) return;
     await updateDispensedRecord(order.firebaseId || order.id, { paymentStatus: 'Paid' }).catch(console.error);
+    window.dispatchEvent(new Event('revenue_updated'));
     fetchData();
   };
 
@@ -98,6 +101,10 @@ const PharmacistDispensing = () => {
             status: 'Successful',
             orderType: 'Online' // Explicitly mark for revenue tracking
         });
+
+        // Trigger real-time UI refresh on Dashboard
+        window.dispatchEvent(new Event('dispensed_updated'));
+        window.dispatchEvent(new Event('revenue_updated'));
     } catch(e) { console.error('Failed to finalize:', e); }
     
     setSelectedOrder(null);

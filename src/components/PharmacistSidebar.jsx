@@ -36,7 +36,6 @@ const PharmacistSidebar = () => {
     { path: '/pharmacist/patients',      name: 'Patients',       icon: Users },
     { path: '/pharmacist/inventory',     name: 'Inventory',      icon: Archive },
     { path: '/pharmacist/lookup',        name: 'Drug Lookup',    icon: Search },
-    { path: '/pharmacist/returns',       name: 'Returns',        icon: RotateCcw },
     { path: '/pharmacist/reports',       name: 'Reports',        icon: BarChart2 },
     { path: '/pharmacist/my-products',   name: 'My Products',    icon: Layers },
     { path: '/pharmacist/add-product',   name: 'Add Product',    icon: PlusCircle },

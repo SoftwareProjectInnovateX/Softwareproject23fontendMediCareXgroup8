@@ -75,6 +75,15 @@ export async function updateDispensedRecord(id, updateData) {
   return res.json();
 }
 
+/**
+ * Fetches the history of all dispensed items (both online and physical).
+ */
+export async function getDispensedHistory() {
+  const res = await fetch(`${BASE_URL}/pharmacist/dispensed`);
+  if (!res.ok) throw new Error(`Failed to fetch dispensed history: ${res.statusText}`);
+  return res.json();
+}
+
 // ─── RETURNS ──────────────────────────────────────────────────────────────────
 
 export async function getReturnRequests() {
