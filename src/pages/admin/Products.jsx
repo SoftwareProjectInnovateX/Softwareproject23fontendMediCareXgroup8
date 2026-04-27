@@ -12,9 +12,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
-
-// Available product categories for filtering
-const CATEGORIES = ["All", "Medicine", "Baby Items", "Skin Care", "Medical Equipment"];
+import { CATEGORIES } from "../../data/categories"; // ← imported from shared categories data
 
 // Removes spaces and lowercases a string for safe category comparison
 const normalize = (v = "") => v.toLowerCase().replace(/\s+/g, "");
@@ -22,7 +20,7 @@ const normalize = (v = "") => v.toLowerCase().replace(/\s+/g, "");
 export default function Products() {
   const [products, setProducts] = useState([]);            // All products from adminProducts collection
   const [search, setSearch] = useState("");                // Keyword search input
-  const [category, setCategory] = useState("All");        // Active category filter
+  const [category, setCategory] = useState("all");        // Active category filter (uses category id)
   const [pendingOrders, setPendingOrders] = useState({}); // Latest order per product (keyed by adminProductId)
   const [showOrderForm, setShowOrderForm] = useState(false);   // Controls order modal visibility
   const [selectedProduct, setSelectedProduct] = useState(null); // Product being ordered
@@ -231,8 +229,14 @@ export default function Products() {
       p.productName?.toLowerCase().includes(search.toLowerCase()) ||
       p.manufacturer?.toLowerCase().includes(search.toLowerCase()) ||
       p.supplierName?.toLowerCase().includes(search.toLowerCase());
+
+    // Resolve selected category id back to its name, then normalize for comparison
     const matchCategory =
-      category === "All" || normalize(p.category) === normalize(category);
+      category === "all" ||
+      normalize(p.category) === normalize(
+        CATEGORIES.find((c) => c.id === category)?.name ?? category
+      );
+
     return matchSearch && matchCategory;
   });
 
@@ -245,19 +249,33 @@ export default function Products() {
         Admin Dashboard - Consolidated Inventory
       </p>
 
-      {/* Category filter buttons */}
+      {/* Category filter buttons — built from shared CATEGORIES constant (no icons) */}
       <div className="flex gap-2.5 flex-wrap my-5">
+
+        {/* "All" pill — resets filter to show every product */}
+        <button
+          onClick={() => setCategory("all")}
+          className={`px-4 py-2.5 rounded-full text-sm font-medium cursor-pointer transition-all duration-200 border-none
+            ${category === "all"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-300"
+              : "bg-[#e6efff] text-slate-500 hover:bg-blue-100 hover:-translate-y-px"
+            }`}
+        >
+          All
+        </button>
+
+        {/* One pill per category from the shared CATEGORIES array */}
         {CATEGORIES.map((cat) => (
           <button
-            key={cat}
-            onClick={() => setCategory(cat)}
+            key={cat.id}
+            onClick={() => setCategory(cat.id)}
             className={`px-4 py-2.5 rounded-full text-sm font-medium cursor-pointer transition-all duration-200 border-none
-              ${category === cat
+              ${category === cat.id
                 ? "bg-blue-600 text-white shadow-md shadow-blue-300"
                 : "bg-[#e6efff] text-slate-500 hover:bg-blue-100 hover:-translate-y-px"
               }`}
           >
-            {cat}
+            {cat.name}
           </button>
         ))}
       </div>
@@ -287,73 +305,82 @@ export default function Products() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
-                <tr
-                  key={p.id}
-                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
-                >
-                  {/* Product code */}
-                  <td className="px-4 py-4 text-sm font-mono text-slate-600">{p.productCode}</td>
+              {filtered.map((p) => {
+                // Find matching category object to display the proper name from CATEGORIES
+                const catObj = CATEGORIES.find(
+                  (c) => normalize(c.name) === normalize(p.category)
+                );
+                return (
+                  <tr
+                    key={p.id}
+                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150"
+                  >
+                    {/* Product code */}
+                    <td className="px-4 py-4 text-sm font-mono text-slate-600">{p.productCode}</td>
 
-                  {/* Product name and manufacturer */}
-                  <td className="px-4 py-4">
-                    <p className="font-semibold text-slate-800 text-sm m-0">{p.productName}</p>
-                    {p.manufacturer && (
-                      <p className="text-xs text-slate-400 mt-0.5 m-0">{p.manufacturer}</p>
-                    )}
-                  </td>
+                    {/* Product name and manufacturer */}
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-slate-800 text-sm m-0">{p.productName}</p>
+                      {p.manufacturer && (
+                        <p className="text-xs text-slate-400 mt-0.5 m-0">{p.manufacturer}</p>
+                      )}
+                    </td>
 
-                  <td className="px-4 py-4 text-sm text-slate-700">{p.category}</td>
+                    {/* Category name — resolved from CATEGORIES, falls back to raw Firestore value */}
+                    <td className="px-4 py-4 text-sm text-slate-700">
+                      {catObj ? catObj.name : p.category}
+                    </td>
 
-                  {/* Supplier name badge */}
-                  <td className="px-4 py-4">
-                    <span className="inline-block bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-xs font-medium">
-                      {p.supplierName || "—"}
-                    </span>
-                  </td>
-
-                  {/* Stock count — turns red and shows LOW badge when at or below 100 */}
-                  <td className={`px-4 py-4 text-sm font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
-                    {p.stock}
-                    {p.stock <= 100 && (
-                      <span className="ml-1.5 inline-block bg-red-100 text-red-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">
-                        LOW
+                    {/* Supplier name badge */}
+                    <td className="px-4 py-4">
+                      <span className="inline-block bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-xs font-medium">
+                        {p.supplierName || "—"}
                       </span>
-                    )}
-                  </td>
+                    </td>
 
-                  {/* Fixed reorder level */}
-                  <td className="px-4 py-4 text-sm text-slate-700">100</td>
+                    {/* Stock count — turns red and shows LOW badge when at or below 100 */}
+                    <td className={`px-4 py-4 text-sm font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
+                      {p.stock}
+                      {p.stock <= 100 && (
+                        <span className="ml-1.5 inline-block bg-red-100 text-red-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                          LOW
+                        </span>
+                      )}
+                    </td>
 
-                  <td className="px-4 py-4 text-sm text-slate-700">
-                    Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : "0.00"}
-                  </td>
+                    {/* Fixed reorder level */}
+                    <td className="px-4 py-4 text-sm text-slate-700">100</td>
 
-                  <td className="px-4 py-4 text-sm text-slate-700">
-                    Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
-                  </td>
+                    <td className="px-4 py-4 text-sm text-slate-700">
+                      Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : "0.00"}
+                    </td>
 
-                  {/* Latest order status badge for this product */}
-                  <td className="px-4 py-4">
-                    {getOrderStatus(p.id) || (
-                      <span className="text-slate-300 italic text-sm">—</span>
-                    )}
-                  </td>
+                    <td className="px-4 py-4 text-sm text-slate-700">
+                      Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
+                    </td>
 
-                  {/* Order Now button — only shown for low stock products */}
-                  <td className="px-4 py-4">
-                    {p.stock <= 100 && (
-                      <button
-                        onClick={() => openOrderForm(p)}
-                        disabled={pendingOrders[p.id]?.status === "PENDING"}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md disabled:translate-y-0 disabled:shadow-none"
-                      >
-                        {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    {/* Latest order status badge for this product */}
+                    <td className="px-4 py-4">
+                      {getOrderStatus(p.id) || (
+                        <span className="text-slate-300 italic text-sm">—</span>
+                      )}
+                    </td>
+
+                    {/* Order Now button — only shown for low stock products */}
+                    <td className="px-4 py-4">
+                      {p.stock <= 100 && (
+                        <button
+                          onClick={() => openOrderForm(p)}
+                          disabled={pendingOrders[p.id]?.status === "PENDING"}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md disabled:translate-y-0 disabled:shadow-none"
+                        >
+                          {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

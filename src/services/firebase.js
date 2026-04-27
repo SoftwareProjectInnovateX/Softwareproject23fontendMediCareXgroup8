@@ -38,9 +38,10 @@ export const getAuthHeaders = async () => {
   const user = auth.currentUser;
   if (!user) return {};
   try {
-    const token = await user.getIdToken();
+    const token = await user.getIdToken(true); // true = force refresh token with latest claims
     return {
-      'Authorization': `Bearer ${token}`
+      'Authorization': `Bearer ${token}`,
+      'Content-Type':  'application/json',     // added so backend accepts JSON body
     };
   } catch (error) {
     console.error("Error getting auth token:", error);

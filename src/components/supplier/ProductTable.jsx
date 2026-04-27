@@ -20,7 +20,7 @@ const ProductTable = ({ loading, filteredProducts, onAddClick, onEdit, onDelete,
           <table className="w-full border-collapse min-w-[700px]">
             <thead className="bg-slate-50 border-b-2 border-slate-200">
               <tr>
-                {['Product Name', 'Category', 'Wholesale Price', 'Stock Supplied', 'Expiry Date', 'Availability', 'Actions'].map((h) => (
+                {['Product Name', 'Category', 'Wholesale Price', 'Stock Supplied', 'Availability', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
                     {h}
                   </th>
@@ -41,9 +41,6 @@ const ProductTable = ({ loading, filteredProducts, onAddClick, onEdit, onDelete,
                     Rs.{Number(product.wholesalePrice).toFixed(2)}
                   </td>
                   <td className="px-4 py-4 text-sm text-slate-700">{product.stock} units</td>
-                  <td className="px-4 py-4 text-sm text-slate-700">
-                    {formatDate(product.expireDate)}
-                  </td>
                   <td className="px-4 py-4">
                     <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                       product.availability === 'in stock'

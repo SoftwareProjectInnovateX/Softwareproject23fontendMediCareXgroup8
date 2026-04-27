@@ -264,7 +264,8 @@ export default function Dashboard() {
         ordersSnap.forEach((d) => {
           const s = d.data().status;
           if (s === "PENDING") pending++;
-          if (s === "DELIVERED") delivered++;
+          // Count both DELIVERED and COMPLETED as fulfilled orders
+          if (s === "DELIVERED" || s === "COMPLETED") delivered++;
         });
 
         // Fetch low-stock notifications to populate the alerts counter

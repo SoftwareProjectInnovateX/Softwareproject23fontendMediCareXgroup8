@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/Card';
-import { getAuthHeaders } from '../../services/firebase';
-import { db } from '../../services/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { auth } from '../../services/firebase';
 
-// Base API URL from .env — individual paths must NOT repeat the /api prefix
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Status badge styles and labels keyed by status string
+// Local helper — always reads fresh token from current user
+const getAuthHeaders = async () => {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No authenticated user');
+  const token = await user.getIdToken();
+  return { Authorization: `Bearer ${token}` };
+};
+
 const STATUS_BADGE = {
   pending:  { cls: 'bg-amber-100 text-amber-700 border border-amber-300',       label: 'Pending'  },
   approved: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-300', label: 'Approved' },
   rejected: { cls: 'bg-red-100 text-red-700 border border-red-300',             label: 'Rejected' },
 };
 
-// Handles both Firestore Timestamps (_seconds) and plain date strings
 function formatDate(val) {
   if (!val) return '—';
   if (val._seconds) return new Date(val._seconds * 1000).toLocaleDateString();
@@ -25,24 +28,22 @@ function formatDate(val) {
 export default function AdminProductApproval() {
   const [products, setProducts]           = useState([]);
   const [loading, setLoading]             = useState(true);
-  const [actionLoading, setActionLoading] = useState(null); // tracks which product row is mid-action
-  const [rejectModal, setRejectModal]     = useState(null); // holds the product being rejected
+  const [actionLoading, setActionLoading] = useState(null);
+  const [rejectModal, setRejectModal]     = useState(null);
   const [rejectReason, setRejectReason]   = useState('');
   const [filter, setFilter]               = useState('pending');
   const [search, setSearch]               = useState('');
 
   useEffect(() => { fetchAll(); }, []);
 
-  // Fetch all supplier product submissions from the backend
   const fetchAll = async () => {
     try {
       setLoading(true);
       const authHeaders = await getAuthHeaders();
       const res  = await fetch(`${API_BASE}/admin/pending-products`, { headers: authHeaders });
       const data = await res.json();
-      // Ensure we always set an array even if the API returns unexpected shape
+      if (!res.ok) { console.error('API error:', data); setProducts([]); return; }
       setProducts(Array.isArray(data) ? data : []);
-      if (!res.ok) console.error('API error:', data);
     } catch (err) {
       console.error('Failed to load products:', err);
       setProducts([]);
@@ -56,39 +57,19 @@ export default function AdminProductApproval() {
     try {
       setActionLoading(product.id);
       const authHeaders = await getAuthHeaders();
-
-      // Step 1: Approve on the backend — returns an auto-generated productCode
       const res = await fetch(`${API_BASE}/admin/pending-products/${product.id}/approve`, {
-        method: 'PATCH', headers: authHeaders,
+        method: 'PATCH',
+        headers: authHeaders,
       });
       if (!res.ok) throw new Error('Approval failed');
       const { productCode } = await res.json();
 
-      // Step 2: Mirror the approved product into the pharmacist's pending list
-      // Retail price is automatically set to 120% of the wholesale price
-      const pharmacistHeaders = await getAuthHeaders();
-      await fetch(`${API_BASE}/pharmacist/pending-products`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...pharmacistHeaders },
-        body: JSON.stringify({
-          productName:    product.productName,
-          category:       product.category,
-          description:    product.description,
-          imageUrl:       product.imageUrl || '',
-          supplierId:     product.supplierId,
-          supplierName:   product.supplierName,
-          stockId:        productCode,
-          retailPrice:    Number(product.wholesalePrice) * 1.2,
-          wholesalePrice: Number(product.wholesalePrice),
-          stock:          product.stock,
-          minStock:       product.minStock,
-          productCode,
-          status:         'pending',
-        }),
-      });
+      // FIX: Removed the broken POST to /pharmacist/pending-products (route doesn't exist).
+      // The backend approveProduct() already handles everything:
+      // writes to products, adminProducts, updates pendingProducts, sends notifications.
 
       alert(`Product approved!\nProduct Code: ${productCode}`);
-      fetchAll(); // refresh list to reflect new status
+      fetchAll();
     } catch (err) {
       console.error(err);
       alert(`Failed to approve product: ${err.message}`);
@@ -97,13 +78,8 @@ export default function AdminProductApproval() {
     }
   };
 
-  // Open the reject modal and reset any previous reason
-  const openRejectModal = (product) => {
-    setRejectModal(product);
-    setRejectReason('');
-  };
+  const openRejectModal = (product) => { setRejectModal(product); setRejectReason(''); };
 
-  // Reject product via PATCH — reason is optional and sent to the supplier as a notification
   const handleReject = async () => {
     if (!rejectModal) return;
     try {
@@ -116,7 +92,6 @@ export default function AdminProductApproval() {
       });
       if (!res.ok) throw new Error('Rejection failed');
       alert('Product rejected. Supplier has been notified.');
-      // Reset modal state and refresh the table
       setRejectModal(null);
       setRejectReason('');
       fetchAll();
@@ -128,12 +103,10 @@ export default function AdminProductApproval() {
     }
   };
 
-  // Derived counts for the summary cards and filter tab badges
   const pendingCount  = products.filter((p) => p.status === 'pending').length;
   const approvedCount = products.filter((p) => p.status === 'approved').length;
   const rejectedCount = products.filter((p) => p.status === 'rejected').length;
 
-  // Apply active status filter, then narrow by search across name/supplier/category
   const filtered = products.filter((p) => {
     const matchFilter = filter === 'all' || p.status === filter;
     const matchSearch =
@@ -150,7 +123,6 @@ export default function AdminProductApproval() {
     { key: 'all',      label: 'All',      count: products.length, color: 'slate'   },
   ];
 
-  // Active tab highlight colors per status
   const tabColor = {
     amber:   'bg-amber-500 text-white border-amber-500',
     emerald: 'bg-emerald-600 text-white border-emerald-600',
@@ -165,14 +137,12 @@ export default function AdminProductApproval() {
         <p className="text-sm text-gray-500 mt-1">Review and approve supplier product submissions</p>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card title="Awaiting Review" value={pendingCount}  />
         <Card title="Approved"        value={approvedCount} />
         <Card title="Rejected"        value={rejectedCount} />
       </div>
 
-      {/* Filter tabs and search */}
       <div className="bg-white p-4 rounded-xl shadow-sm mb-5 flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-2 flex-wrap">
           {FILTER_TABS.map((tab) => (
@@ -180,9 +150,7 @@ export default function AdminProductApproval() {
               key={tab.key}
               onClick={() => setFilter(tab.key)}
               className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all duration-200 border-2 ${
-                filter === tab.key
-                  ? tabColor[tab.color]
-                  : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                filter === tab.key ? tabColor[tab.color] : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
               }`}
             >
               {tab.label}
@@ -203,40 +171,32 @@ export default function AdminProductApproval() {
         />
       </div>
 
-      {/* Products table */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="py-16 text-center text-slate-500 text-lg">Loading submissions...</div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="text-lg text-slate-400">No products match this filter</p>
-          </div>
+          <div className="py-16 text-center"><p className="text-lg text-slate-400">No products match this filter</p></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse min-w-[900px]">
               <thead className="bg-slate-50 border-b-2 border-slate-200">
                 <tr>
                   {['Product', 'Category', 'Supplier', 'Wholesale Price', 'Stock', 'Submitted', 'Status', 'Actions'].map((h) => (
-                    <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
-                      {h}
-                    </th>
+                    <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((product) => {
-                  const badge       = STATUS_BADGE[product.status] || STATUS_BADGE.pending; // fallback to pending style if status unknown
-                  const isActioning = actionLoading === product.id; // disable buttons while this row is processing
-                  const isPending   = product.status === 'pending'; // only pending products show action buttons
-
+                  const badge       = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
+                  const isActioning = actionLoading === product.id;
+                  const isPending   = product.status === 'pending';
                   return (
                     <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
                       <td className="px-4 py-4">
                         <p className="font-semibold text-slate-900 text-sm mb-0.5">{product.productName}</p>
                         {product.manufacturer && <p className="text-xs text-slate-400">{product.manufacturer}</p>}
-                        {product.description && (
-                          <p className="text-xs text-slate-400 mt-0.5 max-w-[200px] truncate">{product.description}</p>
-                        )}
+                        {product.description && <p className="text-xs text-slate-400 mt-0.5 max-w-[200px] truncate">{product.description}</p>}
                       </td>
                       <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
                       <td className="px-4 py-4">
@@ -246,10 +206,7 @@ export default function AdminProductApproval() {
                       </td>
                       <td className="px-4 py-4 text-sm font-semibold text-slate-800">
                         Rs.{Number(product.wholesalePrice).toFixed(2)}
-                        {/* Retail price preview — calculated at 1.2x wholesale */}
-                        <p className="text-xs text-slate-400 font-normal mt-0.5">
-                          Retail: Rs.{(Number(product.wholesalePrice) * 1.2).toFixed(2)}
-                        </p>
+                        <p className="text-xs text-slate-400 font-normal mt-0.5">Retail: Rs.{(Number(product.wholesalePrice) * 1.2).toFixed(2)}</p>
                       </td>
                       <td className="px-4 py-4 text-sm text-slate-700">
                         {product.stock} units
@@ -257,10 +214,7 @@ export default function AdminProductApproval() {
                       </td>
                       <td className="px-4 py-4 text-xs text-slate-400">{formatDate(product.createdAt)}</td>
                       <td className="px-4 py-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>
-                          {badge.label}
-                        </span>
-                        {/* Show product code on approval, rejection reason on rejection */}
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
                         {product.status === 'approved' && product.productCode && (
                           <p className="text-[11px] text-emerald-600 font-mono mt-1">{product.productCode}</p>
                         )}
@@ -269,21 +223,14 @@ export default function AdminProductApproval() {
                         )}
                       </td>
                       <td className="px-4 py-4">
-                        {/* Approve/Reject buttons only shown for pending products */}
                         {isPending ? (
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => handleApprove(product)}
-                              disabled={isActioning}
-                              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
-                            >
+                            <button onClick={() => handleApprove(product)} disabled={isActioning}
+                              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200">
                               {isActioning ? '...' : 'Approve'}
                             </button>
-                            <button
-                              onClick={() => openRejectModal(product)}
-                              disabled={isActioning}
-                              className="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-sm"
-                            >
+                            <button onClick={() => openRejectModal(product)} disabled={isActioning}
+                              className="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200">
                               Reject
                             </button>
                           </div>
@@ -300,22 +247,12 @@ export default function AdminProductApproval() {
         )}
       </div>
 
-      {/* Reject confirmation modal — clicking the backdrop closes it */}
       {rejectModal && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
-          style={{ animation: 'fadeIn 0.2s ease-out' }}
-          onClick={() => setRejectModal(null)}
-        >
-          {/* stopPropagation prevents backdrop click from firing inside the modal */}
-          <div
-            className="bg-white rounded-2xl p-8 w-full max-w-[480px] shadow-2xl"
-            style={{ animation: 'slideUp 0.3s ease-out' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-[22px] font-bold text-slate-900 mb-1 pb-4 border-b-[3px] border-red-500">
-              Reject Product
-            </h3>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
+          style={{ animation: 'fadeIn 0.2s ease-out' }} onClick={() => setRejectModal(null)}>
+          <div className="bg-white rounded-2xl p-8 w-full max-w-[480px] shadow-2xl"
+            style={{ animation: 'slideUp 0.3s ease-out' }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-[22px] font-bold text-slate-900 mb-1 pb-4 border-b-[3px] border-red-500">Reject Product</h3>
             <div className="my-5 px-4 py-3 bg-slate-50 rounded-lg">
               <p className="text-sm font-semibold text-slate-800">{rejectModal.productName}</p>
               <p className="text-xs text-slate-400 mt-0.5">Submitted by {rejectModal.supplierName}</p>
@@ -324,27 +261,18 @@ export default function AdminProductApproval() {
               <label className="block mb-2 font-semibold text-slate-800 text-[14px]">
                 Reason for rejection <span className="text-slate-400 font-normal">(optional)</span>
               </label>
-              <textarea
-                rows={3}
-                placeholder="e.g., Missing required certifications, incorrect pricing..."
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-[14px] resize-none focus:outline-none focus:border-red-400 focus:ring-4 focus:ring-red-400/10 transition-all duration-200"
-              />
+              <textarea rows={3} placeholder="e.g., Missing required certifications, incorrect pricing..."
+                value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-[14px] resize-none focus:outline-none focus:border-red-400 focus:ring-4 focus:ring-red-400/10 transition-all duration-200" />
               <p className="text-[12px] text-slate-400 mt-1">This will be sent to the supplier as a notification.</p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={handleReject}
-                disabled={actionLoading === rejectModal.id}
-                className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
-              >
+              <button onClick={handleReject} disabled={actionLoading === rejectModal.id}
+                className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200">
                 {actionLoading === rejectModal.id ? 'Rejecting...' : 'Confirm Rejection'}
               </button>
-              <button
-                onClick={() => setRejectModal(null)}
-                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg border-none cursor-pointer transition-all duration-200"
-              >
+              <button onClick={() => setRejectModal(null)}
+                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg border-none cursor-pointer transition-all duration-200">
                 Cancel
               </button>
             </div>

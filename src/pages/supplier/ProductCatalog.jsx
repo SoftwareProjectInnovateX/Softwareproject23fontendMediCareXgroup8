@@ -7,7 +7,6 @@ import {
 import { db } from '../../services/firebase';
 import { getAuth } from 'firebase/auth';
 
-// Sub-components for each UI section
 import ProductCatalogHeader from '../../components/supplier/ProductCatalogHeader';
 import SearchAndAdd         from '../../components/supplier/SearchAndAdd';
 import TabBar               from '../../components/supplier/TabBar';
@@ -15,17 +14,14 @@ import ProductTable         from '../../components/supplier/ProductTable';
 import PendingTable         from '../../components/supplier/PendingTable';
 import ProductModal         from '../../components/supplier/ProductModal';
 
-// Base URL for all backend API calls (set in .env as VITE_API_URL)
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Gets the current user's Firebase ID token (refreshes if expired)
 const getAuthToken = async () => {
   const auth = getAuth();
   if (!auth.currentUser) throw new Error('Not authenticated');
   return auth.currentUser.getIdToken(true);
 };
 
-// Builds Authorization headers needed by the NestJS backend guard
 const authHeaders = async () => {
   const token = await getAuthToken();
   return {
@@ -35,21 +31,15 @@ const authHeaders = async () => {
 };
 
 const ProductCatalog = () => {
-  // Approved products from Firestore
   const [products, setProducts]               = useState([]);
-  // Pending (not yet approved) products
   const [pendingProducts, setPendingProducts] = useState([]);
-  // Which tab is active: 'approved' or 'pending'
   const [activeTab, setActiveTab]             = useState('approved');
   const [loading, setLoading]                 = useState(true);
-  // Controls add/edit modal visibility
   const [showModal, setShowModal]             = useState(false);
-  // Holds the product being edited (null = adding new)
   const [editingProduct, setEditingProduct]   = useState(null);
   const [searchTerm, setSearchTerm]           = useState('');
   const [currentUser, setCurrentUser]         = useState(null);
 
-  // Shared form state for both add and edit flows
   const [formData, setFormData] = useState({
     productName: '', category: '',
     wholesalePrice: '', stock: '', minStock: '',
@@ -57,7 +47,6 @@ const ProductCatalog = () => {
     expireDate: '',
   });
 
-  // Listen for auth state changes; fetch supplier profile when logged in
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -67,7 +56,6 @@ const ProductCatalog = () => {
     return () => unsubscribe();
   }, []);
 
-  // Load supplier details from Firestore to get their display name
   const fetchUserDetails = async (userId) => {
     try {
       const supplierDoc = await getDoc(doc(db, 'suppliers', userId));
@@ -75,7 +63,6 @@ const ProductCatalog = () => {
         const d = supplierDoc.data();
         setCurrentUser({ id: userId, name: d.name || 'Supplier', email: d.email });
       } else {
-        // Fallback if supplier document doesn't exist
         const auth = getAuth();
         setCurrentUser({ id: userId, name: 'Supplier', email: auth.currentUser?.email });
       }
@@ -85,7 +72,6 @@ const ProductCatalog = () => {
     }
   };
 
-  // Fetch approved products belonging to the current supplier
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -105,12 +91,11 @@ const ProductCatalog = () => {
     }
   };
 
-  // Trigger approved products fetch when user is ready
   useEffect(() => {
     if (currentUser) fetchProducts();
   }, [currentUser]);
 
-  // Real-time listener so pending products update instantly without refresh
+  // Real-time listener — fetches ALL fields from pendingProducts including expireDate
   useEffect(() => {
     if (!currentUser?.id) return;
 
@@ -126,10 +111,9 @@ const ProductCatalog = () => {
       (error) => console.error('Pending products listener error:', error),
     );
 
-    return () => unsubscribe(); // Cleanup listener on unmount
+    return () => unsubscribe();
   }, [currentUser]);
 
-  // Submit a new product to the backend; it goes into pending until admin approves
   const handleAddProduct = async (e) => {
     e.preventDefault();
     try {
@@ -142,8 +126,13 @@ const ProductCatalog = () => {
       const userId   = currentUser.id;
       const userName = currentUser.name;
 
-      const headers = await authHeaders(); // Bearer token for backend auth
+      const headers = await authHeaders();
 
+      // FIX: Send expireDate as a plain ISO string, NOT as a Timestamp object.
+      // Timestamp is a Firestore class — it cannot be JSON-serialized correctly.
+      // JSON.stringify(Timestamp) produces {seconds, nanoseconds} which corrupts
+      // the value when your backend reads it. Send the raw ISO string instead
+      // and let the backend convert it to a Timestamp via admin.firestore.Timestamp.fromDate().
       const response = await fetch(
         `${API_BASE}/supplier/products?supplierId=${userId}&supplierName=${encodeURIComponent(userName)}`,
         {
@@ -157,10 +146,7 @@ const ProductCatalog = () => {
             minStock:       parseInt(formData.minStock) || 0,
             description:    formData.description,
             manufacturer:   formData.manufacturer,
-            // Convert date string to Firestore Timestamp, or null if empty
-            expireDate: formData.expireDate
-              ? Timestamp.fromDate(new Date(formData.expireDate))
-              : null,
+            expireDate:     formData.expireDate ? new Date(formData.expireDate).toISOString() : null,
           }),
         },
       );
@@ -173,14 +159,13 @@ const ProductCatalog = () => {
       alert('Product submitted for admin approval.\nYou will be notified once it is reviewed.');
       setShowModal(false);
       resetForm();
-      setActiveTab('pending'); // Switch to pending tab so supplier can see their submission
+      setActiveTab('pending');
     } catch (error) {
       console.error('Error adding product:', error);
       alert('Failed to submit product: ' + error.message);
     }
   };
 
-  // Update an already-approved product in both supplier and admin collections
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
     try {
@@ -195,25 +180,25 @@ const ProductCatalog = () => {
         minStock:       remainingStock,
         description:    formData.description,
         manufacturer:   formData.manufacturer,
+        // FIX: Timestamp.fromDate(new Date(...)) is correct here because
+        // handleUpdateProduct writes directly to Firestore via updateDoc,
+        // not through a JSON API call, so Timestamp objects are safe to use.
         expireDate: formData.expireDate
           ? Timestamp.fromDate(new Date(formData.expireDate))
           : null,
-        // Auto-set availability based on remaining stock
         availability: remainingStock > 0 ? 'in stock' : 'out of stock',
         updatedAt:    Timestamp.now(),
       };
 
-      // Update supplier's product document
       await updateDoc(doc(db, 'products', editingProduct.id), updatedData);
 
-      // Also sync changes to the admin's copy of the product
       const adminSnap = await getDocs(
         query(collection(db, 'adminProducts'), where('productId', '==', editingProduct.id)),
       );
       if (!adminSnap.empty) {
         await updateDoc(doc(db, 'adminProducts', adminSnap.docs[0].id), {
           ...updatedData,
-          retailPrice: parseFloat(formData.wholesalePrice) * 1.2, // Admin sells at 20% markup
+          retailPrice: parseFloat(formData.wholesalePrice) * 1.2,
         });
       }
 
@@ -221,14 +206,13 @@ const ProductCatalog = () => {
       setEditingProduct(null);
       setShowModal(false);
       resetForm();
-      fetchProducts(); // Refresh the list
+      fetchProducts();
     } catch (error) {
       console.error('Error updating product:', error);
       alert('Failed to update product: ' + error.message);
     }
   };
 
-  // Delete a product from both supplier and admin collections
   const handleDeleteProduct = async (productId, productName) => {
     if (!window.confirm(
       `Are you sure you want to delete "${productName}"?\n\nThis will also remove it from admin inventory.`,
@@ -237,7 +221,6 @@ const ProductCatalog = () => {
     try {
       await deleteDoc(doc(db, 'products', productId));
 
-      // Remove the matching admin copy as well
       const adminSnap = await getDocs(
         query(collection(db, 'adminProducts'), where('productId', '==', productId)),
       );
@@ -251,7 +234,6 @@ const ProductCatalog = () => {
     }
   };
 
-  // Populate form with existing product data and open the edit modal
   const startEditProduct = (product) => {
     setEditingProduct(product);
     setFormData({
@@ -262,7 +244,6 @@ const ProductCatalog = () => {
       minStock:       product.minStock,
       description:    product.description  || '',
       manufacturer:   product.manufacturer || '',
-      // Handle both Firestore Timestamp and raw seconds formats
       expireDate: product.expireDate
         ? (typeof product.expireDate.toDate === 'function'
             ? product.expireDate.toDate().toISOString().split('T')[0]
@@ -272,7 +253,6 @@ const ProductCatalog = () => {
     setShowModal(true);
   };
 
-  // Clear form and editing state
   const resetForm = () => {
     setFormData({
       productName: '', category: '', wholesalePrice: '',
@@ -287,23 +267,19 @@ const ProductCatalog = () => {
     resetForm();
   };
 
-  // Filter approved products by name, code, or category
   const filteredProducts = products.filter((p) =>
     p.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.productCode?.toLowerCase().includes(searchTerm.toLowerCase())  ||
     p.category?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  // Filter pending products by name or category
   const filteredPending = pendingProducts.filter((p) =>
     p.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.category?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  // Badge count: only products still awaiting review
   const pendingCount = pendingProducts.filter((p) => p.status === 'pending').length;
 
-  // Safely format Firestore Timestamp, raw seconds object, or date string
   const formatDate = (val) => {
     if (!val) return '—';
     if (typeof val.toDate === 'function') return val.toDate().toLocaleDateString();
@@ -314,17 +290,14 @@ const ProductCatalog = () => {
 
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
-      {/* Page title and supplier info */}
       <ProductCatalogHeader currentUser={currentUser} />
 
-      {/* Search bar and "Add Product" button */}
       <SearchAndAdd
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         onAddClick={() => { resetForm(); setShowModal(true); }}
       />
 
-      {/* Approved / Pending tab switcher with counts */}
       <TabBar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -332,7 +305,6 @@ const ProductCatalog = () => {
         pendingCount={pendingCount}
       />
 
-      {/* Approved products list */}
       {activeTab === 'approved' && (
         <ProductTable
           loading={loading}
@@ -344,7 +316,6 @@ const ProductCatalog = () => {
         />
       )}
 
-      {/* Pending submissions list */}
       {activeTab === 'pending' && (
         <PendingTable
           loading={loading}
@@ -353,7 +324,6 @@ const ProductCatalog = () => {
         />
       )}
 
-      {/* Add / Edit product modal */}
       <ProductModal
         showModal={showModal}
         editingProduct={editingProduct}

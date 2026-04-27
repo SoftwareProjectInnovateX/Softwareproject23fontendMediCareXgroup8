@@ -10,7 +10,7 @@ export class MailService {
       service: 'gmail',
       auth: {
         user: process.env.MAIL_USER, // medicarexadmin@gmail.com
-        pass: process.env.MAIL_PASS, // ඔයාගේ App Password එක
+        pass: process.env.MAIL_PASS, 
       },
     });
   }

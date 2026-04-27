@@ -7,10 +7,10 @@ import { db } from '../../services/firebase';
 import Card from '../../components/Card';
 
 const AdminPayments = () => {
-  const [payments, setPayments]             = useState([]);
-  const [loading, setLoading]               = useState(true);
-  const [statusFilter, setStatusFilter]     = useState('All');
-  const [searchTerm, setSearchTerm]         = useState('');
+  const [payments, setPayments]               = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [statusFilter, setStatusFilter]       = useState('All');
+  const [searchTerm, setSearchTerm]           = useState('');
   const [selectedPayment, setSelectedPayment] = useState(null);
 
   const statusOptions = ['All', 'PENDING', 'PAID', 'OVERDUE'];
@@ -42,7 +42,6 @@ const AdminPayments = () => {
 
   useEffect(() => { fetchPayments(); }, []);
 
-  // Filter by status and search term
   const filteredPayments = payments.filter(payment => {
     const matchStatus = statusFilter === 'All' || payment.status === statusFilter;
     const matchSearch = !searchTerm ||
@@ -52,18 +51,117 @@ const AdminPayments = () => {
     return matchStatus && matchSearch;
   });
 
-  // Aggregate stats for the summary cards
   const stats = {
-    total:         payments.length,
-    pending:       payments.filter(p => p.status === 'PENDING').length,
-    paid:          payments.filter(p => p.status === 'PAID').length,
-    overdue:       payments.filter(p => p.status === 'OVERDUE').length,
-    totalAmount:   payments.reduce((sum, p) => sum + (p.amount || 0), 0),
-    totalPaid:     payments.filter(p => p.status === 'PAID').reduce((sum, p) => sum + (p.amount || 0), 0),
-    totalPending:  payments.filter(p => p.status === 'PENDING' || p.status === 'OVERDUE').reduce((sum, p) => sum + (p.amount || 0), 0),
+    total:        payments.length,
+    pending:      payments.filter(p => p.status === 'PENDING').length,
+    paid:         payments.filter(p => p.status === 'PAID').length,
+    overdue:      payments.filter(p => p.status === 'OVERDUE').length,
+    totalAmount:  payments.reduce((sum, p) => sum + (p.amount || 0), 0),
+    totalPaid:    payments.filter(p => p.status === 'PAID').reduce((sum, p) => sum + (p.amount || 0), 0),
+    totalPending: payments.filter(p => p.status === 'PENDING' || p.status === 'OVERDUE').reduce((sum, p) => sum + (p.amount || 0), 0),
   };
 
-  // Mark a payment as paid, update linked invoice/PO, and notify supplier
+  /* ── MARK AS PAID ── */
+  // FIX: Consolidated invoice lookup into a single helper that tries multiple
+  // field/value combinations and ALWAYS writes paymentStatus: 'Paid' (capital P)
+  // to match what InvoicePayments.jsx queries for.
+  const findAndUpdateInvoice = async (payment, invoiceType) => {
+    // Helper: run a query and return docs array (never throws)
+    const tryQuery = async (...constraints) => {
+      try {
+        const snap = await getDocs(query(collection(db, 'invoices'), ...constraints));
+        return snap.docs;
+      } catch (e) {
+        console.warn('[findAndUpdateInvoice] query failed:', e.message);
+        return [];
+      }
+    };
+
+    let docs = [];
+
+    // Attempt 1: purchaseOrderId + invoiceType
+    if (payment.purchaseOrderId) {
+      docs = await tryQuery(
+        where('purchaseOrderId', '==', payment.purchaseOrderId),
+        where('invoiceType', '==', invoiceType)
+      );
+      console.log(`[findAndUpdateInvoice] attempt 1 (purchaseOrderId+invoiceType): ${docs.length}`);
+    }
+
+    // Attempt 2: orderId + invoiceType
+    if (!docs.length && payment.orderId) {
+      docs = await tryQuery(
+        where('orderId', '==', payment.orderId),
+        where('invoiceType', '==', invoiceType)
+      );
+      console.log(`[findAndUpdateInvoice] attempt 2 (orderId+invoiceType): ${docs.length}`);
+    }
+
+    // Attempt 3: poId + invoiceType
+    if (!docs.length && payment.orderId) {
+      docs = await tryQuery(
+        where('poId', '==', payment.orderId),
+        where('invoiceType', '==', invoiceType)
+      );
+      console.log(`[findAndUpdateInvoice] attempt 3 (poId+invoiceType): ${docs.length}`);
+    }
+
+    // Attempt 4: purchaseOrderId only, then manually filter by invoiceType
+    // (handles casing differences like 'FINAL' vs 'final')
+    if (!docs.length && payment.purchaseOrderId) {
+      const allDocs = await tryQuery(
+        where('purchaseOrderId', '==', payment.purchaseOrderId)
+      );
+      console.log(`[findAndUpdateInvoice] attempt 4 (purchaseOrderId only): ${allDocs.length} total docs`);
+      allDocs.forEach(d => console.log('[findAndUpdateInvoice] doc:', d.id, JSON.stringify(d.data())));
+      docs = allDocs.filter(d => {
+        const data = d.data();
+        const t = (data.invoiceType || data.type || '').toUpperCase();
+        return t === invoiceType.toUpperCase();
+      });
+      console.log(`[findAndUpdateInvoice] attempt 4 after manual filter: ${docs.length}`);
+    }
+
+    // Attempt 5: supplierId + invoiceType (last resort broadest search)
+    if (!docs.length && payment.supplierId) {
+      const allDocs = await tryQuery(
+        where('supplierId', '==', payment.supplierId),
+        where('invoiceType', '==', invoiceType),
+        where('paymentStatus', '!=', 'Paid')
+      );
+      // Narrow further by orderId if possible
+      docs = allDocs.filter(d => {
+        const data = d.data();
+        return (
+          data.orderId === payment.orderId ||
+          data.purchaseOrderId === payment.purchaseOrderId ||
+          data.poId === payment.orderId
+        );
+      });
+      console.log(`[findAndUpdateInvoice] attempt 5 (supplierId fallback): ${docs.length}`);
+    }
+
+    if (docs.length > 0) {
+      const invoiceRef = doc(db, 'invoices', docs[0].id);
+      // FIX: Use 'Paid' (capital P) — this is what InvoicePayments.jsx queries for
+      await updateDoc(invoiceRef, {
+        paymentStatus: 'Paid',
+        paidAmount:    payment.amount,
+        paidDate:      Timestamp.now(),
+        paymentMethod: 'Bank Transfer',
+        updatedAt:     Timestamp.now(),
+      });
+      console.log(`[findAndUpdateInvoice] updated invoice ${docs[0].id} → paymentStatus: 'Paid'`);
+      return true;
+    }
+
+    console.warn(
+      `[findAndUpdateInvoice] No ${invoiceType} invoice found after all attempts.`,
+      '\nPayment data:', JSON.stringify(payment)
+    );
+    return false;
+  };
+
   const markAsPaid = async (paymentId) => {
     const payment = payments.find(p => p.id === paymentId);
     if (!payment) return;
@@ -74,53 +172,62 @@ const AdminPayments = () => {
     if (!window.confirm(confirmMsg)) return;
 
     try {
-      // Update payment status
+      // 1. Update the payment record itself
       await updateDoc(doc(db, 'payments', paymentId), {
         status: 'PAID', paidDate: Timestamp.now(), updatedAt: Timestamp.now(),
       });
 
-      // Update matching invoice
+      // 2. Update the matching invoice in the invoices collection
       const invoiceType = payment.paymentType === 'INITIAL' ? 'INITIAL' : 'FINAL';
-      const invoicesSnap = await getDocs(query(
-        collection(db, 'invoices'),
-        where('purchaseOrderId', '==', payment.purchaseOrderId),
-        where('invoiceType', '==', invoiceType)
-      ));
-      if (!invoicesSnap.empty) {
-        await updateDoc(doc(db, 'invoices', invoicesSnap.docs[0].id), {
-          paymentStatus: 'Paid', paidAmount: payment.amount,
-          paidDate: Timestamp.now(), paymentMethod: 'Bank Transfer', updatedAt: Timestamp.now(),
-        });
+      const invoiceUpdated = await findAndUpdateInvoice(payment, invoiceType);
+      if (!invoiceUpdated) {
+        // Non-blocking warning — payment is still marked paid, just the
+        // invoice view may lag until the next supplier login
+        console.warn('[markAsPaid] Invoice update failed — supplier invoice view may not reflect payment yet');
       }
 
+      // 3. Update purchase order + send notification
       if (payment.paymentType === 'INITIAL') {
-        // Mark initial payment on PO and notify supplier to ship
         await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
-          initialPaymentStatus: 'PAID', initialPaymentDate: Timestamp.now(), updatedAt: Timestamp.now(),
+          initialPaymentStatus: 'PAID',
+          initialPaymentDate:   Timestamp.now(),
+          updatedAt:            Timestamp.now(),
         });
         await addDoc(collection(db, 'notifications'), {
-          type: 'INITIAL_PAYMENT_PAID', recipientId: payment.supplierId, recipientType: 'supplier',
-          purchaseOrderId: payment.purchaseOrderId, poId: payment.orderId,
-          supplierId: payment.supplierId, supplierName: payment.supplierName,
-          productName: payment.productName,
-          message: `Initial payment of 50% has been made for order ${payment.orderId}. Please proceed with delivery.`,
-          read: false, createdAt: Timestamp.now(),
+          type:            'INITIAL_PAYMENT_PAID',
+          recipientId:     payment.supplierId,
+          recipientType:   'supplier',
+          purchaseOrderId: payment.purchaseOrderId,
+          poId:            payment.orderId,
+          supplierId:      payment.supplierId,
+          supplierName:    payment.supplierName,
+          productName:     payment.productName,
+          message:         `Initial payment of 50% has been made for order ${payment.orderId}. Please proceed with delivery.`,
+          read:            false,
+          createdAt:       Timestamp.now(),
         });
       }
 
       if (payment.paymentType === 'FINAL') {
-        // Mark order as fully completed and notify supplier
         await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
-          finalPaymentStatus: 'PAID', finalPaymentDate: Timestamp.now(),
-          paymentStatus: 'COMPLETED', orderStatus: 'COMPLETED', updatedAt: Timestamp.now(),
+          finalPaymentStatus: 'PAID',
+          finalPaymentDate:   Timestamp.now(),
+          paymentStatus:      'COMPLETED',
+          orderStatus:        'COMPLETED',
+          updatedAt:          Timestamp.now(),
         });
         await addDoc(collection(db, 'notifications'), {
-          type: 'FINAL_PAYMENT_PAID', recipientId: payment.supplierId, recipientType: 'supplier',
-          purchaseOrderId: payment.purchaseOrderId, poId: payment.orderId,
-          supplierId: payment.supplierId, supplierName: payment.supplierName,
-          productName: payment.productName,
-          message: `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`,
-          read: false, createdAt: Timestamp.now(),
+          type:            'FINAL_PAYMENT_PAID',
+          recipientId:     payment.supplierId,
+          recipientType:   'supplier',
+          purchaseOrderId: payment.purchaseOrderId,
+          poId:            payment.orderId,
+          supplierId:      payment.supplierId,
+          supplierName:    payment.supplierName,
+          productName:     payment.productName,
+          message:         `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`,
+          read:            false,
+          createdAt:       Timestamp.now(),
         });
       }
 
@@ -172,20 +279,17 @@ const AdminPayments = () => {
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
 
-      {/* Page header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-800 mb-2">Payments Management</h1>
         <p className="text-slate-500 text-[15px]">Track and manage supplier payments</p>
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
         {statCards.map((card) => (
           <Card key={card.label} title={card.label} value={card.value} />
         ))}
       </div>
 
-      {/* Search and status filters */}
       <div className="bg-white p-6 rounded-xl shadow-sm mb-6">
         <input
           type="text"
@@ -210,7 +314,6 @@ const AdminPayments = () => {
         </div>
       </div>
 
-      {/* Payments table */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="py-20 text-center text-slate-500 text-lg">Loading payments...</div>
@@ -292,7 +395,6 @@ const AdminPayments = () => {
             className="bg-white rounded-2xl w-full max-w-[700px] max-h-[90vh] overflow-y-auto shadow-2xl animate-[slideUp_0.3s_ease-out]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
               <h2 className="text-2xl font-bold text-slate-800 m-0">Payment Details</h2>
               <button
@@ -301,9 +403,7 @@ const AdminPayments = () => {
               >×</button>
             </div>
 
-            {/* Body */}
             <div className="p-7">
-              {/* PO ID + badges */}
               <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-slate-100">
                 <h3 className="text-xl font-bold text-blue-600 font-mono m-0">{selectedPayment.orderId}</h3>
                 <div className="flex gap-2 items-center">
@@ -318,7 +418,6 @@ const AdminPayments = () => {
                 </div>
               </div>
 
-              {/* Details grid */}
               <div className="grid grid-cols-2 gap-5 mb-6">
                 {[
                   { label: 'Supplier',           value: selectedPayment.supplierName },
@@ -345,7 +444,6 @@ const AdminPayments = () => {
                 ))}
               </div>
 
-              {/* Context note */}
               {selectedPayment.paymentType === 'INITIAL' && selectedPayment.status !== 'PAID' && (
                 <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-5">
                   <p className="text-[13px] text-violet-800 font-medium m-0">
@@ -361,7 +459,6 @@ const AdminPayments = () => {
                 </div>
               )}
 
-              {/* Mark as paid */}
               {selectedPayment.status !== 'PAID' && (
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 text-center">
                   <button

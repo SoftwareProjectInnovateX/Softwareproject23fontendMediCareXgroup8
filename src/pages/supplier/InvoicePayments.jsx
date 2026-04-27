@@ -12,14 +12,12 @@ import {
 } from 'react-icons/md';
 import Card from '../../components/Card';
 
-// Uses /api base so fetch paths don't need to repeat /api
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 // Toast notification component
 const Toast = ({ toasts, removeToast }) => (
   <div className="fixed top-5 right-5 z-[2000] flex flex-col gap-2">
     {toasts.map((t) => {
-      // Pick colors based on toast type
       const styles = {
         success: 'bg-emerald-50 border-emerald-400 text-emerald-800',
         error:   'bg-red-50 border-red-400 text-red-800',
@@ -62,11 +60,8 @@ const InvoicePayments = () => {
   const [paymentAmount, setPaymentAmount]       = useState('');
   const [paymentMethod, setPaymentMethod]       = useState('Bank Transfer');
   const [paymentNote, setPaymentNote]           = useState('');
+  const [toasts, setToasts]                     = useState([]);
 
-  // Toast state: array of { id, type, message }
-  const [toasts, setToasts] = useState([]);
-
-  // Add a toast and auto-remove after 4 seconds
   const showToast = (message, type = 'info') => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, type, message }]);
@@ -84,34 +79,46 @@ const InvoicePayments = () => {
   }, []);
 
   /* ── FETCH INVOICES ── */
+  // FIX: Fetch ALL invoices for this supplier without a paymentStatus filter,
+  // then filter client-side. This ensures FINAL invoices that were just marked
+  // Paid by the admin are always included — previously a Firestore composite
+  // index or missing field could silently drop them.
   const fetchInvoices = async () => {
     if (!supplierId) return;
     try {
       setLoading(true);
-      const baseQuery = filterStatus === 'All'
-        ? query(
-            collection(db, 'invoices'),
-            where('supplierId', '==', supplierId),
-            orderBy('invoiceDate', 'desc')
-          )
-        : query(
-            collection(db, 'invoices'),
-            where('supplierId', '==', supplierId),
-            where('paymentStatus', '==', filterStatus),
-            orderBy('invoiceDate', 'desc')
-          );
+
+      // Always fetch all invoices for this supplier first
+      const baseQuery = query(
+        collection(db, 'invoices'),
+        where('supplierId', '==', supplierId),
+        orderBy('invoiceDate', 'desc')
+      );
 
       const snapshot = await getDocs(baseQuery);
-      setInvoices(snapshot.docs.map((d) => {
+      const allInvoices = snapshot.docs.map((d) => {
         const data = d.data();
         return {
           id: d.id, ...data,
-          // Convert Firestore timestamps to readable date strings
-          invoiceDate: data.invoiceDate?.toDate ? data.invoiceDate.toDate().toISOString().split('T')[0] : data.invoiceDate,
-          dueDate:     data.dueDate?.toDate     ? data.dueDate.toDate().toISOString().split('T')[0]     : data.dueDate,
-          paidDate:    data.paidDate?.toDate    ? data.paidDate.toDate().toISOString().split('T')[0]    : null,
+          invoiceDate: data.invoiceDate?.toDate
+            ? data.invoiceDate.toDate().toISOString().split('T')[0]
+            : data.invoiceDate,
+          dueDate: data.dueDate?.toDate
+            ? data.dueDate.toDate().toISOString().split('T')[0]
+            : data.dueDate,
+          paidDate: data.paidDate?.toDate
+            ? data.paidDate.toDate().toISOString().split('T')[0]
+            : null,
         };
-      }));
+      });
+
+      // FIX: Apply status filter client-side so we never miss records due to
+      // Firestore composite index issues or field name mismatches
+      const filtered = filterStatus === 'All'
+        ? allInvoices
+        : allInvoices.filter((inv) => inv.paymentStatus === filterStatus);
+
+      setInvoices(filtered);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching invoices:', error);
@@ -122,7 +129,6 @@ const InvoicePayments = () => {
 
   useEffect(() => { fetchInvoices(); }, [filterStatus, supplierId]);
 
-  // Compute summary totals from invoice list
   const calculateTotals = () => ({
     total:   invoices.reduce((s, i) => s + (i.totalAmount || 0), 0),
     paid:    invoices.filter(i => i.paymentStatus === 'Paid').reduce((s, i) => s + (i.totalAmount || 0), 0),
@@ -132,7 +138,6 @@ const InvoicePayments = () => {
 
   /* ── RECORD PAYMENT ── */
   const recordPayment = async () => {
-    // Validate inputs before submitting
     if (!selectedInvoice || !paymentAmount) {
       showToast('Please enter payment amount', 'warning');
       return;
@@ -143,7 +148,6 @@ const InvoicePayments = () => {
       return;
     }
     try {
-      // Update invoice doc and create a payment record
       await updateDoc(doc(db, 'invoices', selectedInvoice.id), {
         paymentStatus: 'Paid', paidAmount: amount, paidDate: Timestamp.now(),
         paymentMethod, paymentNote, updatedAt: Timestamp.now(),
@@ -166,7 +170,7 @@ const InvoicePayments = () => {
   /* ── GENERATE & DOWNLOAD PDF ── */
   const generatePDF = async (invoice) => {
     try {
-      // /api is already in API_BASE so path starts directly with /supplier
+      showToast('Generating PDF...', 'info');
       const response = await fetch(`${API_BASE}/supplier/invoices/generate-pdf`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -191,9 +195,16 @@ const InvoicePayments = () => {
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to generate PDF');
+      // FIX: Handle non-ok responses by reading the JSON error body
+      if (!response.ok) {
+        let errMsg = `Server error ${response.status}`;
+        try {
+          const errJson = await response.json();
+          errMsg = errJson.message || errMsg;
+        } catch (_) { /* response wasn't JSON */ }
+        throw new Error(errMsg);
+      }
 
-      // Trigger browser file download
       const blob    = await response.blob();
       const url     = window.URL.createObjectURL(blob);
       const link    = document.createElement('a');
@@ -203,13 +214,13 @@ const InvoicePayments = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      showToast('PDF downloaded successfully!', 'success');
     } catch (error) {
       console.error('Error generating PDF:', error);
       showToast('Failed to generate PDF: ' + error.message, 'error');
     }
   };
 
-  // Badge color helpers
   const getStatusStyle = (status) => {
     switch (status) {
       case 'Paid':    return 'bg-emerald-100 text-emerald-800';
@@ -229,7 +240,6 @@ const InvoicePayments = () => {
 
   const totals = calculateTotals();
 
-  // Shared modal backdrop + container
   const ModalWrap = ({ onClose, children }) => (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-5"
@@ -249,32 +259,54 @@ const InvoicePayments = () => {
   const inputCls    = "w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10";
   const disabledCls = "bg-slate-100 cursor-not-allowed";
 
-  const paidCount    = invoices.filter(i => i.paymentStatus === 'Paid').length;
-  const pendingCount = invoices.filter(i => i.paymentStatus === 'Pending').length;
-  const overdueCount = invoices.filter(i => i.paymentStatus === 'Overdue').length;
+  // FIX: Count from ALL invoices regardless of current filter for accurate summary cards
+  const [allInvoices, setAllInvoices] = useState([]);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      if (!supplierId) return;
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'invoices'),
+          where('supplierId', '==', supplierId),
+        ));
+        setAllInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (_) {}
+    };
+    fetchAll();
+  }, [supplierId]);
+
+  const paidCount    = allInvoices.filter(i => i.paymentStatus === 'Paid').length;
+  const pendingCount = allInvoices.filter(i => i.paymentStatus === 'Pending').length;
+  const overdueCount = allInvoices.filter(i => i.paymentStatus === 'Overdue').length;
+
+  const allTotals = {
+    total:   allInvoices.reduce((s, i) => s + (i.totalAmount || 0), 0),
+    paid:    allInvoices.filter(i => i.paymentStatus === 'Paid').reduce((s, i) => s + (i.totalAmount || 0), 0),
+    pending: allInvoices.filter(i => i.paymentStatus === 'Pending').reduce((s, i) => s + (i.totalAmount || 0), 0),
+    overdue: allInvoices.filter(i => i.paymentStatus === 'Overdue').reduce((s, i) => s + (i.totalAmount || 0), 0),
+  };
 
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
 
-      {/* Toast notifications (top-right) */}
       <Toast toasts={toasts} removeToast={removeToast} />
 
-      {/* Page Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-800 mb-1">Invoice & Payments</h1>
         <p className="text-slate-500 text-base">Track payments received from MediCareX</p>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards — always show totals across ALL invoices */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-        <Card title="Total Revenue"                          value={`Rs.${totals.total.toFixed(2)}`} />
-        <Card title={`Received (${paidCount} invoices)`}    value={`Rs.${totals.paid.toFixed(2)}`} />
-        <Card title={`Pending (${pendingCount} invoices)`}  value={`Rs.${totals.pending.toFixed(2)}`} />
-        <Card title={`Overdue (${overdueCount} invoices)`}  value={`Rs.${totals.overdue.toFixed(2)}`} />
+        <Card title="Total Revenue"                          value={`Rs.${allTotals.total.toFixed(2)}`} />
+        <Card title={`Received (${paidCount} invoices)`}    value={`Rs.${allTotals.paid.toFixed(2)}`} />
+        <Card title={`Pending (${pendingCount} invoices)`}  value={`Rs.${allTotals.pending.toFixed(2)}`} />
+        <Card title={`Overdue (${overdueCount} invoices)`}  value={`Rs.${allTotals.overdue.toFixed(2)}`} />
       </div>
 
-      {/* Delivery unlock banner — shown when INITIAL invoices are unpaid */}
-      {invoices.some(inv => inv.invoiceType === 'INITIAL' && inv.paymentStatus === 'Pending') && (
+      {/* Delivery unlock banner */}
+      {allInvoices.some(inv => inv.invoiceType === 'INITIAL' && inv.paymentStatus === 'Pending') && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6 flex items-center gap-3">
           <MdLocalShipping size={22} className="text-amber-600 flex-shrink-0" />
           <p className="text-sm text-amber-800 font-medium m-0">
@@ -414,7 +446,6 @@ const InvoicePayments = () => {
               </div>
             </div>
 
-            {/* Delivery gate notice for INITIAL invoices */}
             {selectedInvoice.invoiceType === 'INITIAL' && (
               <div className={`rounded-lg p-4 mb-6 border ${selectedInvoice.paymentStatus === 'Paid'
                 ? 'bg-emerald-50 border-emerald-200'
@@ -435,7 +466,6 @@ const InvoicePayments = () => {
               </div>
             )}
 
-            {/* Status notice for FINAL invoices */}
             {selectedInvoice.invoiceType === 'FINAL' && (
               <div className={`rounded-lg p-4 mb-6 border ${selectedInvoice.paymentStatus === 'Paid'
                 ? 'bg-emerald-50 border-emerald-200'
@@ -448,7 +478,6 @@ const InvoicePayments = () => {
               </div>
             )}
 
-            {/* Line items table */}
             <h3 className="text-lg font-semibold text-slate-800 mb-4">Items</h3>
             <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
               <table className="w-full border-collapse">
@@ -472,7 +501,6 @@ const InvoicePayments = () => {
               </table>
             </div>
 
-            {/* Price breakdown */}
             <div className="bg-slate-50 rounded-lg p-4 mb-6">
               <div className="flex justify-between py-2 text-sm text-slate-700">
                 <span>Subtotal:</span>
@@ -492,7 +520,6 @@ const InvoicePayments = () => {
               )}
             </div>
 
-            {/* Payment info — only shown when paid */}
             {selectedInvoice.paymentStatus === 'Paid' && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-blue-800 mb-3">Payment Information</h4>
