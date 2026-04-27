@@ -40,6 +40,10 @@ function TagCheckbox({ name, label, checked, onChange }) {
 // Backend endpoint for all pharmacist product operations
 const PHARMACIST_API = 'http://localhost:5000/api/products';
 
+// Markup multiplier applied to wholesale price when no retail price is set.
+// Change this one value if the business markup rate changes.
+const MARKUP_RATE = 1.2;
+
 export default function AddProductForm() {
   // Products submitted by admin that are waiting for pharmacist approval
   const [pendingProducts, setPendingProducts] = useState([]);
@@ -86,10 +90,10 @@ export default function AddProductForm() {
     setSelectedPending(product);
     setForm({
       name:        product.productName  || "",
-      // Use retailPrice if set; otherwise calculate a 20% markup on wholesale price
+      // Use retailPrice if set; otherwise calculate markup on wholesale price
       price:       product.retailPrice
                      ? product.retailPrice
-                     : (Number(product.wholesalePrice) * 1.2).toFixed(2),
+                     : (Number(product.wholesalePrice) * MARKUP_RATE).toFixed(2),
       description: product.description  || "",
       imageUrl:    product.imageUrl     || "",
       category:    product.category     || "",
@@ -228,7 +232,7 @@ export default function AddProductForm() {
                   <p className="text-[13px] font-bold text-emerald-600">
                     Rs. {p.retailPrice
                       ? Number(p.retailPrice).toFixed(2)
-                      : (Number(p.wholesalePrice) * 1.2).toFixed(2)}
+                      : (Number(p.wholesalePrice) * MARKUP_RATE).toFixed(2)}
                   </p>
                   <p className="text-[11px] text-slate-400">Stock: {p.stock}</p>
                 </div>
@@ -337,7 +341,7 @@ export default function AddProductForm() {
         <Field label="Product Tags">
           <div className="flex gap-[10px]">
             <TagCheckbox name="newArrival"  label="New Arrival"  checked={tags.newArrival}  onChange={handleTagChange} />
-            <TagCheckbox name="bestSelling" label="Best Selling" checked={tags.bestSelling} onChange={handleTagChange} />
+            
           </div>
         </Field>
 

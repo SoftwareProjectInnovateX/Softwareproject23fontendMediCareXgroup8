@@ -69,14 +69,7 @@ export default function BrandCard({ brand, FONT }) {
           {brand.description}
         </p>
 
-        {/* Button */}
-        <a
-          href={`/customer/products?brand=${brand.name}`}
-          className="block text-center text-white rounded-[10px] py-[11px] text-[13px] font-semibold"
-          style={{ background: C.accent }}
-        >
-          View Products
-        </a>
+       
       </div>
     </div>
   );

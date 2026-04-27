@@ -30,11 +30,9 @@ const FONT = {
 
 // ── Style helpers ─────────────────────────────────────────────────────────────
 
-// Returns background, text, and border colour based on order status
 function orderStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "delivered":  return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
-    case "received":   return { bg: "rgba(20,184,166,0.1)",  color: "#0d9488", border: "rgba(20,184,166,0.25)" };
     case "approved":   return { bg: "rgba(26,135,225,0.1)",  color: "#1a87e1", border: "rgba(26,135,225,0.25)" };
     case "cancelled":  return { bg: "rgba(239,68,68,0.1)",   color: "#dc2626", border: "rgba(239,68,68,0.25)"  };
     case "processing": return { bg: "rgba(139,92,246,0.1)",  color: "#7c3aed", border: "rgba(139,92,246,0.25)" };
@@ -42,7 +40,6 @@ function orderStatusStyle(status) {
   }
 }
 
-// Returns colour tokens based on payment status (paid / failed / pending)
 function paymentStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "paid":    return { bg: "rgba(16,185,129,0.1)",  color: "#059669", border: "rgba(16,185,129,0.25)" };
@@ -53,11 +50,9 @@ function paymentStatusStyle(status) {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-// Summary card shown at the top of the page (e.g. Total Orders, Pending, Delivered)
 function StatCard({ icon: Icon, label, value, iconBg, iconColor }) {
   return (
     <div className="bg-white border border-[rgba(26,135,225,0.18)] rounded-[14px] px-5 py-[18px] flex items-center gap-[14px] shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
-      {/* Coloured icon container */}
       <div className="w-11 h-11 rounded-[11px] shrink-0 flex items-center justify-center" style={{ background: iconBg }}>
         <Icon size={20} color={iconColor} strokeWidth={2} />
       </div>
@@ -69,7 +64,6 @@ function StatCard({ icon: Icon, label, value, iconBg, iconColor }) {
   );
 }
 
-// Pill-shaped status label used throughout the order rows
 function Badge({ label, style: s }) {
   return (
     <span
@@ -81,7 +75,6 @@ function Badge({ label, style: s }) {
   );
 }
 
-// Generic action button used for Approve / Delivered / Processing / Cancel
 function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) {
   return (
     <button
@@ -104,18 +97,16 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
 
 // ── OrderRow ──────────────────────────────────────────────────────────────────
 
-// Renders a single order as a collapsible row.
 function OrderRow({ order, onStatusUpdate, updating }) {
-  // Controls whether the detail panel is visible
   const [expanded, setExpanded] = useState(false);
 
-  const oStyle    = orderStatusStyle(order.orderStatus);
-  const pStyle    = paymentStatusStyle(order.paymentStatus);
+  const oStyle = orderStatusStyle(order.orderStatus);
+  const pStyle = paymentStatusStyle(order.paymentStatus);
+  const isCOD  = (order.paymentMethod || "").toLowerCase() === "cod";
 
-  // Cash-on-delivery orders get a special COD badge
-  const isCOD     = (order.paymentMethod || "").toLowerCase() === "cod";
+  // Normalise status to lowercase for all comparisons
+  const status = (order.orderStatus || "pending").toLowerCase();
 
-  // Convert Firestore timestamp (_seconds) to a readable date string
   const createdAt = order.createdAt?._seconds
     ? new Date(order.createdAt._seconds * 1000).toLocaleString("en-GB", {
         day: "2-digit", month: "short", year: "numeric",
@@ -123,12 +114,16 @@ function OrderRow({ order, onStatusUpdate, updating }) {
       })
     : "—";
 
+  // ── Terminal / already-in-state disable logic ──────────────────────────────
+  // Once delivered or cancelled, every button is disabled (terminal states).
+  const isTerminal = status === "delivered" || status === "cancelled";
+
   return (
     <div
       className="bg-white rounded-[12px] overflow-hidden"
       style={{
-        border:     "1px solid rgba(26,135,225,0.18)",
-        boxShadow:  "0 1px 3px rgba(26,135,225,0.06)",
+        border:    "1px solid rgba(26,135,225,0.18)",
+        boxShadow: "0 1px 3px rgba(26,135,225,0.06)",
       }}
     >
       {/* ── Collapsed summary row ── */}
@@ -136,11 +131,9 @@ function OrderRow({ order, onStatusUpdate, updating }) {
         className="grid px-[18px] py-[14px] items-center gap-3"
         style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr auto" }}
       >
-        {/* Customer info: name, phone, address */}
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-[13px] font-semibold text-[#1e293b]">{order.customerName || "—"}</p>
-            {/* COD badge alongside customer name */}
             {isCOD && (
               <span
                 className="text-[9px] font-bold px-[8px] py-[2px] rounded-[6px] uppercase tracking-[0.08em]"
@@ -158,24 +151,19 @@ function OrderRow({ order, onStatusUpdate, updating }) {
           </p>
         </div>
 
-        {/* Order creation date */}
         <div className="text-[11px] text-[#475569]">{createdAt}</div>
 
-        {/* Number of distinct item types in the order */}
         <div className="text-[13px] font-semibold text-[#1e293b]">
           {order.types?.length ?? 0} item{order.types?.length !== 1 ? "s" : ""}
         </div>
 
-        {/* Payment method and payment status badges */}
         <div className="flex flex-col gap-[5px]">
           <Badge label={order.paymentMethod || "—"} style={{ bg: "rgba(26,135,225,0.08)", color: "#1a87e1", border: "rgba(26,135,225,0.2)" }} />
           <Badge label={order.paymentStatus || "pending"} style={pStyle} />
         </div>
 
-        {/* Order status badge */}
         <Badge label={order.orderStatus || "pending"} style={oStyle} />
 
-        {/* Toggle details panel */}
         <button
           onClick={() => setExpanded(e => !e)}
           className="bg-[#f1f5f9] border border-[rgba(26,135,225,0.18)] rounded-lg px-3 py-[6px] cursor-pointer text-[#475569] text-[12px] flex items-center gap-[5px] font-semibold"
@@ -190,20 +178,8 @@ function OrderRow({ order, onStatusUpdate, updating }) {
       {expanded && (
         <div className="border-t border-[rgba(26,135,225,0.18)] px-[18px] py-4 bg-[#f8fafc]">
 
-          {/* COD notice — reminds pharmacist that payment is collected on delivery */}
-          {isCOD && (
-            <div
-              className="flex items-center gap-2 mb-4 px-[14px] py-[10px] rounded-lg"
-              style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.25)" }}
-            >
-              <Banknote size={14} color="#d97706" />
-              <p className="text-[12px] font-semibold" style={{ color: "#d97706" }}>
-                Cash on Delivery — payment collected upon delivery. Returns eligible for this order.
-              </p>
-            </div>
-          )}
+         
 
-          {/* Order items list with image, name, code, quantity, and unit price */}
           {order.types && order.types.length > 0 && (
             <div className="mb-4">
               <p className="text-[11px] font-bold text-[#64748b] uppercase tracking-[0.08em] mb-[10px]">Order Items</p>
@@ -211,7 +187,6 @@ function OrderRow({ order, onStatusUpdate, updating }) {
                 {order.types.map((item, i) => (
                   <div key={i} className="flex justify-between items-center bg-white rounded-lg px-[14px] py-[10px] border border-[rgba(26,135,225,0.18)]">
                     <div className="flex items-center gap-[10px]">
-                      {/* Product thumbnail — falls back gracefully if missing */}
                       {item.imageUrl && (
                         <img src={item.imageUrl} alt={item.name}
                           className="w-10 h-10 rounded-[6px] object-cover border border-[rgba(26,135,225,0.18)]" />
@@ -222,9 +197,7 @@ function OrderRow({ order, onStatusUpdate, updating }) {
                       </div>
                     </div>
                     <div className="text-right">
-                      {/* Quantity ordered */}
                       <p className="text-[13px] font-semibold text-[#1a87e1]">{item.quantity ? `x${item.quantity}` : ""}</p>
-                      {/* Unit price */}
                       {item.price && <p className="text-[11px] text-[#64748b]">Rs. {item.price}</p>}
                     </div>
                   </div>
@@ -233,7 +206,6 @@ function OrderRow({ order, onStatusUpdate, updating }) {
             </div>
           )}
 
-          {/* Total item count across all types in the order */}
           {order.totalnumber !== undefined && (
             <div className="flex justify-end mb-4">
               <div className="bg-white border border-[rgba(26,135,225,0.18)] rounded-lg px-4 py-2 text-[13px] font-semibold text-[#1a87e1]">
@@ -242,7 +214,6 @@ function OrderRow({ order, onStatusUpdate, updating }) {
             </div>
           )}
 
-          {/* Customer feedback submitted with the order, if any */}
           {order.feedback && (
             <div className="bg-[rgba(26,135,225,0.04)] border border-[rgba(26,135,225,0.15)] rounded-lg px-[14px] py-[10px] mb-4">
               <p className="text-[11px] font-bold text-[#64748b] mb-1 uppercase tracking-[0.08em]">Customer Feedback</p>
@@ -251,33 +222,58 @@ function OrderRow({ order, onStatusUpdate, updating }) {
           )}
 
           {/* ── Status action buttons ──
-              Buttons are disabled based on the current order status
-              to prevent invalid state transitions                      */}
+              isTerminal (delivered | cancelled) disables ALL buttons.
+              Individual buttons are also disabled when already in that state,
+              or when a global update is in progress. */}
           <div className="flex gap-2 flex-wrap">
+
+            {/* APPROVE */}
             <ActionBtn
               label="Approve" icon={Check}
-              disabled={order.orderStatus === "approved" || order.orderStatus === "delivered" || updating}
+              disabled={
+                isTerminal              ||
+                status === "approved"   ||
+                status === "processing" ||
+                updating
+              }
               onClick={() => onStatusUpdate(order.id, "approved")}
               color="#059669" bg="rgba(16,185,129,0.1)" border="rgba(16,185,129,0.25)"
             />
+
+            {/* MARK DELIVERED */}
             <ActionBtn
               label="Mark Delivered" icon={Truck}
-              disabled={order.orderStatus === "delivered" || order.orderStatus === "cancelled" || updating}
+              disabled={
+                isTerminal ||
+                updating
+              }
               onClick={() => onStatusUpdate(order.id, "delivered")}
               color="#1a87e1" bg="rgba(26,135,225,0.1)" border="rgba(26,135,225,0.25)"
             />
+
+            {/* PROCESSING */}
             <ActionBtn
               label="Processing" icon={Settings}
-              disabled={order.orderStatus === "processing" || order.orderStatus === "delivered" || updating}
+              disabled={
+                isTerminal              ||
+                status === "processing" ||
+                updating
+              }
               onClick={() => onStatusUpdate(order.id, "processing")}
               color="#7c3aed" bg="rgba(139,92,246,0.1)" border="rgba(139,92,246,0.25)"
             />
+
+            {/* CANCEL */}
             <ActionBtn
               label="Cancel" icon={X}
-              disabled={order.orderStatus === "cancelled" || order.orderStatus === "delivered" || updating}
+              disabled={
+                isTerminal ||
+                updating
+              }
               onClick={() => onStatusUpdate(order.id, "cancelled")}
               color="#dc2626" bg="rgba(239,68,68,0.1)" border="rgba(239,68,68,0.25)"
             />
+
           </div>
         </div>
       )}
@@ -287,21 +283,17 @@ function OrderRow({ order, onStatusUpdate, updating }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-// Orders page — fetches all orders, displays summary stats,
-// filter tabs, search, and a list of OrderRow components.
 export default function Orders() {
   const [orders, setOrders]     = useState([]);
   const [filter, setFilter]     = useState("all");
   const [search, setSearch]     = useState("");
-  const [updating, setUpdating] = useState(false); // prevents double-submission during API calls
+  const [updating, setUpdating] = useState(false);
 
-  // Fetches orders then sorts newest-first
   const fetchAll = useCallback(async () => {
     try {
-      const ordersRes = await fetch(API_BASE);
+      const ordersRes  = await fetch(API_BASE);
       const ordersData = await ordersRes.json();
-
-      // Sort descending by Firestore _seconds timestamp
+     //displya newset order first
       ordersData.sort((a, b) => {
         const aS = a.createdAt?._seconds ?? 0;
         const bS = b.createdAt?._seconds ?? 0;
@@ -314,16 +306,29 @@ export default function Orders() {
     }
   }, []);
 
-  // Initial fetch + poll every 30 seconds for live order updates
   useEffect(() => {
     fetchAll();
     const interval = setInterval(fetchAll, 30000);
     return () => clearInterval(interval);
   }, [fetchAll]);
 
-  // Sends a status update (PUT) for a single order then refreshes the list
+  // ── KEY FIX: optimistic update ────────────────────────────────────────────
+  // Update the order's status in local state immediately so buttons reflect
+  // the new state right away, even before the server re-fetch completes.
+  // If the API call fails, roll back to the original status.
   const handleStatusUpdate = async (id, status) => {
     setUpdating(true);
+
+    // 1. Save original status for rollback on failure
+    const prevOrders = orders;
+
+    // 2. Apply optimistic update immediately
+    setOrders(prev =>
+      prev.map(o =>
+        o.id === id ? { ...o, orderStatus: status } : o
+      )
+    );
+
     try {
       const res = await fetch(`${API_BASE}/${id}`, {
         method: "PUT",
@@ -331,23 +336,25 @@ export default function Orders() {
         body: JSON.stringify({ orderStatus: status }),
       });
       if (!res.ok) throw new Error(await res.text());
-      await fetchAll(); // refresh after update
+
+      // 3. Refresh from server to get the authoritative state
+      await fetchAll();
     } catch (err) {
+      // 4. Roll back on failure
+      setOrders(prevOrders);
       alert(`Failed to update: ${err.message}`);
     } finally {
       setUpdating(false);
     }
   };
 
-  // ── Derived counts for stat cards and filter tab labels ───────────────────
-  const total      = orders.length;
-  const pending    = orders.filter(o => (o.orderStatus || "pending") === "pending").length;
-  const delivered  = orders.filter(o => o.orderStatus === "delivered").length;
-  const cancelled  = orders.filter(o => o.orderStatus === "cancelled").length;
-  const cod        = orders.filter(o => (o.paymentMethod || "").toLowerCase() === "cod").length;
-  const received   = orders.filter(o => o.orderStatus === "received").length;
+  // ── Derived counts ────────────────────────────────────────────────────────
+  const total     = orders.length;
+  const pending   = orders.filter(o => (o.orderStatus || "pending") === "pending").length;
+  const delivered = orders.filter(o => o.orderStatus === "delivered").length;
+  const cancelled = orders.filter(o => o.orderStatus === "cancelled").length;
+  const cod       = orders.filter(o => (o.paymentMethod || "").toLowerCase() === "cod").length;
 
-  // Apply active filter tab and search query to produce the visible subset
   const visible = orders.filter(o => {
     const matchFilter =
       filter === "all"        ? true :
@@ -355,11 +362,9 @@ export default function Orders() {
       filter === "approved"   ? o.orderStatus === "approved"   :
       filter === "processing" ? o.orderStatus === "processing" :
       filter === "delivered"  ? o.orderStatus === "delivered"  :
-      filter === "received"   ? o.orderStatus === "received"   :
       filter === "cancelled"  ? o.orderStatus === "cancelled"  :
       filter === "cod"        ? (o.paymentMethod || "").toLowerCase() === "cod" : true;
 
-    // Search matches against customer name, phone, or delivery address
     const matchSearch =
       !search ||
       o.customerName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -379,16 +384,14 @@ export default function Orders() {
 
       {/* ── Stat cards — row 1 ── */}
       <div className="grid grid-cols-3 gap-[14px] mb-3">
-        <StatCard icon={ShoppingCart} label="Total Orders" value={total}      iconBg="rgba(26,135,225,0.1)"  iconColor="#1a87e1" />
-        <StatCard icon={Clock}        label="Pending"       value={pending}    iconBg="rgba(245,158,11,0.1)"  iconColor="#d97706" />
-        <StatCard icon={CheckCircle}  label="Delivered"     value={delivered}  iconBg="rgba(16,185,129,0.1)"  iconColor="#059669" />
+        <StatCard icon={ShoppingCart} label="Total Orders" value={total}     iconBg="rgba(26,135,225,0.1)"  iconColor="#1a87e1" />
+        <StatCard icon={Clock}        label="Pending"       value={pending}   iconBg="rgba(245,158,11,0.1)"  iconColor="#d97706" />
+        <StatCard icon={CheckCircle}  label="Delivered"     value={delivered} iconBg="rgba(16,185,129,0.1)"  iconColor="#059669" />
       </div>
       {/* ── Stat cards — row 2 ── */}
-      
-      <div className="grid grid-cols-3 gap-[14px] mb-3">
+      <div className="grid grid-cols-2 gap-[14px] mb-3">
         <StatCard icon={XCircle}  label="Cancelled"  value={cancelled} iconBg="rgba(239,68,68,0.1)"   iconColor="#dc2626" />
         <StatCard icon={Banknote} label="COD Orders" value={cod}       iconBg="rgba(245,158,11,0.08)" iconColor="#d97706" />
-         <StatCard icon={Check} label="Received" value={received} iconBg="rgba(20,184,166,0.1)" iconColor="#0d9488" />
       </div>
 
       {/* ── Filter tabs + search bar ── */}
@@ -399,7 +402,6 @@ export default function Orders() {
           { key: "approved",   label: "Approved"                 },
           { key: "processing", label: "Processing"               },
           { key: "delivered",  label: `Delivered (${delivered})` },
-          { key: "received",   label: `Received (${received})`   },
           { key: "cancelled",  label: `Cancelled (${cancelled})` },
           { key: "cod",        label: `COD (${cod})`             },
         ].map(f => (
@@ -409,23 +411,19 @@ export default function Orders() {
             className="text-[12px] font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer transition-all duration-150 border"
             style={{
               fontFamily: FONT.body,
-              // Active tab gets a coloured tint; COD and Received use their own accent colours
               background:
                 filter === f.key
-                  ? f.key === "cod"      ? "rgba(245,158,11,0.12)"
-                  : f.key === "received" ? "rgba(20,184,166,0.12)"
+                  ? f.key === "cod" ? "rgba(245,158,11,0.12)"
                   : "rgba(26,135,225,0.12)"
                   : C.surface,
               color:
                 filter === f.key
-                  ? f.key === "cod"      ? "#d97706"
-                  : f.key === "received" ? "#0d9488"
+                  ? f.key === "cod" ? "#d97706"
                   : "#1a87e1"
                   : C.textSoft,
               border:
                 filter === f.key
-                  ? f.key === "cod"      ? "1px solid rgba(245,158,11,0.35)"
-                  : f.key === "received" ? "1px solid rgba(20,184,166,0.35)"
+                  ? f.key === "cod" ? "1px solid rgba(245,158,11,0.35)"
                   : "1px solid rgba(26,135,225,0.35)"
                   : `1px solid ${C.border}`,
             }}
@@ -434,7 +432,6 @@ export default function Orders() {
           </button>
         ))}
 
-        {/* Live search — filters by name, phone, or address */}
         <input
           placeholder="Search by name, phone, address..."
           value={search}
@@ -457,7 +454,6 @@ export default function Orders() {
       {/* ── Order list ── */}
       <div className="flex flex-col gap-[2px] mt-[2px]">
         {visible.length === 0 ? (
-          // Empty state when no orders match the current filter/search
           <div className="text-center py-[60px] bg-white border border-[rgba(26,135,225,0.18)] rounded-[0_0_10px_10px]">
             <ShoppingCart size={40} color={C.textMuted} className="mx-auto mb-3" />
             <p className="text-[14px] text-[#475569]">No orders found.</p>
@@ -474,7 +470,6 @@ export default function Orders() {
         )}
       </div>
 
-      {/* Pagination-style count shown below the list */}
       <div className="text-[12px] text-[#64748b] mt-3 text-right">
         Showing {visible.length} of {total} orders
       </div>

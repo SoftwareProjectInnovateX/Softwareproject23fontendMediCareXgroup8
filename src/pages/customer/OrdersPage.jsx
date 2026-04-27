@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Upload, ClipboardList, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -10,6 +10,9 @@ import PageBanner     from '../../components/profile/PageBanner';
 import OrderCard      from '../../components/orders/OrderCard';
 import { ROUTES }     from '../../components/utils/constants';
 
+
+// Base URL for the NestJS customer-orders API
+const API_BASE = 'http://localhost:5000/api/customer-orders';
 
 // Firestore collection name constants used across this page
 const COLLECTIONS = {
@@ -24,7 +27,7 @@ const COLLECTIONS = {
 export default function OrdersPage() {
   const { currentUser } = useAuth();
 
-  // Holds regular cart orders fetched from Firestore
+  // Holds regular cart orders fetched from the NestJS backend
   const [orders, setOrders]               = useState([]);
 
   // Holds prescription orders fetched from Firestore and filtered to this user
@@ -36,8 +39,10 @@ export default function OrdersPage() {
   const navigate = useNavigate();
 
  
-  // Set up real-time Firestore listeners when the component mounts or
-  // when currentUser changes. Listeners are cleaned up on unmount.
+  // Set up data fetching when the component mounts or when currentUser changes.
+  // - CustomerOrders: fetched via NestJS backend API (secure, server-side filtered)
+  // - Prescriptions: still uses Firestore onSnapshot for real-time updates
+  //   (backend endpoint for prescriptions not yet available)
 
   useEffect(() => {
     // If no authenticated user is present, skip fetching and exit loading state
@@ -46,34 +51,45 @@ export default function OrdersPage() {
       return;
     }
 
-   
-    // Queries 'CustomerOrders' filtered by the current user's UID,
-    // sorted by 'createdAt' descending so newest orders appear first.
-    const qOrders = query(
-      collection(db, COLLECTIONS.CUSTOMER_ORDERS),
-      where('userId', '==', currentUser.uid),
-      orderBy('createdAt', 'desc')
-    );
+    let unsubPres = () => {};
 
-    const unsubOrders = onSnapshot(qOrders, (snap) => {
-      const data = snap.docs.map(d => ({
-        id: d.id,
-        ...d.data(),
+    // ── CustomerOrders via NestJS backend ─────────────────────────────────
+    // GET /api/customer-orders?userId=xxx  → server-side filters by userId
+    const fetchOrders = async () => {
+      try {
+        const token = await currentUser.getIdToken();
+        const res = await fetch(`${API_BASE}?userId=${currentUser.uid}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+
         // Tag every item so downstream logic can distinguish order types
-        type: 'regular',
-        // Fall back to 'pending' if orderStatus is not set on the document
-        orderStatus: d.data().orderStatus || 'pending',
-      }));
-      setOrders(data);
-      setLoading(false); // Data has arrived; hide the loading spinner
-    });
+        const tagged = data.map(d => ({
+          ...d,
+          type: 'regular',
+          // Fall back to 'pending' if orderStatus is not set on the document
+          orderStatus: d.orderStatus || 'pending',
+        }));
 
-    
-    // Fetches all documents from the 'prescriptions' collection (server-side.filtering by userId is not applied here; filtering happens client-side
-   
+        setOrders(tagged);
+
+      } catch (err) {
+        console.error('Failed to fetch orders from backend:', err);
+      } finally {
+        setLoading(false); // Data has arrived (or failed); hide the loading spinner
+      }
+    };
+
+    fetchOrders();
+
+    // ── Prescriptions via Firestore onSnapshot ────────────────────────────
+    // Real-time listener kept here because no backend prescription endpoint
+    // exists yet. Client-side ownership filtering is applied as a fallback.
+    // TODO: move to backend once prescription API is available.
     const qPres = query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc'));
 
-    const unsubPres = onSnapshot(qPres, (snap) => {
+    unsubPres = onSnapshot(qPres, (snap) => {
       // Normalize each prescription document into a shape compatible with OrderCard
       const all = snap.docs.map(d => {
         const p = d.data();
@@ -124,10 +140,8 @@ export default function OrdersPage() {
       setPrescriptions(filtered);
     });
 
-    
-    // Detach both Firestore listeners when the component unmounts or
-    // when currentUser changes, preventing memory leaks and stale updates.
-    return () => { unsubOrders(); unsubPres(); };
+    // Clean up Firestore listener on unmount or when currentUser changes
+    return () => { unsubPres(); };
   }, [currentUser]);
 
   // Build a Set of prescription IDs for O(1) lookup during deduplication below
@@ -150,13 +164,13 @@ export default function OrdersPage() {
       return true;
     })
     .sort((a, b) => {
-      const timeA = a.createdAt?.seconds || 0;
-      const timeB = b.createdAt?.seconds || 0;
+      const timeA = a.createdAt?.seconds || a.createdAt?._seconds || 0;
+      const timeB = b.createdAt?.seconds || b.createdAt?._seconds || 0;
       return timeB - timeA; // Descending: most recent first
     });
 
 
-  // Loading state — shown while Firestore data is being fetched on first render
+  // Loading state — shown while data is being fetched on first render
 
   if (loading) return (
     <div className="flex justify-center items-center min-h-[60vh] text-[14px]" style={{ color: C.textMuted, background: C.bg }}>
@@ -213,8 +227,9 @@ export default function OrdersPage() {
             <p className="text-[12px] mt-2 text-slate-400 font-medium">Your orders and prescriptions will appear here.</p>
           </div>
         ) : (
-          /* Renders each merged order/prescription item as an OrderCard.The key prop uses the Firestore document ID which is unique
-             across both collections.*/
+          /* Renders each merged order/prescription item as an OrderCard.
+             The key prop uses the Firestore document ID which is unique
+             across both collections. */
           <div className="flex flex-col gap-6">
             {allItems.map(item => (
               <OrderCard

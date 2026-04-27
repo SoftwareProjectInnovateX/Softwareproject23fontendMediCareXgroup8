@@ -135,12 +135,7 @@ export default function NewArrivals() {
                   {p.name}
                 </h3>
 
-                {/* Stars */}
-                <div style={{ display: "flex", gap: 2 }}>
-                  {[...Array(5)].map((_, i) => (
-                    <span key={i} style={{ fontSize: 13, color: C.gold }}>★</span>
-                  ))}
-                </div>
+               
 
                 {/* Price */}
                 <p style={{

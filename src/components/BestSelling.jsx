@@ -15,7 +15,7 @@ const C = {
 };
 const FONT = { body: "'DM Sans', sans-serif" };
 
-// ── Derive top N products from CustomerOrders by revenue ─────────────────────
+// ── Derive top N products from CustomerOrders by quantity sold ────────────────
 function deriveTopProducts(orders, topN = 3) {
   const map = {};
 
@@ -56,7 +56,7 @@ function deriveTopProducts(orders, topN = 3) {
   });
 
   return Object.values(map)
-    .sort((a, b) => b.revenue - a.revenue)
+    .sort((a, b) => b.qty - a.qty) // ✅ Sort by quantity sold (most sold first)
     .slice(0, topN);
 }
 
@@ -86,7 +86,7 @@ export default function BestSelling() {
     })();
   }, []);
 
-  // Compute top 3 products by revenue
+  // Compute top 3 products by quantity sold
   const products = useMemo(() => deriveTopProducts(customerOrders, 3), [customerOrders]);
 
   // ── States ──

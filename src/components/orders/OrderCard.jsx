@@ -39,20 +39,6 @@ export default function OrderCard({ order }) {
     navigate(`/customer/checkout?${params.toString()}`);
   };
 
-  // Marks the order as received by calling the pharmacist orders API
-  const handleMarkReceived = async () => {
-    try {
-      const res = await fetch(`http://localhost:5000/api/pharmacist/orders/${order.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderStatus: 'received' }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-    } catch (err) {
-      alert(`Failed to update: ${err.message}`);
-    }
-  };
-
   // Convert Firestore Timestamp to a readable date string
   const createdAt = order.createdAt?.toDate
     ? order.createdAt.toDate().toLocaleDateString('en-GB', {
@@ -262,38 +248,8 @@ export default function OrderCard({ order }) {
             {order.paymentMethod || '—'}
           </span>
           {/* Payment status badge — green for paid, amber for pending */}
-          <span
-            className="text-[11px] font-bold px-3 py-1 rounded-xl uppercase tracking-[0.06em]"
-            style={{
-              background: order.paymentStatus === 'paid' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(217, 119, 6, 0.1)',
-              color:      order.paymentStatus === 'paid' ? '#16a34a' : '#d97706',
-              border:     order.paymentStatus === 'paid' ? '1px solid rgba(22, 163, 74, 0.3)' : '1px solid rgba(217, 119, 6, 0.3)',
-            }}
-          >
-            {order.paymentStatus || 'pending'}
-          </span>
+         
         </div>
-
-        {/* Mark as Received button — only shown for delivered orders not yet confirmed */}
-        {order.orderStatus === 'delivered' && (
-          <button
-            onClick={handleMarkReceived}
-            className="flex items-center gap-[6px] text-[12px] font-semibold px-[18px] py-[9px] rounded-[10px] cursor-pointer"
-            style={{ background: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1.5px solid rgba(22, 163, 74, 0.3)', fontFamily: FONT.body }}
-          >
-            <CheckCircle size={14} /> Mark as Received
-          </button>
-        )}
-
-        {/* Confirmation badge — shown once the customer has confirmed receipt */}
-        {order.orderStatus === 'received' && (
-          <span
-            className="flex items-center gap-2 text-[13px] font-semibold px-4 py-2 rounded-xl"
-            style={{ background: 'rgba(22, 163, 74, 0.1)', color: '#16a34a', border: '1px solid rgba(22, 163, 74, 0.3)' }}
-          >
-            <CheckCircle size={14} /> Order Received
-          </span>
-        )}
       </div>
     </Card>
   );

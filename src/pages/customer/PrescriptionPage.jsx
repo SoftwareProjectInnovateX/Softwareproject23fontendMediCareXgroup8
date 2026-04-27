@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
-import { db, getAuthHeaders } from '../../services/firebase';
-import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
-import { Upload, FileText, User, Phone, MapPin, ExternalLink, FileX, CheckCircle, CreditCard, Pill, Receipt } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { db } from '../../lib/firebase';
+import { collection, onSnapshot, orderBy, query, where, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { Upload, FileText, User, Phone, MapPin, ExternalLink, FileX, CheckCircle, CreditCard, Pill, Receipt, Clock, ChevronRight, Truck, ShoppingCart, ArrowRight, Package } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { addDispensedRecord } from '../../services/pharmacistService';
 
 import { C, FONT, inputStyle }                        from '../../components/profile/profileTheme';
 import { SectionCard, SectionLabel, Field,
@@ -66,24 +68,37 @@ function UploadForm({ onUploaded, userId }) {
     fd.append('customerPhone',   phone);
     fd.append('customerAddress', address);
     if (userId) fd.append('userId', userId);
+    
     try {
-      const authHeaders = await getAuthHeaders();
-      const res = await fetch('http://localhost:5000/api/prescriptions/upload', { 
-        method: 'POST', 
-        headers: authHeaders,
-        body: fd 
-      });
+      const res = await fetch('http://localhost:5000/api/prescriptions/upload', { method: 'POST', body: fd });
       if (res.ok) {
         const { prescription } = await res.json();
+        
+        // Instant Feedback: Save to localStorage and notify parent
+        const localHistory = JSON.parse(localStorage.getItem('my_prescriptions') || '[]');
+        const updatedHistory = [prescription.id, ...localHistory];
+        localStorage.setItem('my_prescriptions', JSON.stringify(updatedHistory));
+        
         setSuccess(true);
-        onUploaded(prescription);
+        // Call onUploaded with a formatted object for immediate display
+        onUploaded({
+          ...prescription,
+          id: prescription.id,
+          status: 'Pending',
+          createdAt: { toDate: () => new Date() }, // Mock Firestore timestamp
+          customerName: name,
+          customerPhone: phone,
+          customerAddress: address
+        });
+        
         reset();
-        setTimeout(() => { setFile(null); setSuccess(false); }, 3000);
+        setFile(null);
+        setTimeout(() => setSuccess(false), 3000);
       } else {
         const e = await res.json();
         alert(`Upload failed: ${e.message || 'Unknown error'}`);
       }
-    } catch { alert('Upload failed. Make sure the backend is running on port 5000.'); }
+    } catch { alert('Upload failed. Backend check...'); }
     finally  { setUploading(false); }
   };
 
@@ -132,86 +147,155 @@ function UploadForm({ onUploaded, userId }) {
 
 // ── Prescription history card ─────────────────────────────────────────────────
 function PrescriptionCard({ p }) {
+  const [showBill, setShowBill] = useState(false);
+  const navigate = useNavigate();
   const sc = getStatusColor(p.status);
-  const isApproved = p.status === 'Approved' || p.status === 'Completed';
+
+  const handleGoToCheckout = () => {
+    // Redirect to the main checkout page with prescription details and pre-fill info
+    const amount = p.total || p.totalAmount || 0;
+    const nameParts = p.customerName.split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
+    const params = new URLSearchParams({
+      rxId: p.id,
+      amount: amount.toString(),
+      fname: firstName,
+      lname: lastName,
+      phone: p.customerPhone,
+      addr: p.customerAddress || '',
+      items: JSON.stringify(p.orderItems || p.medications || [])
+    });
+    
+    navigate(`/customer/checkout?${params.toString()}`);
+  };
 
   return (
     <Card
+      id={`rx-${p.id}`}
       header={
         <div className="flex justify-between items-center">
           <span className="text-xs font-bold uppercase tracking-wider" style={{ color: C.textMuted }}>
-            {p.isDigital ? 'Digital Order' : 'Physical Upload'} #{p.id.slice(-6)}
+            {p.id.slice(-6)} • {p.createdAt?.toDate ? p.createdAt.toDate().toLocaleDateString() : 'Just now'}
           </span>
           <StatusBadge status={p.status} colors={sc} />
         </div>
       }
     >
       <div className="flex flex-col gap-4">
-        {/* Main Info */}
-        <div className="flex gap-5 flex-wrap">
-          <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: C.textPrimary }}>
-            <User  size={12} color={C.accent} /> {p.customerName}
-          </span>
-          <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.textSoft }}>
-            <Phone size={12} color={C.accent} /> {p.customerPhone}
-          </span>
+        {/* Basic Info */}
+        <div className="flex justify-between items-start">
+           <div className="flex flex-col gap-1">
+              <span className="text-[15px] font-bold text-slate-800">{p.customerName}</span>
+              <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                <Phone size={10} /> {p.customerPhone}
+              </span>
+           </div>
+           {p.imageUrl && (
+              <a href={p.imageUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 transition-colors">
+                <ExternalLink size={16} />
+              </a>
+           )}
         </div>
 
-        {/* Pharmacist Approval Details */}
-        {isApproved && p.orderItems && p.orderItems.length > 0 && (
-          <div className="mt-2 p-4 rounded-xl border border-emerald-100 bg-emerald-50/30">
-             <div className="flex items-center gap-2 mb-3">
-                <CheckCircle size={14} className="text-emerald-500" />
-                <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Pharmacist Approved Medications</span>
-             </div>
-             
-             <div className="space-y-2.5 mb-4">
-                {p.orderItems.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-white/60 p-2 rounded-lg border border-emerald-50 shadow-sm">
-                    <div className="flex items-center gap-2">
-                       <Pill size={12} className="text-blue-500" />
-                       <div>
-                          <p className="text-[12px] font-bold text-slate-800">{item.name}</p>
-                          <p className="text-[10px] text-slate-500 font-medium">{item.form} • Qty: {item.qty}</p>
-                       </div>
-                    </div>
-                    <span className="text-xs font-bold text-slate-700">Rs. {item.total.toFixed(2)}</span>
-                  </div>
-                ))}
-             </div>
-
-             <div className="flex justify-between items-center pt-3 border-t border-emerald-100">
-                <div className="flex items-center gap-1.5">
-                   <Receipt size={14} className="text-emerald-600" />
-                   <span className="text-xs font-bold text-slate-600">Total Payable Amount</span>
-                </div>
-                <span className="text-lg font-black text-emerald-800">Rs. {Number(p.total || 0).toFixed(2)}</span>
-             </div>
-
-             {/* Payment Button */}
-             <button 
-               onClick={() => {
-                 // Simulate redirect to checkout with prescription data
-                 window.location.href = `/customer/checkout?rxId=${p.id}&amount=${p.total}`;
-               }}
-               className="w-full mt-4 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-emerald-500/20 active:scale-[0.98]"
-             >
-                <CreditCard size={14} /> Confirm & Process Payment
-             </button>
-          </div>
+        {/* Status Logic */}
+        {p.status === 'Pending' && (
+           <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 flex items-center gap-3">
+              <Clock className="text-amber-500 animate-spin-slow" size={18} />
+              <div className="flex-1">
+                 <p className="text-xs font-bold text-amber-800 uppercase tracking-tighter">Pending Pharmacist Approval</p>
+                 <p className="text-[10px] text-amber-600 font-medium">We are checking stock and preparing your bill.</p>
+              </div>
+           </div>
         )}
 
-        {/* View Original File */}
-        <div className="pt-2 border-t border-slate-100">
-          {p.imageUrl
-            ? <a href={p.imageUrl} target="_blank" rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold no-underline px-3 py-1.5 rounded-lg transition-colors hover:bg-blue-50"
-                style={{ color: C.accent, background: C.accentFaint, border: `1px solid ${C.border}` }}>
-                <ExternalLink size={12} /> View Scanned Prescription
-              </a>
-            : <span className="text-xs italic" style={{ color: C.textMuted }}>No scanned file attached</span>
-          }
-        </div>
+        {/* Approval -> INITIAL VIEW BILL BUTTON */}
+        {p.status === 'Approved' && !showBill && (
+           <button 
+              onClick={() => setShowBill(true)}
+              className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-200 flex items-center justify-center gap-2 transition-all transform active:scale-95"
+           >
+              <Receipt size={18} /> View Bill & Proceed
+           </button>
+        )}
+
+        {/* THE BILL VIEW */}
+        {showBill && p.status === 'Approved' && (
+           <div className="p-5 rounded-2xl bg-slate-50 border-2 border-blue-100 shadow-inner animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+                 <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
+                    <Receipt size={14} className="text-blue-600" /> Digital Invoice
+                 </h4>
+              </div>
+
+              <div className="space-y-2 mb-4">
+                 {(p.orderItems || p.medications || []).map((m, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-sm">
+                       <span className="font-bold text-slate-700">{m.name} <span className="text-[10px] text-slate-400 font-medium">x {m.qty}</span></span>
+                       <span className="font-black text-slate-900">Rs. {(m.total || (m.qty * m.price)).toFixed(2)}</span>
+                    </div>
+                 ))}
+              </div>
+
+              <div className="flex justify-between items-center pt-3 border-t-2 border-dashed border-slate-200 mb-6">
+                 <span className="text-xs font-black text-slate-500 uppercase">Total Amount</span>
+                 <span className="text-xl font-black text-blue-700">Rs. {(p.total || 0).toFixed(2)}</span>
+              </div>
+
+              <button 
+                 onClick={handleGoToCheckout}
+                 className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all"
+              >
+                 <ShoppingCart size={18} /> Confirm & Pay Now <ArrowRight size={16} />
+              </button>
+           </div>
+        )}
+
+        {/* AFTER CONFIRMATION / PACKING */}
+        {p.status === 'Packing' && (
+           <div className="p-4 rounded-xl bg-blue-50 border-2 border-blue-200 text-blue-700 text-center shadow-md animate-pulse">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                 <Package size={20} className="text-blue-600" />
+                 <span className="font-black uppercase tracking-widest text-xs">Preparing Medications</span>
+              </div>
+              <p className="text-[10px] opacity-90 font-bold uppercase tracking-wider">The pharmacist is currently packing your order.</p>
+           </div>
+        )}
+
+        {/* AFTER CONFIRMATION / READY */}
+        {(p.status === 'Paid' || p.status === 'Ready to Collect') && (
+           <div className="p-4 rounded-xl bg-emerald-600 text-white text-center shadow-lg">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                 <CheckCircle size={18} />
+                 <span className="font-black uppercase tracking-widest text-xs">Payment Confirmed</span>
+              </div>
+              <p className="text-[10px] opacity-90 font-bold uppercase tracking-wider">Order sent to Pharmacist for preparation.</p>
+           </div>
+        )}
+
+        {/* DELIVERY STATUS / DELIVERED */}
+        {p.status === 'Delivered' && (
+           <div className="p-4 rounded-xl bg-emerald-100 border-2 border-emerald-200 text-emerald-800 text-center shadow-lg">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                 <CheckCircle size={22} className="text-emerald-600" />
+                 <span className="font-black uppercase tracking-widest text-xs">Delivered</span>
+              </div>
+              <p className="text-[10px] opacity-90 font-bold uppercase tracking-wider">Your medications have been delivered successfully.</p>
+           </div>
+        )}
+
+        {/* DELIVERY STATUS / OUT FOR DELIVERY */}
+        {p.status === 'Out for Delivery' && (
+           <div className="p-4 rounded-xl bg-blue-600 text-white text-center shadow-lg animate-pulse">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                 <Truck size={20} />
+                 <span className="font-black uppercase tracking-widest text-xs">Out for Delivery</span>
+              </div>
+              <p className="text-[10px] opacity-90 font-bold uppercase tracking-wider">Your medications are being delivered now.</p>
+           </div>
+        )}
+
       </div>
     </Card>
   );
@@ -222,76 +306,69 @@ export default function PrescriptionsPage() {
   const { currentUser } = useAuth();
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        let snap;
-        if (currentUser?.uid) {
-          try {
-            // Filtered query — requires composite index on (userId, createdAt)
-            const q = query(
-              collection(db, 'prescriptions'),
-              where('userId', '==', currentUser.uid),
-              orderBy('createdAt', 'desc')
-            );
-            snap = await getDocs(q);
-          } catch (indexErr) {
-            // Index not yet created — fallback to client-side filter
-            console.warn('Firebase index missing; using client-side filter. Create the index via the URL in the error:', indexErr.message);
-            const fallbackQ = query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc'));
-            const allSnap = await getDocs(fallbackQ);
-            const allDocs = allSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setPrescriptions(allDocs.filter(p => p.userId === currentUser.uid));
-            return;
-          }
-        } else {
-          const q = query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc'));
-          snap = await getDocs(q);
-        }
-        setPrescriptions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      } catch (e) { setError(e.message || 'Failed to load prescriptions'); }
-      finally     { setLoading(false); }
-    })();
+    setLoading(true);
+    const q = query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc'));
+    
+    const unsub = onSnapshot(q, (snap) => {
+      const allFirestore = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const localIds = JSON.parse(localStorage.getItem('my_prescriptions') || '[]');
+      
+      setPrescriptions(prev => {
+        // 1. Get the Firestore items that the user is allowed to see
+        const authorizedFirestore = allFirestore.filter(p => {
+          if (currentUser?.uid && p.userId === currentUser.uid) return true;
+          if (localIds.includes(p.id)) return true;
+          if (currentUser?.phoneNumber && p.customerPhone === currentUser.phoneNumber) return true;
+          return false;
+        });
+
+        // 2. Find any "Optimistic" items in current state that haven't appeared in Firestore yet
+        const pendingOptimistic = prev.filter(p => 
+          p.status === 'Pending' && 
+          localIds.includes(p.id) && 
+          !authorizedFirestore.find(f => f.id === p.id)
+        );
+
+        // 3. Merge them: Firestore items first, then pending optimistic ones
+        return [...authorizedFirestore, ...pendingOptimistic].sort((a, b) => {
+           const timeA = a.createdAt?.seconds || Date.now()/1000;
+           const timeB = b.createdAt?.seconds || Date.now()/1000;
+           return timeB - timeA;
+        });
+      });
+      
+      setLoading(false);
+    });
+
+    return () => unsub();
   }, [currentUser]);
 
-  if (loading) return (
-    <div className="flex justify-center items-center min-h-[60vh] text-sm"
-      style={{ color: C.textMuted, fontFamily: FONT.body, background: C.bg }}>
-      Loading prescriptions…
-    </div>
-  );
-  if (error) return (
-    <div className="flex justify-center items-center min-h-[60vh] text-sm text-red-600"
-      style={{ fontFamily: FONT.body, background: C.bg }}>
-      {error}
-    </div>
-  );
-
   return (
-    <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
-      <PageBanner title="Prescription Management" subtitle="Upload your prescription and track its status with ease." />
+    <div className="min-h-screen pb-20" style={{ background: C.bg, fontFamily: FONT.body }}>
+      <PageBanner title="Prescription History" subtitle="Track your approvals and make payments securely." />
 
-      <div className="max-w-[860px] mx-auto px-6 py-9 flex flex-col gap-8">
-        <UploadForm onUploaded={(p) => setPrescriptions((prev) => [p, ...prev])} userId={currentUser?.uid} />
+      <div className="max-w-[860px] mx-auto px-6 py-9 flex flex-col gap-10">
+        <UploadForm onUploaded={(p) => setPrescriptions(prev => { if (prev.find(i => i.id === p.id)) return prev; return [p, ...prev]; })} userId={currentUser?.uid} />
 
         <div>
-          <SectionLabel icon={<FileText size={12} color={C.accent} />} label="Prescription History" />
-
-          {prescriptions.length === 0
-            ? <div className="rounded-2xl py-[60px] text-center"
-                style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(26,135,225,0.07)" }}>
-                <FileX size={40} color={C.textMuted} className="mx-auto mb-3.5" />
-                <p className="text-[15px] font-bold" style={{ color: C.textSoft }}>No prescriptions found.</p>
-                <p className="text-[13px] mt-1.5"    style={{ color: C.textMuted }}>Your uploaded prescriptions will appear here.</p>
+          <SectionLabel icon={<FileText size={12} color={C.accent} />} label="My Orders" />
+          <div className="flex flex-col gap-4 mt-4">
+            {prescriptions.map(p => ( <PrescriptionCard key={p.id} p={p} /> ))}
+            {prescriptions.length === 0 && !loading && (
+              <div className="p-10 text-center bg-white rounded-2xl border border-slate-100">
+                <FileX className="mx-auto text-slate-300 mb-3" size={40} />
+                <p className="text-slate-500 font-bold">No history found.</p>
               </div>
-            : <div className="flex flex-col gap-3.5">
-                {prescriptions.map((p) => <PrescriptionCard key={p.id} p={p} />)}
-              </div>
-          }
+            )}
+          </div>
         </div>
       </div>
+      <style>{`
+        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin-slow { animation: spin-slow 3s linear infinite; }
+      `}</style>
     </div>
   );
 }
