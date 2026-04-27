@@ -1,3 +1,11 @@
+/**
+ * PharmacistDashboard.jsx
+ * The main operational hub for the pharmacist.
+ * Features: Real-time activity monitoring, revenue analytics, and inventory alerts.
+ * Uses a Hybrid Data Strategy:
+ * 1. REST Polling: For backend-managed data like revenue and inventory.
+ * 2. Firebase onSnapshot: For real-time event monitoring (orders, prescriptions).
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, getDocs, where } from 'firebase/firestore';
@@ -318,23 +326,28 @@ const PharmacistDashboard = () => {
   // fetchActivityLog removed — activity log is now built inside fetchAllDashboardData
   // to avoid duplicate getDispensedHistory / getOnlineOrders / getReturnRequests calls
 
+  /**
+   * Main application effect for the Dashboard.
+   * Periodically polls REST endpoints for revenue and inventory,
+   * and sets up local event listeners for action-driven updates.
+   */
   useEffect(() => {
-    // Single unified call on mount — fetches each API endpoint only ONCE
+    // Initial fetch on mount
     fetchAllDashboardData();
     fetchInventoryData();
     updatePatientCount();
 
-    // Auto-refresh main dashboard data every 15 seconds for more responsive updates
+    // 15-second polling interval for revenue analytics
     const dataTimer = setInterval(fetchAllDashboardData, 15000);
 
-    // 1-second live clock (no API calls, local only)
+    // 1-second ticking clock for operational monitoring
     const clockTimer = setInterval(() => {
       setClockDisplay(new Date().toLocaleTimeString('en-US', {
         hour: '2-digit', minute: '2-digit', second: '2-digit'
       }));
     }, 1000);
 
-    // Event-driven updates only — no polling timers that hammer the API
+    // Event-driven refreshes (triggered by POS or inventory changes)
     const handleUpdate = () => fetchAllDashboardData();
     window.addEventListener('revenue_updated',    handleUpdate);
     window.addEventListener('dispensed_updated',  handleUpdate);

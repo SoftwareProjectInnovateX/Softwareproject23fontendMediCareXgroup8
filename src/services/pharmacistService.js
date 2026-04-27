@@ -1,11 +1,17 @@
-// pharmacistService.js
-// Centralized service for all pharmacist-related API calls
+/**
+ * pharmacistService.js
+ * Centralized service layer for all Pharmacist-related API communication.
+ * This file handles all RESTful requests to the backend server, ensuring
+ * a clean separation of concerns between UI components and data logic.
+ */
 
 const BASE_URL = 'http://localhost:5000/api';
 
 
-// ─── INVENTORY ────────────────────────────────────────────────────────────────
-
+/**
+ * Fetches all items currently in the pharmacy inventory.
+ * @returns {Promise<Array>} List of inventory items.
+ */
 export async function getInventory() {
   const res = await fetch(`${BASE_URL}/pharmacist/inventory`);
   if (!res.ok) throw new Error(`Failed to fetch inventory: ${res.statusText}`);
@@ -22,6 +28,11 @@ export async function addInventoryItem(itemData) {
   return res.json();
 }
 
+/**
+ * Updates an existing inventory item's stock or details.
+ * @param {string} id - The unique ID of the item.
+ * @param {Object} updateData - The fields to update.
+ */
 export async function updateInventoryItem(id, updateData) {
   const res = await fetch(`${BASE_URL}/pharmacist/inventory/${id}`, {
     method: 'PUT',
@@ -40,14 +51,10 @@ export async function deleteInventoryItem(id) {
   return res.json();
 }
 
-// ─── DISPENSED HISTORY ────────────────────────────────────────────────────────
-
-export async function getDispensedHistory() {
-  const res = await fetch(`${BASE_URL}/pharmacist/dispensed`);
-  if (!res.ok) throw new Error(`Failed to fetch dispensed history: ${res.statusText}`);
-  return res.json();
-}
-
+/**
+ * Records a new dispensing transaction in the history.
+ * Used for both walk-in POS sales and online prescription orders.
+ */
 export async function addDispensedRecord(dispenseData) {
   const res = await fetch(`${BASE_URL}/pharmacist/dispensed`, {
     method: 'POST',
@@ -162,6 +169,10 @@ export async function addPatient(patientData) {
   return res.json();
 }
 
+/**
+ * Updates a patient's profile, typically to add new medications to their history.
+ * @param {string} id - Firebase UID or Patient ID.
+ */
 export async function updatePatient(id, updateData) {
   const res = await fetch(`${BASE_URL}/pharmacist/patients/${id}`, {
     method: 'PUT',

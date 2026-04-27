@@ -1,3 +1,12 @@
+/**
+ * PharmacistNewRxEntry.jsx
+ * Walk-in Point of Sale (POS) and Billing module.
+ * Responsibilities: 
+ * 1. Searching and registering patients.
+ * 2. Managing cart items from inventory.
+ * 3. Processing payments and generating invoices.
+ * 4. Syncing history to patient profiles and central sales log.
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, Printer, ArrowLeft, CheckCircle2, User, Search, FileText, CreditCard, Link } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -275,6 +284,10 @@ const PharmacistNewRxEntry = () => {
   const discountAmount = (subTotal * (parseFloat(discountPercent) || 0)) / 100;
   const grandTotal = subTotal - discountAmount;
 
+  /**
+   * Finalizes the sale, handles inventory deduction, and updates patient records.
+   * This is the core transactional logic of the POS.
+   */
   const handlePayment = async () => {
     if (medicines.length === 0) {
       alert("Please add at least one medicine.");
@@ -367,10 +380,11 @@ const PharmacistNewRxEntry = () => {
           dispensedAt: 'Walk-in POS',
         }));
         
+        // Merge current purchase with existing patient history to preserve all-time records
         const existingMeds = linkedCustomer.medications || [];
         const finalMeds = [...purchasedMeds, ...existingMeds];
         
-        // Use backend service instead of direct updateDoc
+        // Update the patient profile via Backend Service
         await updatePatient(linkedCustomer.firebaseUid, {
           lastVisit: dateStr,
           medications: finalMeds,
