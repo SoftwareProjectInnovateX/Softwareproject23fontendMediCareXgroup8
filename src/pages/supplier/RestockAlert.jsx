@@ -114,7 +114,7 @@ export default function RestockAlert() {
       <div className="flex justify-between items-start mb-6 flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-bold text-blue-950 mb-1 tracking-tight">Low Stock Alerts</h2>
-          <p className="text-blue-400 text-sm font-medium">Monitor inventory levels and restock notifications</p>
+          <p className="text-[13.5px] text-slate-500">Monitor inventory levels and restock notifications</p>
         </div>
         {unreadCount > 0 && (
           <span className="bg-red-50 text-red-600 border border-red-200 px-4 py-1.5 rounded-lg font-bold text-xs uppercase tracking-widest">
