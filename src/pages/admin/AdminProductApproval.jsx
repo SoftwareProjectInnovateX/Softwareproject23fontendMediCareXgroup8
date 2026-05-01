@@ -4,7 +4,6 @@ import { auth } from '../../services/firebase';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Local helper — always reads fresh token from current user
 const getAuthHeaders = async () => {
   const user = auth.currentUser;
   if (!user) throw new Error('No authenticated user');
@@ -13,9 +12,9 @@ const getAuthHeaders = async () => {
 };
 
 const STATUS_BADGE = {
-  pending:  { cls: 'bg-amber-100 text-amber-700 border border-amber-300',       label: 'Pending'  },
-  approved: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-300', label: 'Approved' },
-  rejected: { cls: 'bg-red-100 text-red-700 border border-red-300',             label: 'Rejected' },
+  pending:  { cls: 'bg-amber-50 text-amber-700 border border-amber-200',         label: 'Pending'  },
+  approved: { cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200',   label: 'Approved' },
+  rejected: { cls: 'bg-red-50 text-red-600 border border-red-200',               label: 'Rejected' },
 };
 
 function formatDate(val) {
@@ -23,6 +22,41 @@ function formatDate(val) {
   if (val._seconds) return new Date(val._seconds * 1000).toLocaleDateString();
   const d = new Date(val);
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+}
+
+// Inline toast notification component
+function Toast({ toasts, removeToast }) {
+  return (
+    <div className="fixed top-5 right-5 z-[2000] flex flex-col gap-2 pointer-events-none">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-start gap-3 px-4 py-3.5 rounded-xl shadow-lg border pointer-events-auto min-w-[300px] max-w-[420px] transition-all duration-300 ${
+            t.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : t.type === 'error'
+              ? 'bg-red-50 border-red-200 text-red-800'
+              : 'bg-sky-50 border-sky-200 text-sky-800'
+          }`}
+          style={{ animation: 'slideInRight 0.25s ease-out' }}
+        >
+          <span className="text-lg mt-0.5 shrink-0">
+            {t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : 'ℹ'}
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-[13px] leading-tight">{t.title}</p>
+            {t.body && <p className="text-[12px] mt-0.5 opacity-80 leading-snug">{t.body}</p>}
+          </div>
+          <button
+            onClick={() => removeToast(t.id)}
+            className="shrink-0 opacity-50 hover:opacity-100 text-base leading-none mt-0.5 bg-transparent border-none cursor-pointer"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function AdminProductApproval() {
@@ -33,6 +67,15 @@ export default function AdminProductApproval() {
   const [rejectReason, setRejectReason]   = useState('');
   const [filter, setFilter]               = useState('pending');
   const [search, setSearch]               = useState('');
+  const [toasts, setToasts]               = useState([]);
+
+  const addToast = (type, title, body = '') => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, type, title, body }]);
+    setTimeout(() => removeToast(id), 5000);
+  };
+
+  const removeToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   useEffect(() => { fetchAll(); }, []);
 
@@ -53,7 +96,6 @@ export default function AdminProductApproval() {
   };
 
   const handleApprove = async (product) => {
-    if (!window.confirm(`Approve "${product.productName}"?\nA product code will be auto-generated.`)) return;
     try {
       setActionLoading(product.id);
       const authHeaders = await getAuthHeaders();
@@ -63,16 +105,11 @@ export default function AdminProductApproval() {
       });
       if (!res.ok) throw new Error('Approval failed');
       const { productCode } = await res.json();
-
-      // FIX: Removed the broken POST to /pharmacist/pending-products (route doesn't exist).
-      // The backend approveProduct() already handles everything:
-      // writes to products, adminProducts, updates pendingProducts, sends notifications.
-
-      alert(`Product approved!\nProduct Code: ${productCode}`);
+      addToast('success', `"${product.productName}" approved`, `Product code: ${productCode}`);
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert(`Failed to approve product: ${err.message}`);
+      addToast('error', 'Approval failed', err.message);
     } finally {
       setActionLoading(null);
     }
@@ -91,13 +128,13 @@ export default function AdminProductApproval() {
         body:    JSON.stringify({ reason: rejectReason }),
       });
       if (!res.ok) throw new Error('Rejection failed');
-      alert('Product rejected. Supplier has been notified.');
+      addToast('success', `"${rejectModal.productName}" rejected`, 'Supplier has been notified.');
       setRejectModal(null);
       setRejectReason('');
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert('Failed to reject product');
+      addToast('error', 'Rejection failed', err.message);
     } finally {
       setActionLoading(null);
     }
@@ -123,7 +160,7 @@ export default function AdminProductApproval() {
     { key: 'all',      label: 'All',      count: products.length, color: 'slate'   },
   ];
 
-  const tabColor = {
+  const tabActive = {
     amber:   'bg-amber-500 text-white border-amber-500',
     emerald: 'bg-emerald-600 text-white border-emerald-600',
     red:     'bg-red-500 text-white border-red-500',
@@ -131,31 +168,38 @@ export default function AdminProductApproval() {
   };
 
   return (
-    <div className="p-6 bg-slate-100 min-h-screen">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Product Approval</h1>
-        <p className="text-sm text-gray-500 mt-1">Review and approve supplier product submissions</p>
+    <div className="p-6 bg-slate-50 min-h-screen">
+      <Toast toasts={toasts} removeToast={removeToast} />
+
+      {/* Header */}
+      <div className="mb-7">
+        <h1 className="text-[22px] font-bold text-slate-900 tracking-tight">Product Approval</h1>
+        <p className="text-sm text-slate-400 mt-1">Review and approve supplier product submissions</p>
       </div>
 
+      {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card title="Awaiting Review" value={pendingCount}  />
         <Card title="Approved"        value={approvedCount} />
         <Card title="Rejected"        value={rejectedCount} />
       </div>
 
-      <div className="bg-white p-4 rounded-xl shadow-sm mb-5 flex flex-wrap items-center gap-3 justify-between">
+      {/* Filters + search */}
+      <div className="bg-white px-4 py-3.5 rounded-xl border border-slate-200 mb-5 flex flex-wrap items-center gap-3 justify-between">
         <div className="flex gap-2 flex-wrap">
           {FILTER_TABS.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setFilter(tab.key)}
-              className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all duration-200 border-2 ${
-                filter === tab.key ? tabColor[tab.color] : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+              className={`px-3.5 py-1.5 rounded-lg text-[13px] font-semibold transition-all duration-150 border ${
+                filter === tab.key
+                  ? tabActive[tab.color]
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
               }`}
             >
               {tab.label}
               <span className={`ml-1.5 inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${
-                filter === tab.key ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'
+                filter === tab.key ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500'
               }`}>
                 {tab.count}
               </span>
@@ -164,78 +208,119 @@ export default function AdminProductApproval() {
         </div>
         <input
           type="text"
-          placeholder="Search by product, supplier or category..."
+          placeholder="Search product, supplier or category…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[260px] max-w-sm px-4 py-2.5 border-2 border-slate-200 rounded-lg text-[14px] focus:outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-400/10 transition-all duration-200"
+          className="flex-1 min-w-[240px] max-w-sm px-4 py-2 border border-slate-200 rounded-lg text-[13px] focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/10 transition-all duration-150 bg-slate-50 placeholder-slate-400"
         />
       </div>
 
-      <div className="bg-white rounded-xl overflow-hidden shadow-sm">
+      {/* Table */}
+      <div className="bg-white rounded-xl overflow-hidden border border-slate-200">
         {loading ? (
-          <div className="py-16 text-center text-slate-500 text-lg">Loading submissions...</div>
+          <div className="py-20 text-center text-slate-400 text-[15px]">
+            <span className="inline-block animate-pulse">Loading submissions…</span>
+          </div>
         ) : filtered.length === 0 ? (
-          <div className="py-16 text-center"><p className="text-lg text-slate-400">No products match this filter</p></div>
+          <div className="py-20 text-center">
+            <p className="text-[15px] text-slate-400">No products match this filter</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse min-w-[900px]">
-              <thead className="bg-slate-50 border-b-2 border-slate-200">
+              <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   {['Product', 'Category', 'Supplier', 'Wholesale Price', 'Stock', 'Submitted', 'Status', 'Actions'].map((h) => (
-                    <th key={h} className="px-4 py-3.5 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((product) => {
+                {filtered.map((product, idx) => {
                   const badge       = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
                   const isActioning = actionLoading === product.id;
                   const isPending   = product.status === 'pending';
                   return (
-                    <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
-                      <td className="px-4 py-4">
-                        <p className="font-semibold text-slate-900 text-sm mb-0.5">{product.productName}</p>
-                        {product.manufacturer && <p className="text-xs text-slate-400">{product.manufacturer}</p>}
-                        {product.description && <p className="text-xs text-slate-400 mt-0.5 max-w-[200px] truncate">{product.description}</p>}
+                    <tr
+                      key={product.id}
+                      className={`border-b border-slate-100 transition-colors duration-100 hover:bg-slate-50/70 ${
+                        idx === filtered.length - 1 ? 'border-b-0' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-4 max-w-[200px]">
+                        <p className="font-semibold text-slate-800 text-[13px] truncate">{product.productName}</p>
+                        {product.manufacturer && (
+                          <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.manufacturer}</p>
+                        )}
+                        {product.description && (
+                          <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.description}</p>
+                        )}
                       </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">{product.category}</td>
+
                       <td className="px-4 py-4">
-                        <span className="inline-block bg-sky-100 text-sky-700 px-3 py-1 rounded-full text-xs font-medium">
+                        <span className="text-[12px] text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md font-medium">
+                          {product.category}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span className="inline-block bg-sky-50 text-sky-700 border border-sky-100 px-2.5 py-1 rounded-md text-[12px] font-medium">
                           {product.supplierName || '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-sm font-semibold text-slate-800">
-                        Rs.{Number(product.wholesalePrice).toFixed(2)}
-                        <p className="text-xs text-slate-400 font-normal mt-0.5">Retail: Rs.{(Number(product.wholesalePrice) * 1.2).toFixed(2)}</p>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
-                        {product.stock} units
-                        <p className="text-xs text-slate-400 mt-0.5">Min: {product.minStock} units</p>
-                      </td>
-                      <td className="px-4 py-4 text-xs text-slate-400">{formatDate(product.createdAt)}</td>
+
                       <td className="px-4 py-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
+                        <p className="text-[13px] font-semibold text-slate-800">
+                          Rs.{Number(product.wholesalePrice).toFixed(2)}
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Retail: Rs.{(Number(product.wholesalePrice) * 1.2).toFixed(2)}
+                        </p>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <p className="text-[13px] text-slate-700">{product.stock} units</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Min: {product.minStock}</p>
+                      </td>
+
+                      <td className="px-4 py-4 text-[12px] text-slate-400 whitespace-nowrap">
+                        {formatDate(product.createdAt)}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold ${badge.cls}`}>
+                          {badge.label}
+                        </span>
                         {product.status === 'approved' && product.productCode && (
-                          <p className="text-[11px] text-emerald-600 font-mono mt-1">{product.productCode}</p>
+                          <p className="text-[11px] text-emerald-600 font-mono mt-1.5">{product.productCode}</p>
                         )}
                         {product.status === 'rejected' && product.rejectionReason && (
-                          <p className="text-[11px] text-red-500 mt-1 max-w-[120px]">{product.rejectionReason}</p>
+                          <p className="text-[11px] text-red-400 mt-1.5 max-w-[120px] leading-tight">
+                            {product.rejectionReason}
+                          </p>
                         )}
                       </td>
+
                       <td className="px-4 py-4">
                         {isPending ? (
                           <div className="flex gap-2">
-                            <button onClick={() => handleApprove(product)} disabled={isActioning}
-                              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200">
-                              {isActioning ? '...' : 'Approve'}
+                            <button
+                              onClick={() => handleApprove(product)}
+                              disabled={isActioning}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-[12px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-150"
+                            >
+                              {isActioning ? '…' : 'Approve'}
                             </button>
-                            <button onClick={() => openRejectModal(product)} disabled={isActioning}
-                              className="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-[13px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-200">
+                            <button
+                              onClick={() => openRejectModal(product)}
+                              disabled={isActioning}
+                              className="px-3 py-1.5 bg-white hover:bg-red-50 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed text-red-600 text-[12px] font-semibold rounded-lg cursor-pointer transition-all duration-150"
+                            >
                               Reject
                             </button>
                           </div>
                         ) : (
-                          <span className="text-slate-300 italic text-sm">—</span>
+                          <span className="text-slate-300 text-sm">—</span>
                         )}
                       </td>
                     </tr>
@@ -247,32 +332,66 @@ export default function AdminProductApproval() {
         )}
       </div>
 
+      {/* Reject modal */}
       {rejectModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
-          style={{ animation: 'fadeIn 0.2s ease-out' }} onClick={() => setRejectModal(null)}>
-          <div className="bg-white rounded-2xl p-8 w-full max-w-[480px] shadow-2xl"
-            style={{ animation: 'slideUp 0.3s ease-out' }} onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[22px] font-bold text-slate-900 mb-1 pb-4 border-b-[3px] border-red-500">Reject Product</h3>
-            <div className="my-5 px-4 py-3 bg-slate-50 rounded-lg">
-              <p className="text-sm font-semibold text-slate-800">{rejectModal.productName}</p>
-              <p className="text-xs text-slate-400 mt-0.5">Submitted by {rejectModal.supplierName}</p>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-5"
+          style={{ animation: 'fadeIn 0.15s ease-out' }}
+          onClick={() => setRejectModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-[460px] shadow-2xl overflow-hidden"
+            style={{ animation: 'slideUp 0.2s ease-out' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center shrink-0">
+                  <span className="text-red-500 text-base font-bold">✕</span>
+                </div>
+                <div>
+                  <h3 className="text-[16px] font-bold text-slate-900">Reject product</h3>
+                  <p className="text-[12px] text-slate-400 mt-0.5">This action will notify the supplier</p>
+                </div>
+              </div>
             </div>
-            <div className="mb-6">
-              <label className="block mb-2 font-semibold text-slate-800 text-[14px]">
-                Reason for rejection <span className="text-slate-400 font-normal">(optional)</span>
+
+            {/* Product info strip */}
+            <div className="mx-6 mt-4 px-4 py-3 bg-slate-50 rounded-lg border border-slate-100">
+              <p className="text-[13px] font-semibold text-slate-800">{rejectModal.productName}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Submitted by {rejectModal.supplierName}</p>
+            </div>
+
+            {/* Reason textarea */}
+            <div className="px-6 pt-4 pb-5">
+              <label className="block mb-2 text-[13px] font-semibold text-slate-700">
+                Rejection reason
+                <span className="ml-1 text-slate-400 font-normal">(optional)</span>
               </label>
-              <textarea rows={3} placeholder="e.g., Missing required certifications, incorrect pricing..."
-                value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg text-[14px] resize-none focus:outline-none focus:border-red-400 focus:ring-4 focus:ring-red-400/10 transition-all duration-200" />
-              <p className="text-[12px] text-slate-400 mt-1">This will be sent to the supplier as a notification.</p>
+              <textarea
+                rows={3}
+                placeholder="e.g. Missing required certifications, incorrect pricing…"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-[13px] resize-none focus:outline-none focus:border-red-300 focus:ring-2 focus:ring-red-100 transition-all duration-150 bg-white text-slate-800 placeholder-slate-300"
+              />
+              <p className="text-[11px] text-slate-400 mt-1.5">Sent to the supplier as a notification.</p>
             </div>
-            <div className="flex gap-3">
-              <button onClick={handleReject} disabled={actionLoading === rejectModal.id}
-                className="flex-1 py-3.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg border-none cursor-pointer transition-all duration-200">
-                {actionLoading === rejectModal.id ? 'Rejecting...' : 'Confirm Rejection'}
+
+            {/* Actions */}
+            <div className="px-6 pb-6 flex gap-2.5">
+              <button
+                onClick={handleReject}
+                disabled={actionLoading === rejectModal.id}
+                className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold text-[13px] rounded-lg border-none cursor-pointer transition-all duration-150"
+              >
+                {actionLoading === rejectModal.id ? 'Rejecting…' : 'Confirm rejection'}
               </button>
-              <button onClick={() => setRejectModal(null)}
-                className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg border-none cursor-pointer transition-all duration-200">
+              <button
+                onClick={() => setRejectModal(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[13px] rounded-lg border-none cursor-pointer transition-all duration-150"
+              >
                 Cancel
               </button>
             </div>
@@ -281,8 +400,9 @@ export default function AdminProductApproval() {
       )}
 
       <style>{`
-        @keyframes fadeIn  { from { opacity: 0 }                              to { opacity: 1 } }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+        @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes slideUp { from { transform: translateY(16px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+        @keyframes slideInRight { from { transform: translateX(20px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
       `}</style>
     </div>
   );

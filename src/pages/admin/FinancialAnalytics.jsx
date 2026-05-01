@@ -68,19 +68,16 @@ const CustomPieTooltip = ({ active, payload }) => {
 /* ================= MAIN COMPONENT ================= */
 export default function FinancialAnalytics() {
   // State for raw data fetched from Firestore
-  const [orders, setOrders] = useState([]);
-  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch all three collections from Firestore on mount
+  // Fetch payments (admin→supplier costs) and CustomerOrders (customer revenue) from Firestore
   useEffect(() => {
     const fetchData = async () => {
-      const orderSnap = await getDocs(collection(db, "orders"));
-      const purchaseSnap = await getDocs(collection(db, "purchaseOrders"));
+      const paymentsSnap = await getDocs(collection(db, "payments"));
       const customerSnap = await getDocs(collection(db, "CustomerOrders"));
-      setOrders(orderSnap.docs.map((d) => d.data()));
-      setPurchaseOrders(purchaseSnap.docs.map((d) => d.data()));
+      setPayments(paymentsSnap.docs.map((d) => d.data()));
       setCustomerOrders(customerSnap.docs.map((d) => d.data()));
       setLoading(false);
     };
@@ -98,9 +95,12 @@ export default function FinancialAnalytics() {
     );
 
   /* ================= SUMMARY ================= */
-  // Calculate top-level financial totals across all records
-  const totalCost = purchaseOrders.reduce((sum, p) => sum + (p.amount || 0), 0);
+  // Total cost = sum of all admin→supplier payments (amount field)
+  const totalCost = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  // Total revenue = sum of all customer order amounts (totalAmount field)
   const totalRevenue = customerOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
   const profit = totalRevenue - totalCost;
   const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0; // Avoid division by zero
 
@@ -113,16 +113,17 @@ export default function FinancialAnalytics() {
       .filter((o) => getMonth(o.createdAt) === i)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
-    const cost = purchaseOrders
-      .filter((p) => getMonth(p.createdAt) === i)
+    // Cost from payments collection (admin→supplier), using paidDate or createdAt
+    const cost = payments
+      .filter((p) => getMonth(p.paidDate || p.createdAt) === i)
       .reduce((s, p) => s + (p.amount || 0), 0);
 
     return { month, Revenue: revenue, Cost: cost };
   });
 
   /* ================= CATEGORY DATA ================= */
-  // Collect unique categories from purchase orders
-  const supplierCategories = [...new Set(purchaseOrders.map((p) => p.category))].filter(Boolean);
+  // Collect unique categories from payments (productName used as category key)
+  const paymentCategories = [...new Set(payments.map((p) => p.productName))].filter(Boolean);
 
   // Flatten line items from all customer orders for category-level revenue calculation
   const customerLineItems = [];
@@ -138,29 +139,23 @@ export default function FinancialAnalytics() {
     }
   });
 
-  // Merge all unique categories from all three data sources
+  // Merge all unique categories from payments and customer line items
   const allCategories = [
     ...new Set([
-      ...supplierCategories,
+      ...paymentCategories,
       ...customerLineItems.map((i) => i.category),
-      ...orders.map((o) => o.category),
     ]),
   ].filter(Boolean);
 
-  // For each category, compute revenue (from both sources), cost, profit, and margin
+  // For each category, compute revenue (from customer line items), cost (from payments), profit, and margin
   const categoryData = allCategories.map((cat) => {
-    const revenueFromCustomers = customerLineItems
+    const revenue = customerLineItems
       .filter((i) => i.category === cat)
       .reduce((s, i) => s + i.revenue, 0);
 
-    const revenueFromOrders = orders
-      .filter((o) => o.category === cat)
-      .reduce((s, o) => s + (o.totalAmount || 0), 0);
-
-    const revenue = revenueFromCustomers + revenueFromOrders;
-
-    const cost = purchaseOrders
-      .filter((p) => p.category === cat)
+    // Match payments by productName as the category identifier
+    const cost = payments
+      .filter((p) => p.productName === cat)
       .reduce((s, p) => s + (p.amount || 0), 0);
 
     const profit = revenue - cost;

@@ -1,11 +1,26 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { FiBell, FiUser } from "react-icons/fi";
+import { Bell, User, Phone, Shield, LogOut, ChevronDown, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { auth, db } from '../services/firebase';
 import { doc, getDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+const PAGE_META = {
+  "/":                           { title: "Dashboard",        subtitle: "Admin overview & insights"    },
+  "/admin/dashboard":            { title: "Dashboard",        subtitle: "Admin overview & insights"    },
+  "/admin/usermanagement":       { title: "User Management",  subtitle: "Manage registered customers"  },
+  "/admin/suppliers":            { title: "Suppliers",        subtitle: "Manage supplier partners"     },
+  "/admin/products":             { title: "Products",         subtitle: "View pharmacy inventory"      },
+  "/admin/ordermanagement":      { title: "Orders",           subtitle: "Manage purchase orders"       },
+  "/admin/financialAnalytics":   { title: "Financials",       subtitle: "Sales & profit analysis"      },
+  "/admin/notifications":        { title: "Notifications",    subtitle: "System alerts & updates"      },
+  "/admin/analytics":            { title: "Sales Analytics",  subtitle: "Analyse sales & updates"      },
+  "/admin/adminPayments":        { title: "Payments",         subtitle: "Manage payment records"       },
+  "/admin/adminproductapproval": { title: "Product Approval", subtitle: "Approve new product listings" },
+  "/admin/search-analytics":     { title: "Search Analytics", subtitle: "Analyze search behavior"      },
+};
 
 export default function Header() {
   const location = useLocation();
@@ -16,42 +31,13 @@ export default function Header() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [tokenClaims, setTokenClaims] = useState(null);
 
-  const getPageTitle = () => {
-    switch (location.pathname) {
-      case "/":
-      case "/admin/dashboard":
-        return { title: "Dashboard",        subtitle: "Admin overview & insights"     };
-      case "/admin/usermanagement":
-        return { title: "User Management",  subtitle: "Manage registered customers"   };
-      case "/admin/suppliers":
-        return { title: "Suppliers",        subtitle: "Manage supplier partners"      };
-      case "/admin/products":
-        return { title: "Products",         subtitle: "View pharmacy products"        };
-      case "/admin/ordermanagement":
-        return { title: "Orders",           subtitle: "Manage purchase orders"        };
-      case "/admin/financialAnalytics":
-        return { title: "Analytics",        subtitle: "Sales & profit analysis"       };
-      case "/admin/notifications":
-        return { title: "Notifications",    subtitle: "System alerts & updates"       };
-      case "/admin/analytics":
-        return { title: "Sales Analytics",  subtitle: "Analyse sales & updates"       };
-      case "/admin/adminPayments":
-        return { title: "Payments",         subtitle: "Manage payments"               };
-      case "/admin/adminproductapproval":
-        return { title: "Product Approval", subtitle: "Approve new product listings"  };
-      case "/admin/searchAnalytics":
-        return { title: "Search Analytics", subtitle: "Analyze search behavior"       };
-      default:
-        return { title: "Admin Panel",      subtitle: "Manage your system"            };
-    }
-  };
+  const { title, subtitle } =
+    PAGE_META[location.pathname] || { title: "Admin Panel", subtitle: "Manage your system" };
 
-  const { title, subtitle } = getPageTitle();
-
-  // ─── Fetch unread notification count ────────────────────────────────────────
+  /* ── Fetch unread count ── */
   const fetchUnreadCount = async () => {
     try {
-      const res = await fetch(`${API_BASE}/notifications?recipientType=admin`);
+      const res  = await fetch(`${API_BASE}/notifications?recipientType=admin`);
       if (!res.ok) return;
       const data = await res.json();
       setUnreadCount(data.filter((n) => !n.read).length);
@@ -60,168 +46,230 @@ export default function Header() {
     }
   };
 
-  // ─── Auth state listener ─────────────────────────────────────────────────────
-  // FIX 1: No force-refresh (getIdToken(true)) — was causing auth/network-request-failed.
-  // FIX 2: Reads from the correct Firestore collection based on role.
-  // FIX 3: If sessionStorage is empty on page load (e.g. hard refresh), probes
-  //         the 'admins' collection directly before falling back to 'users'.
+  /* ── Auth listener ── */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        console.warn("No authenticated user found.");
-        return;
-      }
-
+      if (!user) return;
       try {
-        // Cached token — no force-refresh
-        const token = await user.getIdToken();
-        const payload = JSON.parse(atob(token.split('.')[1]));
+        const token   = await user.getIdToken();
+        const payload = JSON.parse(atob(token.split(".")[1]));
         setTokenClaims(payload);
-        console.log("Token claims:", payload);
 
-        if (!payload.role || payload.role !== 'admin') {
-          console.warn(
-            "⚠️  Token is missing the 'admin' role claim.\n" +
-            "Run setCustomUserClaims({ role: 'admin' }) on the backend for UID:", user.uid,
-            "\nThen sign out and back in."
-          );
-        }
-
-        // Determine collection from sessionStorage role
-        let storedRole = sessionStorage.getItem('userRole');
-
-        // FIX: sessionStorage can be empty on hard refresh before AuthContext sets it.
-        // Probe the admins collection directly so the header still loads the profile.
+        let storedRole = sessionStorage.getItem("userRole");
         if (!storedRole) {
-          const adminProbe = await getDoc(doc(db, 'admins', user.uid));
-          if (adminProbe.exists()) {
-            storedRole = 'admin';
-            sessionStorage.setItem('userRole', 'admin');
+          const probe = await getDoc(doc(db, "admins", user.uid));
+          if (probe.exists()) {
+            storedRole = "admin";
+            sessionStorage.setItem("userRole", "admin");
           }
         }
 
-        const collectionName =
-          storedRole === 'admin'      ? 'admins'      :
-          storedRole === 'supplier'   ? 'suppliers'   :
-          storedRole === 'pharmacist' ? 'pharmacists' : 'users';
+        const col =
+          storedRole === "admin"      ? "admins"      :
+          storedRole === "supplier"   ? "suppliers"   :
+          storedRole === "pharmacist" ? "pharmacists" : "users";
 
-        const docSnap = await getDoc(doc(db, collectionName, user.uid));
-        if (docSnap.exists()) {
-          setAdminData(docSnap.data());
-        } else {
-          console.warn(
-            `No Firestore document found in "${collectionName}" for UID:`, user.uid,
-            "\nCreate the document in Firestore Console under the correct collection."
-          );
-        }
+        const snap = await getDoc(doc(db, col, user.uid));
+        if (snap.exists()) setAdminData(snap.data());
       } catch (err) {
-        console.error("Error in auth init:", err);
+        console.error("Auth init error:", err);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
-  // Poll notifications every 30 seconds
+  /* ── Poll notifications ── */
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    const id = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(id);
   }, []);
 
-  // Re-fetch when navigating away from notifications page
-  useEffect(() => {
-    fetchUnreadCount();
-  }, [location.pathname]);
+  useEffect(() => { fetchUnreadCount(); }, [location.pathname]);
 
-  // Close dropdown when clicking outside
+  /* ── Close dropdown on outside click ── */
   useEffect(() => {
-    const handleClickOutside = () => setShowProfile(false);
-    window.addEventListener("click", handleClickOutside);
-    return () => window.removeEventListener("click", handleClickOutside);
+    const close = () => setShowProfile(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
   }, []);
+
+  /* ── Avatar initials ── */
+  const initials = adminData?.fullName
+    ? adminData.fullName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "A";
 
   return (
-    <header className="h-[70px] bg-[#9fbaf2] border-b border-gray-200 px-6 flex justify-between items-center relative">
+    <header className="h-[70px] bg-gradient-to-r from-blue-600 to-blue-700 px-6 flex justify-between items-center relative shadow-md">
 
-      {/* LEFT — Title */}
-      <div>
-        <h1 className="text-[22px] font-semibold text-gray-900">{title}</h1>
-        <p className="text-[13px] text-gray-500">{subtitle}</p>
+      {/* ── LEFT: Page title ── */}
+      <div className="flex flex-col justify-center">
+        <div className="flex items-center gap-2.5">
+          <div className="w-1 h-6 rounded-full bg-white/60" />
+          <h1 className="text-[20px] font-bold text-white leading-tight tracking-tight">
+            {title}
+          </h1>
+        </div>
+        <p className="text-[12px] text-blue-100 font-medium ml-3.5 mt-0.5 tracking-wide">
+          {subtitle}
+        </p>
       </div>
 
-      {/* RIGHT — Bell + Profile */}
-      <div className="flex items-center gap-5 relative">
+      {/* ── RIGHT: Actions ── */}
+      <div className="flex items-center gap-2">
 
         {/* Notification Bell */}
         <button
           onClick={() => navigate("/admin/notifications")}
-          className="relative p-2 rounded-full hover:bg-white/30 transition"
+          className="relative w-10 h-10 rounded-xl flex items-center justify-center
+                     text-white/80 hover:text-white hover:bg-white/15
+                     border border-transparent hover:border-white/20
+                     transition-all duration-150"
         >
-          <FiBell size={22} className="text-gray-800" />
+          <Bell size={19} strokeWidth={2} />
           {unreadCount > 0 && (
-            <span className="absolute top-0.5 right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+            <span className="absolute top-1.5 right-1.5 bg-red-500 text-white text-[9px] font-bold
+                             rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5
+                             ring-2 ring-blue-600 leading-none">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
         </button>
 
-        {/* Profile */}
+        {/* Divider */}
+        <div className="w-px h-6 bg-white/20 mx-1" />
+
+        {/* Profile trigger */}
         <div className="relative">
-          <div
-            onClick={(e) => { e.stopPropagation(); setShowProfile(!showProfile); }}
-            className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition"
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowProfile((p) => !p); }}
+            className={`
+              flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer
+              border transition-all duration-150
+              ${showProfile
+                ? "bg-white/20 border-white/30 shadow-inner"
+                : "bg-white/10 border-white/15 hover:bg-white/20 hover:border-white/30"
+              }
+            `}
           >
-            <div className="w-9 h-9 rounded-full bg-white/40 flex items-center justify-center">
-              <FiUser size={20} className="text-gray-800" />
+            {/* Avatar */}
+            <div className="w-8 h-8 rounded-lg bg-white/25 border border-white/30 flex items-center justify-center flex-shrink-0">
+              <span className="text-[12px] font-bold text-white">{initials}</span>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                {adminData?.fullName || "Admin"}
+
+            {/* Name + role */}
+            <div className="text-left hidden sm:block">
+              <p className="text-[13px] font-semibold text-white leading-tight">
+                {adminData?.fullName || "Admin User"}
               </p>
-              <p className="text-xs text-gray-600">
+              <p className="text-[11px] text-blue-100 leading-tight capitalize">
                 {adminData?.role || "Administrator"}
               </p>
             </div>
-          </div>
 
-          {/* PROFILE CARD */}
+            <ChevronDown
+              size={15}
+              strokeWidth={2.5}
+              className={`text-white/60 transition-transform duration-200 ${showProfile ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          {/* ── Profile Dropdown ── */}
           {showProfile && (
             <div
               onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 mt-3 w-64 bg-white shadow-lg rounded-lg p-4 z-50"
+              className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl
+                         border border-gray-100 z-50 overflow-hidden"
             >
               {adminData ? (
                 <>
-                  <p className="font-semibold text-gray-800">{adminData.fullName}</p>
-                  <p className="text-sm text-gray-600">{adminData.email}</p>
-                  <p className="text-sm text-gray-600">📞 {adminData.phone || "No phone"}</p>
-                  <p className="text-xs text-blue-500 mt-2">Role: {adminData.role}</p>
+                  {/* Card header */}
+                  <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-4 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-white/20 border border-white/30
+                                      flex items-center justify-center flex-shrink-0">
+                        <span className="text-[16px] font-bold text-white">{initials}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-bold text-white truncate">
+                          {adminData.fullName}
+                        </p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <Shield size={11} className="text-blue-200" strokeWidth={2} />
+                          <p className="text-[11px] text-blue-200 capitalize font-medium">
+                            {adminData.role || "Administrator"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-                  {/* Debug: show token claims in dev mode */}
+                  {/* Info rows */}
+                  <div className="px-4 py-3 space-y-2.5">
+                    <div className="flex items-center gap-2.5 text-gray-600">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <Mail size={13} strokeWidth={2} className="text-blue-500" />
+                      </div>
+                      <p className="text-[12.5px] truncate">{adminData.email || "No email"}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 text-gray-600">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <Phone size={13} strokeWidth={2} className="text-blue-500" />
+                      </div>
+                      <p className="text-[12.5px]">{adminData.phone || "No phone on record"}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 text-gray-600">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <Shield size={13} strokeWidth={2} className="text-blue-500" />
+                      </div>
+                      <p className="text-[12.5px] text-blue-600 font-semibold capitalize">
+                        {adminData.role || "Administrator"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Dev token claims */}
                   {import.meta.env.DEV && tokenClaims && (
-                    <details className="mt-2">
-                      <summary className="text-xs text-slate-400 cursor-pointer">Token claims (dev)</summary>
-                      <pre className="text-[10px] text-slate-500 mt-1 overflow-auto max-h-24">
-                        {JSON.stringify(tokenClaims, null, 2)}
-                      </pre>
-                    </details>
+                    <div className="px-4 pb-2">
+                      <details className="bg-gray-50 rounded-lg px-3 py-2">
+                        <summary className="text-[11px] text-gray-400 cursor-pointer select-none font-medium">
+                          Token claims (dev only)
+                        </summary>
+                        <pre className="text-[10px] text-gray-500 mt-2 overflow-auto max-h-24 leading-relaxed">
+                          {JSON.stringify(tokenClaims, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
                   )}
 
-                  <button
-                    onClick={() => { auth.signOut(); navigate("/login"); }}
-                    className="mt-3 w-full bg-red-500 text-white py-1.5 rounded hover:bg-red-600"
-                  >
-                    Logout
-                  </button>
+                  {/* Divider */}
+                  <div className="h-px bg-gray-100 mx-4" />
+
+                  {/* Logout */}
+                  <div className="px-4 py-3">
+                    <button
+                      onClick={() => { auth.signOut(); navigate("/login"); }}
+                      className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
+                                 bg-red-50 text-red-600 border border-red-100
+                                 hover:bg-red-500 hover:text-white hover:border-red-500
+                                 text-[13px] font-semibold transition-all duration-150"
+                    >
+                      <LogOut size={15} strokeWidth={2} />
+                      Sign out
+                    </button>
+                  </div>
                 </>
               ) : (
-                <p className="text-sm text-gray-500">Loading...</p>
+                <div className="flex items-center justify-center py-8 gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+                  <p className="text-[13px] text-gray-400">Loading profile...</p>
+                </div>
               )}
             </div>
           )}
         </div>
-
       </div>
     </header>
   );

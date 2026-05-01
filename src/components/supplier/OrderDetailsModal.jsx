@@ -12,47 +12,34 @@ import {
   CheckCheck,
   Ban,
 } from "lucide-react";
-import ModalWrap from "./ModalWrap"; // adjust path as needed
+import ModalWrap from "./ModalWrap";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 const statusConfig = {
-  PENDING:  { bg: "#fef9c3", color: "#854d0e", border: "#fde047", label: "Pending",  dot: "#eab308" },
-  APPROVED: { bg: "#dcfce7", color: "#166534", border: "#86efac", label: "Approved", dot: "#22c55e" },
-  REJECTED: { bg: "#fee2e2", color: "#991b1b", border: "#fca5a5", label: "Rejected", dot: "#ef4444" },
+  PENDING:  { cls: "bg-amber-50 text-amber-700 border-amber-200",   dot: "bg-amber-400",   label: "Pending"  },
+  APPROVED: { cls: "bg-blue-50 text-blue-700 border-blue-200",      dot: "bg-blue-500",    label: "Approved" },
+  REJECTED: { cls: "bg-red-50 text-red-700 border-red-200",         dot: "bg-red-400",     label: "Rejected" },
 };
 
 function StatusBadge({ status }) {
   const s = statusConfig[status] ?? {
-    bg: "#f1f5f9", color: "#475569", border: "#cbd5e1", label: status ?? "Unknown", dot: "#94a3b8",
+    cls: "bg-blue-50 text-blue-400 border-blue-100", dot: "bg-blue-300", label: status ?? "Unknown",
   };
   return (
-    <span
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 6,
-        background: s.bg, color: s.color,
-        border: `1.5px solid ${s.border}`,
-        borderRadius: 999, padding: "4px 14px",
-        fontSize: 13, fontWeight: 700, letterSpacing: "0.03em",
-      }}
-    >
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-widest ${s.cls}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} />
       {s.label}
     </span>
   );
 }
 
 // ─── Section title ─────────────────────────────────────────────────────────────
-function SectionTitle({ icon: Icon, title, iconColor = "#94a3b8" }) {
+function SectionTitle({ icon: Icon, title, iconCls = "text-blue-400" }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-      <Icon size={15} color={iconColor} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-      <h4 style={{
-        margin: 0, fontSize: 13, fontWeight: 700,
-        color: "#94a3b8", letterSpacing: "0.08em", textTransform: "uppercase",
-      }}>
-        {title}
-      </h4>
-      <div style={{ flex: 1, height: 1, background: "#f1f5f9", marginLeft: 4 }} />
+    <div className="flex items-center gap-2 mb-3">
+      <Icon size={14} className={`flex-shrink-0 ${iconCls}`} strokeWidth={2.2} />
+      <h4 className="m-0 text-[10px] font-bold text-blue-400 uppercase tracking-widest">{title}</h4>
+      <div className="flex-1 h-px bg-blue-50 ml-1" />
     </div>
   );
 }
@@ -61,22 +48,12 @@ function SectionTitle({ icon: Icon, title, iconColor = "#94a3b8" }) {
 function DetailRow({ label, value, mono = false, accent = false }) {
   if (value === null || value === undefined || value === "") return null;
   return (
-    <div style={{
-      display: "flex", justifyContent: "space-between",
-      alignItems: "flex-start", padding: "9px 0",
-      borderBottom: "1px solid #f8fafc",
-    }}>
-      <span style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500, flexShrink: 0, marginRight: 12 }}>
-        {label}
-      </span>
-      <span style={{
-        fontSize: 13,
-        fontWeight: accent ? 700 : 600,
-        color: accent ? "#0f766e" : "#1e293b",
-        fontFamily: mono ? "'Courier New', monospace" : "inherit",
-        textAlign: "right",
-        wordBreak: "break-all",
-      }}>
+    <div className="flex justify-between items-start py-2 border-b border-blue-50 last:border-none">
+      <span className="text-xs text-blue-400 font-medium flex-shrink-0 mr-3">{label}</span>
+      <span className={`text-xs font-semibold text-right break-all
+        ${accent ? "text-emerald-600" : "text-blue-950"}
+        ${mono ? "font-mono" : ""}
+      `}>
         {value}
       </span>
     </div>
@@ -84,15 +61,9 @@ function DetailRow({ label, value, mono = false, accent = false }) {
 }
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
-function Card({ children, style = {} }) {
+function Card({ children, cls = "" }) {
   return (
-    <div style={{
-      background: "#fff",
-      border: "1.5px solid #f1f5f9",
-      borderRadius: 14,
-      padding: "18px 20px",
-      ...style,
-    }}>
+    <div className={`bg-white border border-blue-50 rounded-xl p-4 ${cls}`}>
       {children}
     </div>
   );
@@ -114,31 +85,16 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
     <ModalWrap onClose={onClose} maxW="max-w-[740px]">
 
       {/* ── Header ── */}
-      <div style={{
-        background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)",
-        borderRadius: "16px 16px 0 0",
-        padding: "28px 28px 22px",
-        position: "relative",
-        overflow: "hidden",
-      }}>
-        <div style={{
-          position: "absolute", top: -40, right: -40,
-          width: 160, height: 160, borderRadius: "50%",
-          background: "rgba(255,255,255,0.04)", pointerEvents: "none",
-        }} />
+      <div className="bg-blue-950 rounded-t-2xl px-7 py-6 relative overflow-hidden">
+        {/* Decorative circle */}
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/[0.03] pointer-events-none" />
 
-        <div style={{
-          display: "flex", justifyContent: "space-between",
-          alignItems: "flex-start", gap: 12, position: "relative",
-        }}>
+        <div className="flex justify-between items-start gap-3 relative">
           <div>
-            <p style={{
-              margin: "0 0 6px", fontSize: 12, fontWeight: 600,
-              color: "#64748b", letterSpacing: "0.1em", textTransform: "uppercase",
-            }}>
+            <p className="m-0 mb-1.5 text-[10px] font-bold text-blue-500 uppercase tracking-widest">
               Purchase Order
             </p>
-            <h2 style={{ margin: "0 0 10px", fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-0.01em" }}>
+            <h2 className="m-0 mb-3 text-xl font-bold text-white tracking-tight">
               {order.poId || order.id || "—"}
             </h2>
             <StatusBadge status={status} />
@@ -146,50 +102,41 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
 
           <button
             onClick={onClose}
-            style={{
-              background: "rgba(255,255,255,0.08)",
-              border: "1.5px solid rgba(255,255,255,0.12)",
-              borderRadius: 10, width: 36, height: 36, cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0, transition: "background 0.15s",
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
-            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.08)"}
+            className="w-9 h-9 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl cursor-pointer transition-all duration-150 flex-shrink-0"
           >
-            <X size={16} color="#94a3b8" strokeWidth={2.5} />
+            <X size={15} className="text-blue-300" strokeWidth={2.5} />
           </button>
         </div>
 
         {/* Callout tiles */}
-        <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div className="mt-5 flex gap-3 flex-wrap">
           {[
             { label: "Total Amount", value: `Rs. ${totalAmount.toFixed(2)}`, highlight: true },
             { label: "Quantity",     value: `${quantity} units` },
             { label: "Unit Price",   value: unitPrice > 0 ? `Rs. ${unitPrice.toFixed(2)}` : "—" },
           ].map(({ label, value, highlight }) => (
-            <div key={label} style={{
-              background: highlight ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.06)",
-              border: `1.5px solid ${highlight ? "rgba(16,185,129,0.3)" : "rgba(255,255,255,0.1)"}`,
-              borderRadius: 10, padding: "10px 16px", flex: "1 1 120px",
-            }}>
-              <p style={{ margin: "0 0 3px", fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {label}
-              </p>
-              <p style={{ margin: 0, fontSize: 17, fontWeight: 800, color: highlight ? "#34d399" : "#e2e8f0" }}>
-                {value}
-              </p>
+            <div
+              key={label}
+              className={`flex-1 basis-28 rounded-xl px-4 py-2.5 border
+                ${highlight
+                  ? "bg-emerald-500/10 border-emerald-500/25"
+                  : "bg-white/[0.05] border-white/10"
+                }`}
+            >
+              <p className="m-0 mb-0.5 text-[10px] font-bold uppercase tracking-widest text-blue-500">{label}</p>
+              <p className={`m-0 text-base font-bold ${highlight ? "text-emerald-400" : "text-blue-100"}`}>{value}</p>
             </div>
           ))}
         </div>
       </div>
 
       {/* ── Body ── */}
-      <div style={{ padding: "24px 28px 28px", display: "flex", flexDirection: "column", gap: 22 }}>
+      <div className="p-6 flex flex-col gap-4 bg-[#f0f4fb]">
 
         {/* Product + Order Info */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="grid grid-cols-2 gap-4">
           <Card>
-            <SectionTitle icon={Package} title="Product" iconColor="#6366f1" />
+            <SectionTitle icon={Package} title="Product" iconCls="text-blue-500" />
             <DetailRow label="Product Name"   value={productName} />
             <DetailRow label="Product ID"     value={order.productId}      mono />
             <DetailRow label="Admin Prod. ID" value={order.adminProductId} mono />
@@ -199,7 +146,7 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
           </Card>
 
           <Card>
-            <SectionTitle icon={FileText} title="Order Info" iconColor="#f59e0b" />
+            <SectionTitle icon={FileText} title="Order Info" iconCls="text-amber-400" />
             <DetailRow label="PO Number"     value={order.poId}  mono />
             <DetailRow label="Order ID"      value={order.id}    mono />
             <DetailRow label="Status"        value={status} />
@@ -211,9 +158,9 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
         </div>
 
         {/* Supplier + Pharmacy */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="grid grid-cols-2 gap-4">
           <Card>
-            <SectionTitle icon={Factory} title="Supplier" iconColor="#8b5cf6" />
+            <SectionTitle icon={Factory} title="Supplier" iconCls="text-purple-400" />
             <DetailRow label="Supplier Name" value={supplierName} />
             <DetailRow label="Supplier ID"   value={order.supplierId} mono />
             <DetailRow label="Email"         value={order.supplierEmail} />
@@ -221,7 +168,7 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
           </Card>
 
           <Card>
-            <SectionTitle icon={Building2} title="Pharmacy / Buyer" iconColor="#0ea5e9" />
+            <SectionTitle icon={Building2} title="Pharmacy / Buyer" iconCls="text-sky-400" />
             <DetailRow label="Pharmacy"      value={order.pharmacy     || order.buyer || "MediCareX"} />
             <DetailRow label="Contact"       value={order.buyerContact || order.pharmacyContact} />
             <DetailRow label="Shipping Addr" value={order.shippingAddress} />
@@ -231,8 +178,8 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
 
         {/* Financial Summary */}
         <Card>
-          <SectionTitle icon={DollarSign} title="Financial Summary" iconColor="#10b981" />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
+          <SectionTitle icon={DollarSign} title="Financial Summary" iconCls="text-emerald-500" />
+          <div className="grid grid-cols-2 gap-x-8">
             <div>
               <DetailRow label="Subtotal"   value={order.subtotal  != null ? `Rs. ${Number(order.subtotal).toFixed(2)}`  : null} />
               <DetailRow label="Tax Rate"   value={order.taxRate   != null ? `${order.taxRate}%`                         : null} />
@@ -250,8 +197,8 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
 
         {/* Approval Details */}
         {status === "APPROVED" && (
-          <Card style={{ borderColor: "#bbf7d0", background: "#f0fdf4" }}>
-            <SectionTitle icon={CheckCircle2} title="Approval Details" iconColor="#16a34a" />
+          <Card cls="border-emerald-100 bg-emerald-50/60">
+            <SectionTitle icon={CheckCircle2} title="Approval Details" iconCls="text-emerald-500" />
             <DetailRow label="Approved At"   value={order.approvedAt   ? formatDate(order.approvedAt)   : null} />
             <DetailRow label="Approval Date" value={order.approvalDate ? formatDate(order.approvalDate) : null} />
             <DetailRow label="Approved By"   value={order.approvedBy} />
@@ -260,8 +207,8 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
 
         {/* Rejection Details */}
         {status === "REJECTED" && (
-          <Card style={{ borderColor: "#fecaca", background: "#fff5f5" }}>
-            <SectionTitle icon={XCircle} title="Rejection Details" iconColor="#dc2626" />
+          <Card cls="border-red-100 bg-red-50/60">
+            <SectionTitle icon={XCircle} title="Rejection Details" iconCls="text-red-400" />
             <DetailRow label="Rejected At"    value={order.rejectedAt    ? formatDate(order.rejectedAt)    : null} />
             <DetailRow label="Rejection Date" value={order.rejectionDate ? formatDate(order.rejectionDate) : null} />
             <DetailRow label="Rejected By"    value={order.rejectedBy} />
@@ -272,7 +219,7 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
         {/* Notes */}
         {(order.notes || order.adminNotes || order.specialInstructions) && (
           <Card>
-            <SectionTitle icon={StickyNote} title="Notes & Instructions" iconColor="#f59e0b" />
+            <SectionTitle icon={StickyNote} title="Notes & Instructions" iconCls="text-amber-400" />
             {order.notes               && <DetailRow label="Notes"                value={order.notes} />}
             {order.adminNotes          && <DetailRow label="Admin Notes"          value={order.adminNotes} />}
             {order.specialInstructions && <DetailRow label="Special Instructions" value={order.specialInstructions} />}
@@ -280,21 +227,12 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
         )}
 
         {/* ── Action Buttons ── */}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", paddingTop: 4, flexWrap: "wrap" }}>
+        <div className="flex gap-3 justify-end pt-1 flex-wrap">
           <button
             onClick={onClose}
-            style={{
-              padding: "10px 22px", borderRadius: 10,
-              border: "1.5px solid #e2e8f0",
-              background: "#fff", color: "#64748b",
-              fontWeight: 600, fontSize: 14, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 7,
-              transition: "all 0.15s",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "#fff";    e.currentTarget.style.borderColor = "#e2e8f0"; }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-blue-200 bg-white hover:bg-blue-50 hover:border-blue-300 text-blue-500 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-200"
           >
-            <X size={14} strokeWidth={2.5} />
+            <X size={13} strokeWidth={2.5} />
             Close
           </button>
 
@@ -302,35 +240,17 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
             <>
               <button
                 onClick={() => { onClose(); onReject(order); }}
-                style={{
-                  padding: "10px 22px", borderRadius: 10,
-                  border: "1.5px solid #fca5a5",
-                  background: "#fff5f5", color: "#dc2626",
-                  fontWeight: 700, fontSize: 14, cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 7,
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = "#fee2e2"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "#fff5f5"; }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 hover:border-red-300 text-red-600 font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-200"
               >
-                <Ban size={14} strokeWidth={2.5} />
+                <Ban size={13} strokeWidth={2.5} />
                 Reject Order
               </button>
 
               <button
                 onClick={() => { onClose(); onApprove(order.id, order); }}
-                style={{
-                  padding: "10px 22px", borderRadius: 10, border: "none",
-                  background: "linear-gradient(135deg, #10b981, #059669)",
-                  color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 7,
-                  boxShadow: "0 2px 12px rgba(16,185,129,0.35)",
-                  transition: "all 0.15s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = "0.9"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = "1";   e.currentTarget.style.transform = "translateY(0)"; }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border-none bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider cursor-pointer transition-all duration-200 shadow-[0_4px_14px_rgba(16,185,129,0.30)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.40)] hover:-translate-y-px"
               >
-                <CheckCheck size={15} strokeWidth={2.5} />
+                <CheckCheck size={14} strokeWidth={2.5} />
                 Approve Order
               </button>
             </>

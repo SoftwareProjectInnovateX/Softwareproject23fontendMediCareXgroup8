@@ -14,36 +14,32 @@ import Card from '../../components/Card';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-// Toast notification component
-const Toast = ({ toasts, removeToast }) => (
-  <div className="fixed top-5 right-5 z-[2000] flex flex-col gap-2">
-    {toasts.map((t) => {
+const fmtRs = (n) =>
+  `Rs. ${Number(n || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/* ── Message Card System ── */
+const MessageCard = ({ messages, removeMessage }) => (
+  <div className="fixed top-5 right-5 z-[2000] flex flex-col gap-2 pointer-events-none">
+    {messages.map((m) => {
       const styles = {
-        success: 'bg-emerald-50 border-emerald-400 text-emerald-800',
-        error:   'bg-red-50 border-red-400 text-red-800',
-        warning: 'bg-amber-50 border-amber-400 text-amber-800',
-        info:    'bg-blue-50 border-blue-400 text-blue-800',
+        success: 'bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800',
+        error:   'bg-red-50 border-l-4 border-red-500 text-red-800',
+        warning: 'bg-amber-50 border-l-4 border-amber-500 text-amber-800',
+        info:    'bg-blue-50 border-l-4 border-blue-500 text-blue-800',
       };
-      const icons = {
-        success: <MdCheckCircle size={20} className="text-emerald-500 flex-shrink-0" />,
-        error:   <MdError size={20} className="text-red-500 flex-shrink-0" />,
-        warning: <MdWarning size={20} className="text-amber-500 flex-shrink-0" />,
-        info:    <MdInfo size={20} className="text-blue-500 flex-shrink-0" />,
-      };
+      const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+      const iconBg = { success: 'bg-emerald-500', error: 'bg-red-500', warning: 'bg-amber-500', info: 'bg-blue-500' };
       return (
         <div
-          key={t.id}
-          className={`flex items-start gap-3 px-4 py-3 rounded-xl border shadow-lg min-w-[280px] max-w-[360px] ${styles[t.type]}`}
-          style={{ animation: 'slideInRight 0.3s ease' }}
+          key={m.id}
+          className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg min-w-[300px] max-w-[400px] pointer-events-auto ${styles[m.type]}`}
+          style={{ animation: 'slideInRight 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
         >
-          {icons[t.type]}
-          <p className="text-sm font-medium m-0 flex-1">{t.message}</p>
-          <button
-            onClick={() => removeToast(t.id)}
-            className="bg-transparent border-none cursor-pointer p-0 opacity-60 hover:opacity-100 transition-opacity"
-          >
-            <MdClose size={16} />
-          </button>
+          <span className={`w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-bold flex-shrink-0 mt-0.5 ${iconBg[m.type]}`}>
+            {icons[m.type]}
+          </span>
+          <p className="text-sm font-medium m-0 flex-1 leading-snug">{m.message}</p>
+          <button onClick={() => removeMessage(m.id)} className="bg-transparent border-none cursor-pointer p-0 opacity-40 hover:opacity-80 transition-opacity text-lg leading-none flex-shrink-0 pointer-events-auto">×</button>
         </div>
       );
     })}
@@ -60,15 +56,28 @@ const InvoicePayments = () => {
   const [paymentAmount, setPaymentAmount]       = useState('');
   const [paymentMethod, setPaymentMethod]       = useState('Bank Transfer');
   const [paymentNote, setPaymentNote]           = useState('');
-  const [toasts, setToasts]                     = useState([]);
+  const [messages, setMessages]                 = useState([]);
 
+  /* ── Message helpers ── */
   const showToast = (message, type = 'info') => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, type, message }]);
-    setTimeout(() => removeToast(id), 4000);
+    const id = Date.now() + Math.random();
+    setMessages(prev => [...prev, { id, type, message }]);
+    setTimeout(() => removeMessage(id), 5000);
+  };
+  const removeMessage = (id) => setMessages(prev => prev.filter(m => m.id !== id));
+
+  /* ── Download receipt helper ── */
+  const downloadReceipt = (invoice) => {
+    if (!invoice.receiptBase64) return;
+    const link = document.createElement('a');
+    link.href = invoice.receiptBase64;
+    link.download = invoice.receiptName || 'payment-receipt';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   };
 
-  const removeToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+  const isPDF = (inv) => inv?.receiptType === 'application/pdf' || inv?.receiptName?.toLowerCase().endsWith('.pdf');
 
   /* ── AUTH ── */
   useEffect(() => {
@@ -79,20 +88,15 @@ const InvoicePayments = () => {
   }, []);
 
   /* ── FETCH INVOICES ── */
-  // FIX: Fetch ALL invoices for this supplier without a paymentStatus filter,
-  // then filter client-side. This ensures FINAL invoices that were just marked
-  // Paid by the admin are always included — previously a Firestore composite
-  // index or missing field could silently drop them.
   const fetchInvoices = async () => {
     if (!supplierId) return;
     try {
       setLoading(true);
 
-      // Always fetch all invoices for this supplier first
       const baseQuery = query(
         collection(db, 'invoices'),
         where('supplierId', '==', supplierId),
-        orderBy('invoiceDate', 'desc')
+        orderBy('createdAt', 'desc')
       );
 
       const snapshot = await getDocs(baseQuery);
@@ -112,8 +116,6 @@ const InvoicePayments = () => {
         };
       });
 
-      // FIX: Apply status filter client-side so we never miss records due to
-      // Firestore composite index issues or field name mismatches
       const filtered = filterStatus === 'All'
         ? allInvoices
         : allInvoices.filter((inv) => inv.paymentStatus === filterStatus);
@@ -128,13 +130,6 @@ const InvoicePayments = () => {
   };
 
   useEffect(() => { fetchInvoices(); }, [filterStatus, supplierId]);
-
-  const calculateTotals = () => ({
-    total:   invoices.reduce((s, i) => s + (i.totalAmount || 0), 0),
-    paid:    invoices.filter(i => i.paymentStatus === 'Paid').reduce((s, i) => s + (i.totalAmount || 0), 0),
-    pending: invoices.filter(i => i.paymentStatus === 'Pending').reduce((s, i) => s + (i.totalAmount || 0), 0),
-    overdue: invoices.filter(i => i.paymentStatus === 'Overdue').reduce((s, i) => s + (i.totalAmount || 0), 0),
-  });
 
   /* ── RECORD PAYMENT ── */
   const recordPayment = async () => {
@@ -195,13 +190,9 @@ const InvoicePayments = () => {
         }),
       });
 
-      // FIX: Handle non-ok responses by reading the JSON error body
       if (!response.ok) {
         let errMsg = `Server error ${response.status}`;
-        try {
-          const errJson = await response.json();
-          errMsg = errJson.message || errMsg;
-        } catch (_) { /* response wasn't JSON */ }
+        try { const j = await response.json(); errMsg = j.message || errMsg; } catch (_) {}
         throw new Error(errMsg);
       }
 
@@ -238,8 +229,6 @@ const InvoicePayments = () => {
     }
   };
 
-  const totals = calculateTotals();
-
   const ModalWrap = ({ onClose, children }) => (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000] p-5"
@@ -259,17 +248,13 @@ const InvoicePayments = () => {
   const inputCls    = "w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-3 focus:ring-blue-500/10";
   const disabledCls = "bg-slate-100 cursor-not-allowed";
 
-  // FIX: Count from ALL invoices regardless of current filter for accurate summary cards
+  // All invoices for summary cards (unaffected by filter)
   const [allInvoices, setAllInvoices] = useState([]);
-
   useEffect(() => {
     const fetchAll = async () => {
       if (!supplierId) return;
       try {
-        const snap = await getDocs(query(
-          collection(db, 'invoices'),
-          where('supplierId', '==', supplierId),
-        ));
+        const snap = await getDocs(query(collection(db, 'invoices'), where('supplierId', '==', supplierId)));
         setAllInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (_) {}
     };
@@ -290,22 +275,20 @@ const InvoicePayments = () => {
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
 
-      <Toast toasts={toasts} removeToast={removeToast} />
+      <MessageCard messages={messages} removeMessage={removeMessage} />
 
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-slate-800 mb-1">Invoice & Payments</h1>
         <p className="text-slate-500 text-base">Track payments received from MediCareX</p>
       </div>
 
-      {/* Summary Cards — always show totals across ALL invoices */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-        <Card title="Total Revenue"                          value={`Rs.${allTotals.total.toFixed(2)}`} />
-        <Card title={`Received (${paidCount} invoices)`}    value={`Rs.${allTotals.paid.toFixed(2)}`} />
-        <Card title={`Pending (${pendingCount} invoices)`}  value={`Rs.${allTotals.pending.toFixed(2)}`} />
-        <Card title={`Overdue (${overdueCount} invoices)`}  value={`Rs.${allTotals.overdue.toFixed(2)}`} />
+        <Card title="Total Revenue"                          value={fmtRs(allTotals.total)} />
+        <Card title={`Received (${paidCount} invoices)`}    value={fmtRs(allTotals.paid)} />
+        <Card title={`Pending (${pendingCount} invoices)`}  value={fmtRs(allTotals.pending)} />
+        <Card title={`Overdue (${overdueCount} invoices)`}  value={fmtRs(allTotals.overdue)} />
       </div>
 
-      {/* Delivery unlock banner */}
       {allInvoices.some(inv => inv.invoiceType === 'INITIAL' && inv.paymentStatus === 'Pending') && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-6 flex items-center gap-3">
           <MdLocalShipping size={22} className="text-amber-600 flex-shrink-0" />
@@ -315,7 +298,6 @@ const InvoicePayments = () => {
         </div>
       )}
 
-      {/* Filter Bar */}
       <div className="bg-white p-4 rounded-xl shadow-sm mb-6">
         <select
           value={filterStatus}
@@ -329,7 +311,6 @@ const InvoicePayments = () => {
         </select>
       </div>
 
-      {/* Invoice Table */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         {loading ? (
           <div className="py-20 text-center">
@@ -346,10 +327,8 @@ const InvoicePayments = () => {
             <table className="w-full border-collapse min-w-[900px]">
               <thead className="bg-slate-50 border-b-2 border-slate-200">
                 <tr>
-                  {['Invoice #', 'Pharmacy', 'Order ID', 'Type', 'Invoice Date', 'Due Date', 'Amount', 'Status', 'Delivery', 'Actions'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">
-                      {h}
-                    </th>
+                  {['Invoice #', 'Product', 'Order ID', 'Type', 'Invoice Date', 'Due Date', 'Amount', 'Status', 'Delivery', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -357,7 +336,9 @@ const InvoicePayments = () => {
                 {invoices.map((invoice) => (
                   <tr key={invoice.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-4 font-semibold text-blue-600 text-sm">{invoice.invoiceNumber}</td>
-                    <td className="px-4 py-4 text-sm text-slate-800">{invoice.pharmacy}</td>
+                    <td className="px-4 py-4 text-sm text-slate-800 font-medium">
+                      {invoice.productName || invoice.items?.[0]?.productName || invoice.items?.[0]?.name || '—'}
+                    </td>
                     <td className="px-4 py-4 text-sm text-slate-600">{invoice.orderId}</td>
                     <td className="px-4 py-4">
                       <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${getInvoiceTypeStyle(invoice.invoiceType)}`}>
@@ -375,15 +356,11 @@ const InvoicePayments = () => {
                     <td className="px-4 py-4">
                       {invoice.invoiceType === 'INITIAL' ? (
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
-                          ${invoice.paymentStatus === 'Paid'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-slate-100 text-slate-500'}`}>
+                          ${invoice.paymentStatus === 'Paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                           <MdLocalShipping size={13} />
                           {invoice.paymentStatus === 'Paid' ? 'Unlocked' : 'Locked'}
                         </span>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
+                      ) : <span className="text-xs text-slate-400">—</span>}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-2">
@@ -391,16 +368,12 @@ const InvoicePayments = () => {
                           title="View Details"
                           onClick={() => setSelectedInvoice(invoice)}
                           className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 border-none cursor-pointer transition-colors"
-                        >
-                          <MdVisibility size={16} />
-                        </button>
+                        ><MdVisibility size={16} /></button>
                         <button
-                          title="Download Receipt"
+                          title="Download Invoice PDF"
                           onClick={() => generatePDF(invoice)}
                           className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-600 border-none cursor-pointer transition-colors"
-                        >
-                          <MdDownload size={16} />
-                        </button>
+                        ><MdDownload size={16} /></button>
                       </div>
                     </td>
                   </tr>
@@ -411,7 +384,7 @@ const InvoicePayments = () => {
         )}
       </div>
 
-      {/* Invoice Details Modal */}
+      {/* ── Invoice Details Modal ── */}
       {selectedInvoice && !showPaymentModal && (
         <ModalWrap onClose={() => setSelectedInvoice(null)}>
           <div className="flex justify-between items-center px-6 py-5 border-b border-slate-200">
@@ -425,10 +398,11 @@ const InvoicePayments = () => {
           </div>
 
           <div className="p-6">
+            {/* Basic details */}
             <div className="grid grid-cols-2 gap-5 mb-6">
               {[
                 { label: 'Invoice Number', value: selectedInvoice.invoiceNumber },
-                { label: 'Pharmacy',       value: selectedInvoice.pharmacy },
+                { label: 'Product',        value: selectedInvoice.productName || selectedInvoice.items?.[0]?.productName || selectedInvoice.items?.[0]?.name || '—' },
                 { label: 'Order ID',       value: selectedInvoice.orderId },
                 { label: 'Invoice Date',   value: selectedInvoice.invoiceDate },
                 { label: 'Due Date',       value: selectedInvoice.dueDate },
@@ -446,10 +420,9 @@ const InvoicePayments = () => {
               </div>
             </div>
 
+            {/* Delivery status banner */}
             {selectedInvoice.invoiceType === 'INITIAL' && (
-              <div className={`rounded-lg p-4 mb-6 border ${selectedInvoice.paymentStatus === 'Paid'
-                ? 'bg-emerald-50 border-emerald-200'
-                : 'bg-amber-50 border-amber-200'}`}>
+              <div className={`rounded-lg p-4 mb-6 border ${selectedInvoice.paymentStatus === 'Paid' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
                 <div className="flex items-center gap-2 mb-1">
                   <MdLocalShipping size={18} className={selectedInvoice.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'} />
                   <p className={`text-[13px] font-semibold m-0 ${selectedInvoice.paymentStatus === 'Paid' ? 'text-emerald-800' : 'text-amber-800'}`}>
@@ -467,9 +440,7 @@ const InvoicePayments = () => {
             )}
 
             {selectedInvoice.invoiceType === 'FINAL' && (
-              <div className={`rounded-lg p-4 mb-6 border ${selectedInvoice.paymentStatus === 'Paid'
-                ? 'bg-emerald-50 border-emerald-200'
-                : 'bg-blue-50 border-blue-200'}`}>
+              <div className={`rounded-lg p-4 mb-6 border ${selectedInvoice.paymentStatus === 'Paid' ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}`}>
                 <p className={`text-[13px] font-semibold m-0 ${selectedInvoice.paymentStatus === 'Paid' ? 'text-emerald-800' : 'text-blue-800'}`}>
                   {selectedInvoice.paymentStatus === 'Paid'
                     ? 'Final payment received — all transactions complete'
@@ -478,6 +449,62 @@ const InvoicePayments = () => {
               </div>
             )}
 
+            {/* ── Bank Receipt Section (Supplier View) ── */}
+            {selectedInvoice.paymentStatus === 'Paid' && selectedInvoice.receiptBase64 && (
+              <div className="mb-6">
+                <h3 className="text-base font-semibold text-slate-800 mb-3 flex items-center gap-2">
+                  <span className="text-emerald-500">✓</span> Payment Receipt from MediCareX
+                </h3>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-2xl">{isPDF(selectedInvoice) ? '📄' : '🖼️'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-emerald-800 m-0 truncate">
+                        {selectedInvoice.receiptName || 'Payment Slip'}
+                      </p>
+                      <p className="text-xs text-emerald-600 m-0 mt-0.5">
+                        {isPDF(selectedInvoice) ? 'PDF Document' : 'Image'} · {((selectedInvoice.receiptSize || 0) / 1024).toFixed(0)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => downloadReceipt(selectedInvoice)}
+                      className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors"
+                    >
+                      <MdDownload size={16} /> Download
+                    </button>
+                  </div>
+
+                  {/* Show image preview if not PDF */}
+                  {!isPDF(selectedInvoice) && (
+                    <img
+                      src={selectedInvoice.receiptBase64}
+                      alt="Payment Receipt"
+                      className="w-full max-h-[300px] object-contain rounded-lg border border-emerald-200"
+                    />
+                  )}
+
+                  {/* PDF note */}
+                  {isPDF(selectedInvoice) && (
+                    <div className="bg-white border border-emerald-200 rounded-lg p-3 flex items-center gap-2">
+                      <span className="text-lg">ℹ️</span>
+                      <p className="text-xs text-slate-600 m-0">Click <strong>Download</strong> to open or save the PDF payment slip.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* No receipt yet */}
+            {selectedInvoice.paymentStatus === 'Paid' && !selectedInvoice.receiptBase64 && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+                <span className="text-2xl">🧾</span>
+                <p className="text-sm text-slate-600 m-0">Bank receipt not yet attached to this payment.</p>
+              </div>
+            )}
+
+            {/* Items table */}
             <h3 className="text-lg font-semibold text-slate-800 mb-4">Items</h3>
             <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
               <table className="w-full border-collapse">
@@ -501,6 +528,7 @@ const InvoicePayments = () => {
               </table>
             </div>
 
+            {/* Totals */}
             <div className="bg-slate-50 rounded-lg p-4 mb-6">
               <div className="flex justify-between py-2 text-sm text-slate-700">
                 <span>Subtotal:</span>
@@ -520,6 +548,7 @@ const InvoicePayments = () => {
               )}
             </div>
 
+            {/* Payment info */}
             {selectedInvoice.paymentStatus === 'Paid' && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-blue-800 mb-3">Payment Information</h4>
@@ -539,7 +568,7 @@ const InvoicePayments = () => {
 
           <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
             <button onClick={() => generatePDF(selectedInvoice)} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
-              Download Receipt
+              Download Invoice
             </button>
             <button onClick={() => setSelectedInvoice(null)} className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
               Close
@@ -555,7 +584,6 @@ const InvoicePayments = () => {
             <h2 className="text-2xl font-bold text-slate-800">Record Payment</h2>
             <button onClick={() => setShowPaymentModal(false)} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 transition-colors">×</button>
           </div>
-
           <div className="p-6 flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-slate-700">Invoice Number</label>
@@ -584,22 +612,17 @@ const InvoicePayments = () => {
               <textarea rows={3} placeholder="Add any notes..." value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} className={`${inputCls} resize-none`} />
             </div>
           </div>
-
           <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">
-            <button onClick={recordPayment} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
-              Record Payment
-            </button>
-            <button onClick={() => setShowPaymentModal(false)} className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">
-              Cancel
-            </button>
+            <button onClick={recordPayment} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">Record Payment</button>
+            <button onClick={() => setShowPaymentModal(false)} className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg border-none cursor-pointer transition-colors">Cancel</button>
           </div>
         </ModalWrap>
       )}
 
       <style>{`
-        @keyframes fadeIn      { from{opacity:0}                              to{opacity:1} }
-        @keyframes slideUp     { from{transform:translateY(20px);opacity:0}   to{transform:translateY(0);opacity:1} }
-        @keyframes slideInRight{ from{transform:translateX(60px);opacity:0}   to{transform:translateX(0);opacity:1} }
+        @keyframes fadeIn       { from{opacity:0}                              to{opacity:1} }
+        @keyframes slideUp      { from{transform:translateY(20px);opacity:0}   to{transform:translateY(0);opacity:1} }
+        @keyframes slideInRight { from{transform:translateX(60px);opacity:0}   to{transform:translateX(0);opacity:1} }
       `}</style>
     </div>
   );

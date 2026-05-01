@@ -18,87 +18,240 @@ import {
   MdFactCheck,
 } from "react-icons/md";
 
+const navGroups = [
+  {
+    label: "Overview",
+    items: [
+      { id: 1, icon: MdDashboard, text: "Dashboard", path: "/admin", end: true },
+    ],
+  },
+  {
+    label: "Management",
+    items: [
+      { id: 2,  icon: MdPeople,        text: "Users",            path: "/admin/usermanagement"       },
+      { id: 3,  icon: MdLocalShipping, text: "Suppliers",        path: "/admin/suppliers"            },
+      { id: 4,  icon: MdFactCheck,     text: "Product Approval", path: "/admin/adminproductapproval" },
+      { id: 5,  icon: MdInventory,     text: "Inventory",        path: "/admin/products"             },
+      { id: 6,  icon: MdShoppingCart,  text: "Order Management", path: "/admin/ordermanagement"      },
+    ],
+  },
+  {
+    label: "Finance & Data",
+    items: [
+      { id: 7,  icon: MdAttachMoney, text: "Financials",       path: "/admin/financialAnalytics" },
+      { id: 8,  icon: MdBarChart,    text: "Analytics",        path: "/admin/analytics"          },
+      { id: 12, icon: MdSearch,      text: "Search Analytics", path: "/admin/search-analytics"   },
+      { id: 13, icon: MdBarChart,    text: "Sales Forecast",   path: "/admin/salesforecast"      },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { id: 9,  icon: MdNotifications, text: "Notifications",    path: "/admin/notifications"    },
+      { id: 10, icon: MdPayment,       text: "Admin Payments",   path: "/admin/adminPayments"    },
+      { id: 11, icon: MdAssignmentInd, text: "Account Requests", path: "/admin/account-requests" },
+    ],
+  },
+];
+
+const allItems = navGroups.flatMap((g) => g.items);
+
 export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const navigate = useNavigate();
 
-  const menuItems = [
-    { id: 1, icon: <MdDashboard size={22} />, text: "Dashboard", path: "/admin" },
-    { id: 2, icon: <MdPeople size={22} />, text: "Users", path: "/admin/usermanagement" },
-    { id: 3, icon: <MdLocalShipping size={22} />, text: "Suppliers", path: "/admin/suppliers" },
-    { id: 4, icon: <MdFactCheck size={22} />, text: "Product Approval", path: "/admin/adminproductapproval" },
-    { id: 5, icon: <MdInventory size={22} />, text: "Inventory", path: "/admin/products" },
-    { id: 6, icon: <MdShoppingCart size={22} />, text: "Order Management", path: "/admin/ordermanagement" },
-    { id: 7, icon: <MdAttachMoney size={22} />, text: "Financials", path: "/admin/financialAnalytics" },
-    { id: 8, icon: <MdBarChart size={22} />, text: "Analytics", path: "/admin/analytics" },
-    { id: 9, icon: <MdNotifications size={22} />, text: "Notifications", path: "/admin/notifications" },
-    { id: 10, icon: <MdPayment size={22} />, text: "Admin Payments", path: "/admin/adminPayments" },
-    { id: 11, icon: <MdAssignmentInd size={22} />, text: "Account Requests", path: "/admin/account-requests" },
-    { id: 12, icon: <MdSearch size={22} />, text: "Search Analytics", path: "/admin/search-analytics" },
-  ];
-
-  const handleLogout = () => {
-    navigate("/login");
-  };
-
   return (
     <div
-      className={`${
-        isCollapsed ? "w-20" : "w-60"
-      } h-screen bg-[#0b5ed7] text-white flex flex-col fixed left-0 top-0 transition-all duration-300`}
+      className={`
+        ${isCollapsed ? "w-[72px]" : "w-[256px]"}
+        h-screen fixed left-0 top-0 flex flex-col z-40
+        bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800
+        shadow-[4px_0_24px_rgba(37,99,235,0.4)]
+        transition-all duration-300 ease-in-out
+      `}
     >
-      {/* Header */}
-      <div className="flex justify-between items-center px-4 py-4 bg-[#084298]">
-        <div className="flex items-center gap-2 min-w-0">
-          {/* Logo */}
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-            <img src="/logo.png" alt="MediCareX Logo" className="w-full h-full object-contain" />
+      {/* ── Brand Header ── */}
+      <div
+        className={`
+          flex items-center h-16 px-3 flex-shrink-0
+          border-b border-white/10
+          ${isCollapsed ? "justify-center" : "justify-between"}
+        `}
+      >
+        {/* Logo + Name */}
+        <div className={`flex items-center gap-3 min-w-0 ${isCollapsed ? "hidden" : "flex"}`}>
+          <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-white/15 border border-white/20 flex items-center justify-center">
+            <img src="/logo.png" alt="MediCareX" className="w-full h-full object-contain" />
           </div>
-          {!isCollapsed && (
-            <span className="text-xl font-bold tracking-wide whitespace-nowrap">MediCareX</span>
-          )}
+          <div className="min-w-0">
+            <p className="text-[15px] font-bold text-white leading-tight tracking-tight truncate">
+              MediCareX
+            </p>
+            <p className="text-[9.5px] font-semibold text-white/45 uppercase tracking-[0.13em] mt-0.5">
+              Admin Portal
+            </p>
+          </div>
         </div>
 
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-white bg-transparent border-none cursor-pointer hover:bg-white/20 rounded-full p-1 transition-colors flex-shrink-0"
-        >
-          {isCollapsed ? <MdChevronRight size={22} /> : <MdChevronLeft size={22} />}
-        </button>
+        {/* Collapsed logo only */}
+        {isCollapsed && (
+          <div className="w-9 h-9 rounded-xl overflow-hidden bg-white/15 border border-white/20 flex items-center justify-center">
+            <img src="/logo.png" alt="MediCareX" className="w-full h-full object-contain" />
+          </div>
+        )}
+
+        {/* Collapse button */}
+        {!isCollapsed && (
+          <button
+            onClick={() => setIsCollapsed(true)}
+            className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0
+                       text-white/45 hover:text-white hover:bg-white/15
+                       transition-all duration-150 border-none bg-transparent cursor-pointer"
+          >
+            <MdChevronLeft size={17} />
+          </button>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 mt-5 overflow-y-auto">
-        {menuItems.map((item) => (
-          <NavLink
-            key={item.id}
-            to={item.path}
-            end={item.path === "/admin"}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 text-white no-underline transition-colors duration-200
-              ${isActive ? "bg-[#06357a]" : "hover:bg-[#084298]"}`
-            }
+      {/* Expand button (collapsed state) */}
+      {isCollapsed && (
+        <div className="flex justify-center mt-3">
+          <button
+            onClick={() => setIsCollapsed(false)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center
+                       text-white/45 hover:text-white hover:bg-white/15
+                       transition-all duration-150 border-none bg-transparent cursor-pointer"
           >
-            <span className="shrink-0">{item.icon}</span>
-            {!isCollapsed && (
-              <span className="text-sm font-medium whitespace-nowrap">
-                {item.text}
-              </span>
-            )}
-          </NavLink>
-        ))}
+            <MdChevronRight size={17} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Navigation ── */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-2 space-y-0.5
+                      [&::-webkit-scrollbar]:w-[3px]
+                      [&::-webkit-scrollbar-thumb]:rounded-full
+                      [&::-webkit-scrollbar-thumb]:bg-white/20
+                      [&::-webkit-scrollbar-track]:bg-transparent">
+
+        {isCollapsed
+          /* ── Collapsed: icons only with tooltip ── */
+          ? allItems.map(({ id, icon: Icon, text, path, end }) => (
+              <NavLink
+                key={id}
+                to={path}
+                end={end}
+                className={({ isActive }) => `
+                  group relative flex items-center justify-center
+                  rounded-xl p-2.5 w-full no-underline
+                  transition-all duration-150
+                  ${isActive
+                    ? "bg-white/20 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.15)]"
+                    : "text-white/65 hover:bg-white/10 hover:text-white"
+                  }
+                `}
+              >
+                <Icon size={19} className="flex-shrink-0" />
+                {/* Tooltip */}
+                <span className="
+                  pointer-events-none absolute left-full ml-3
+                  px-2.5 py-1.5 rounded-lg text-[12px] font-medium
+                  bg-blue-900 text-blue-100 whitespace-nowrap
+                  border border-white/15 shadow-lg
+                  opacity-0 translate-x-1
+                  group-hover:opacity-100 group-hover:translate-x-0
+                  transition-all duration-150 z-50
+                ">
+                  {text}
+                </span>
+              </NavLink>
+            ))
+
+          /* ── Expanded: grouped list ── */
+          : navGroups.map((group, gi) => (
+              <div key={gi}>
+                {gi > 0 && <div className="h-px bg-white/10 my-2 mx-1" />}
+                <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/38">
+                  {group.label}
+                </p>
+                {group.items.map(({ id, icon: Icon, text, path, end }) => (
+                  <NavLink
+                    key={id}
+                    to={path}
+                    end={end}
+                    className={({ isActive }) => `
+                      group relative flex items-center gap-2.5
+                      rounded-xl px-3 py-2.5 w-full no-underline mb-0.5
+                      transition-all duration-150
+                      ${isActive
+                        ? "bg-white/20 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]"
+                        : "text-white/70 hover:bg-white/10 hover:text-white"
+                      }
+                    `}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        {/* Active left bar */}
+                        <span
+                          className={`
+                            absolute left-0 top-1/2 -translate-y-1/2
+                            w-[3px] h-[18px] rounded-r-full bg-white/80
+                            transition-opacity duration-150
+                            ${isActive ? "opacity-100" : "opacity-0"}
+                          `}
+                        />
+                        <Icon
+                          size={18}
+                          className={`flex-shrink-0 transition-colors duration-150
+                            ${isActive ? "text-white" : "text-white/65 group-hover:text-white"}`}
+                        />
+                        <span
+                          className={`text-[13px] font-medium whitespace-nowrap leading-none
+                            ${isActive ? "text-white" : "text-white/78 group-hover:text-white"}`}
+                        >
+                          {text}
+                        </span>
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            ))}
       </nav>
 
-      {/* Logout Button */}
-      <div className="border-t border-blue-400/40 p-3">
+      {/* ── Footer ── */}
+      <div className="flex-shrink-0 border-t border-white/10 px-2 py-2">
+       
+        {/* Logout */}
         <button
-          onClick={handleLogout}
-          className={`flex items-center gap-3 w-full px-4 py-3 text-white rounded-lg hover:bg-red-500/80 transition-colors duration-200 cursor-pointer bg-transparent border-none
-          ${isCollapsed ? "justify-center" : ""}`}
+          onClick={() => navigate("/login")}
+          className={`
+            group relative flex items-center gap-2.5 w-full
+            rounded-xl px-3 py-2.5
+            text-white/55 hover:text-red-300 hover:bg-red-500/15
+            transition-all duration-150 cursor-pointer bg-transparent border-none
+            ${isCollapsed ? "justify-center" : ""}
+          `}
         >
-          <MdLogout size={22} className="shrink-0" />
+          <MdLogout
+            size={18}
+            className="flex-shrink-0 transition-transform duration-150 group-hover:-translate-x-0.5"
+          />
           {!isCollapsed && (
-            <span className="text-sm font-medium">Logout</span>
+            <span className="text-[13px] font-medium">Logout</span>
+          )}
+          {isCollapsed && (
+            <span className="
+              pointer-events-none absolute left-full ml-3
+              px-2.5 py-1.5 rounded-lg text-[12px] font-medium
+              bg-blue-900 text-blue-100 whitespace-nowrap
+              border border-white/15 shadow-lg
+              opacity-0 translate-x-1
+              group-hover:opacity-100 group-hover:translate-x-0
+              transition-all duration-150 z-50
+            ">
+              Logout
+            </span>
           )}
         </button>
       </div>

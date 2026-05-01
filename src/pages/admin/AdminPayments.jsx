@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   collection, query, orderBy, getDocs, doc, updateDoc,
   Timestamp, where, addDoc,
@@ -6,16 +6,112 @@ import {
 import { db } from '../../services/firebase';
 import Card from '../../components/Card';
 
+/* ── Message Card System ── */
+const MessageCard = ({ messages, removeMessage }) => (
+  <div className="fixed top-5 right-5 z-[2000] flex flex-col gap-2 pointer-events-none">
+    {messages.map((m) => {
+      const styles = {
+        success: 'bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800 shadow-emerald-100',
+        error:   'bg-red-50 border-l-4 border-red-500 text-red-800 shadow-red-100',
+        warning: 'bg-amber-50 border-l-4 border-amber-500 text-amber-800 shadow-amber-100',
+        info:    'bg-blue-50 border-l-4 border-blue-500 text-blue-800 shadow-blue-100',
+      };
+      const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+      const iconBg = {
+        success: 'bg-emerald-500', error: 'bg-red-500',
+        warning: 'bg-amber-500',  info:  'bg-blue-500',
+      };
+      return (
+        <div
+          key={m.id}
+          className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg min-w-[300px] max-w-[400px] pointer-events-auto ${styles[m.type]}`}
+          style={{ animation: 'slideInRight 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
+        >
+          <span className={`w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-bold flex-shrink-0 mt-0.5 ${iconBg[m.type]}`}>
+            {icons[m.type]}
+          </span>
+          <p className="text-sm font-medium m-0 flex-1 leading-snug">{m.message}</p>
+          <button
+            onClick={() => removeMessage(m.id)}
+            className="bg-transparent border-none cursor-pointer p-0 opacity-40 hover:opacity-80 transition-opacity text-lg leading-none flex-shrink-0"
+          >×</button>
+        </div>
+      );
+    })}
+  </div>
+);
+
 const AdminPayments = () => {
   const [payments, setPayments]               = useState([]);
   const [loading, setLoading]                 = useState(true);
   const [statusFilter, setStatusFilter]       = useState('All');
   const [searchTerm, setSearchTerm]           = useState('');
   const [selectedPayment, setSelectedPayment] = useState(null);
+  const [messages, setMessages]               = useState([]);
+
+  // Receipt state
+  const [receiptFile, setReceiptFile]     = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null); // base64 img src or 'pdf'
+  const [receiptBase64, setReceiptBase64] = useState(null);   // full data URL
+  const [uploading, setUploading]         = useState(false);
+  const fileInputRef                      = useRef(null);
 
   const statusOptions = ['All', 'PENDING', 'PAID', 'OVERDUE'];
 
-  // Fetch payments and auto-mark overdue ones
+  /* ── Message helpers ── */
+  const showMessage = (message, type = 'info') => {
+    const id = Date.now() + Math.random();
+    setMessages(prev => [...prev, { id, type, message }]);
+    setTimeout(() => removeMessage(id), 5000);
+  };
+  const removeMessage = (id) => setMessages(prev => prev.filter(m => m.id !== id));
+
+  /* ── Receipt handler — reads file as base64 ── */
+  const handleReceiptChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const allowed = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!allowed.includes(file.type)) {
+      showMessage('Please select a JPG, PNG or PDF file.', 'error');
+      return;
+    }
+    // Firestore doc limit is 1MB; keep base64 overhead in mind (~33% larger)
+    if (file.size > 900 * 1024) {
+      showMessage('File must be under 900KB. Please compress the PDF/image first.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result; // "data:application/pdf;base64,..." or image equivalent
+      setReceiptBase64(base64);
+      setReceiptFile(file);
+      setReceiptPreview(file.type === 'application/pdf' ? 'pdf' : base64);
+    };
+    reader.onerror = () => showMessage('Failed to read file.', 'error');
+    reader.readAsDataURL(file);
+  };
+
+  const clearReceipt = () => {
+    setReceiptFile(null);
+    setReceiptPreview(null);
+    setReceiptBase64(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  /* ── Download helper ── */
+  const downloadReceipt = (payment) => {
+    if (!payment.receiptBase64) return;
+    const link = document.createElement('a');
+    link.href = payment.receiptBase64;
+    link.download = payment.receiptName || 'receipt';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  /* ── Fetch payments ── */
   const fetchPayments = async () => {
     try {
       setLoading(true);
@@ -34,7 +130,7 @@ const AdminPayments = () => {
       setPayments(paymentsData);
     } catch (error) {
       console.error('Error fetching payments:', error);
-      alert('Failed to load payments: ' + error.message);
+      showMessage('Failed to load payments: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -61,12 +157,8 @@ const AdminPayments = () => {
     totalPending: payments.filter(p => p.status === 'PENDING' || p.status === 'OVERDUE').reduce((sum, p) => sum + (p.amount || 0), 0),
   };
 
-  /* ── MARK AS PAID ── */
-  // FIX: Consolidated invoice lookup into a single helper that tries multiple
-  // field/value combinations and ALWAYS writes paymentStatus: 'Paid' (capital P)
-  // to match what InvoicePayments.jsx queries for.
-  const findAndUpdateInvoice = async (payment, invoiceType) => {
-    // Helper: run a query and return docs array (never throws)
+  /* ── Find & update matching invoice ── */
+  const findAndUpdateInvoice = async (payment, invoiceType, extraFields = {}) => {
     const tryQuery = async (...constraints) => {
       try {
         const snap = await getDocs(query(collection(db, 'invoices'), ...constraints));
@@ -79,57 +171,37 @@ const AdminPayments = () => {
 
     let docs = [];
 
-    // Attempt 1: purchaseOrderId + invoiceType
     if (payment.purchaseOrderId) {
       docs = await tryQuery(
         where('purchaseOrderId', '==', payment.purchaseOrderId),
         where('invoiceType', '==', invoiceType)
       );
-      console.log(`[findAndUpdateInvoice] attempt 1 (purchaseOrderId+invoiceType): ${docs.length}`);
     }
-
-    // Attempt 2: orderId + invoiceType
     if (!docs.length && payment.orderId) {
       docs = await tryQuery(
         where('orderId', '==', payment.orderId),
         where('invoiceType', '==', invoiceType)
       );
-      console.log(`[findAndUpdateInvoice] attempt 2 (orderId+invoiceType): ${docs.length}`);
     }
-
-    // Attempt 3: poId + invoiceType
     if (!docs.length && payment.orderId) {
       docs = await tryQuery(
         where('poId', '==', payment.orderId),
         where('invoiceType', '==', invoiceType)
       );
-      console.log(`[findAndUpdateInvoice] attempt 3 (poId+invoiceType): ${docs.length}`);
     }
-
-    // Attempt 4: purchaseOrderId only, then manually filter by invoiceType
-    // (handles casing differences like 'FINAL' vs 'final')
     if (!docs.length && payment.purchaseOrderId) {
-      const allDocs = await tryQuery(
-        where('purchaseOrderId', '==', payment.purchaseOrderId)
-      );
-      console.log(`[findAndUpdateInvoice] attempt 4 (purchaseOrderId only): ${allDocs.length} total docs`);
-      allDocs.forEach(d => console.log('[findAndUpdateInvoice] doc:', d.id, JSON.stringify(d.data())));
+      const allDocs = await tryQuery(where('purchaseOrderId', '==', payment.purchaseOrderId));
       docs = allDocs.filter(d => {
-        const data = d.data();
-        const t = (data.invoiceType || data.type || '').toUpperCase();
+        const t = (d.data().invoiceType || d.data().type || '').toUpperCase();
         return t === invoiceType.toUpperCase();
       });
-      console.log(`[findAndUpdateInvoice] attempt 4 after manual filter: ${docs.length}`);
     }
-
-    // Attempt 5: supplierId + invoiceType (last resort broadest search)
     if (!docs.length && payment.supplierId) {
       const allDocs = await tryQuery(
         where('supplierId', '==', payment.supplierId),
         where('invoiceType', '==', invoiceType),
         where('paymentStatus', '!=', 'Paid')
       );
-      // Narrow further by orderId if possible
       docs = allDocs.filter(d => {
         const data = d.data();
         return (
@@ -138,52 +210,57 @@ const AdminPayments = () => {
           data.poId === payment.orderId
         );
       });
-      console.log(`[findAndUpdateInvoice] attempt 5 (supplierId fallback): ${docs.length}`);
     }
 
     if (docs.length > 0) {
-      const invoiceRef = doc(db, 'invoices', docs[0].id);
-      // FIX: Use 'Paid' (capital P) — this is what InvoicePayments.jsx queries for
-      await updateDoc(invoiceRef, {
+      await updateDoc(doc(db, 'invoices', docs[0].id), {
         paymentStatus: 'Paid',
         paidAmount:    payment.amount,
         paidDate:      Timestamp.now(),
         paymentMethod: 'Bank Transfer',
         updatedAt:     Timestamp.now(),
+        ...extraFields,
       });
-      console.log(`[findAndUpdateInvoice] updated invoice ${docs[0].id} → paymentStatus: 'Paid'`);
       return true;
     }
-
-    console.warn(
-      `[findAndUpdateInvoice] No ${invoiceType} invoice found after all attempts.`,
-      '\nPayment data:', JSON.stringify(payment)
-    );
+    console.warn('[findAndUpdateInvoice] No invoice found after all attempts.');
     return false;
   };
 
+  /* ── Mark as Paid ── */
   const markAsPaid = async (paymentId) => {
     const payment = payments.find(p => p.id === paymentId);
     if (!payment) return;
 
-    const confirmMsg = payment.paymentType === 'INITIAL'
-      ? 'Mark initial 50% payment as PAID?\n\nThis will notify the supplier to proceed with delivery.'
-      : 'Mark final 50% payment as PAID?\n\nThis will complete all payments for this order.';
-    if (!window.confirm(confirmMsg)) return;
+    if (!receiptBase64) {
+      showMessage('Please upload a bank receipt (PDF or image) before marking as paid.', 'warning');
+      return;
+    }
 
     try {
-      // 1. Update the payment record itself
+      setUploading(true);
+
+      // Receipt fields saved to both payment + invoice documents
+      const receiptFields = {
+        receiptBase64,
+        receiptName: receiptFile.name,
+        receiptType: receiptFile.type,
+        receiptSize: receiptFile.size,
+      };
+
+      // 1. Update payment record
       await updateDoc(doc(db, 'payments', paymentId), {
-        status: 'PAID', paidDate: Timestamp.now(), updatedAt: Timestamp.now(),
+        status:    'PAID',
+        paidDate:  Timestamp.now(),
+        updatedAt: Timestamp.now(),
+        ...receiptFields,
       });
 
-      // 2. Update the matching invoice in the invoices collection
+      // 2. Update invoice — pass receipt so supplier can download it too
       const invoiceType = payment.paymentType === 'INITIAL' ? 'INITIAL' : 'FINAL';
-      const invoiceUpdated = await findAndUpdateInvoice(payment, invoiceType);
+      const invoiceUpdated = await findAndUpdateInvoice(payment, invoiceType, receiptFields);
       if (!invoiceUpdated) {
-        // Non-blocking warning — payment is still marked paid, just the
-        // invoice view may lag until the next supplier login
-        console.warn('[markAsPaid] Invoice update failed — supplier invoice view may not reflect payment yet');
+        console.warn('[markAsPaid] Invoice update failed — supplier invoice view may lag');
       }
 
       // 3. Update purchase order + send notification
@@ -231,15 +308,20 @@ const AdminPayments = () => {
         });
       }
 
-      const successMsg = payment.paymentType === 'INITIAL'
-        ? 'Initial payment marked as paid!\n\nSupplier has been notified to proceed with delivery.'
-        : 'Final payment marked as paid!\n\nAll payments for this order are now complete.';
-      alert(successMsg);
+      showMessage(
+        payment.paymentType === 'INITIAL'
+          ? 'Initial payment marked as paid! Supplier notified to proceed with delivery.'
+          : 'Final payment marked as paid! All payments for this order are now complete.',
+        'success'
+      );
+      clearReceipt();
       fetchPayments();
       setSelectedPayment(null);
     } catch (error) {
       console.error('Error marking payment as paid:', error);
-      alert('Failed to update payment: ' + error.message);
+      showMessage('Failed to update payment: ' + error.message, 'error');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -266,6 +348,8 @@ const AdminPayments = () => {
     FINAL:   'bg-blue-100 text-blue-800',
   }[type] || 'bg-gray-100 text-gray-600');
 
+  const isPDF = (p) => p?.receiptType === 'application/pdf' || p?.receiptName?.toLowerCase().endsWith('.pdf');
+
   const statCards = [
     { label: 'Total Payments', value: stats.total },
     { label: 'Pending',        value: stats.pending },
@@ -276,8 +360,12 @@ const AdminPayments = () => {
     { label: 'Total Pending',  value: `Rs. ${stats.totalPending.toFixed(2)}` },
   ];
 
+  const handleCloseModal = () => { setSelectedPayment(null); clearReceipt(); };
+
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
+
+      <MessageCard messages={messages} removeMessage={removeMessage} />
 
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-slate-800 mb-2">Payments Management</h1>
@@ -325,9 +413,7 @@ const AdminPayments = () => {
               <thead className="bg-slate-50">
                 <tr>
                   {['PO ID', 'Supplier', 'Product', 'Payment Type', 'Quantity', 'Amount', 'Due Date', 'Days Until Due', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">
-                      {h}
-                    </th>
+                    <th key={h} className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -361,18 +447,14 @@ const AdminPayments = () => {
                       <td className="px-4 py-4">
                         <div className="flex gap-2">
                           <button
-                            onClick={() => setSelectedPayment(payment)}
+                            onClick={() => { setSelectedPayment(payment); clearReceipt(); }}
                             className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
-                          >
-                            View
-                          </button>
+                          >View</button>
                           {payment.status !== 'PAID' && (
                             <button
-                              onClick={() => markAsPaid(payment.id)}
+                              onClick={() => { setSelectedPayment(payment); clearReceipt(); }}
                               className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
-                            >
-                              Pay
-                            </button>
+                            >Pay</button>
                           )}
                         </div>
                       </td>
@@ -385,25 +467,25 @@ const AdminPayments = () => {
         )}
       </div>
 
-      {/* Payment detail modal */}
+      {/* ── Payment Detail Modal ── */}
       {selectedPayment && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5 animate-[fadeIn_0.2s_ease-out]"
-          onClick={() => setSelectedPayment(null)}
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
+          style={{ animation: 'fadeIn 0.2s ease-out' }}
+          onClick={handleCloseModal}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-[700px] max-h-[90vh] overflow-y-auto shadow-2xl animate-[slideUp_0.3s_ease-out]"
+            className="bg-white rounded-2xl w-full max-w-[750px] max-h-[92vh] overflow-y-auto shadow-2xl"
+            style={{ animation: 'slideUp 0.3s ease-out' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
               <h2 className="text-2xl font-bold text-slate-800 m-0">Payment Details</h2>
-              <button
-                onClick={() => setSelectedPayment(null)}
-                className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 hover:text-slate-600 transition-all duration-200"
-              >×</button>
+              <button onClick={handleCloseModal} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 hover:text-slate-600 transition-all duration-200">×</button>
             </div>
 
             <div className="p-7">
+              {/* Order ID + badges */}
               <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-slate-100">
                 <h3 className="text-xl font-bold text-blue-600 font-mono m-0">{selectedPayment.orderId}</h3>
                 <div className="flex gap-2 items-center">
@@ -418,6 +500,7 @@ const AdminPayments = () => {
                 </div>
               </div>
 
+              {/* Details grid */}
               <div className="grid grid-cols-2 gap-5 mb-6">
                 {[
                   { label: 'Supplier',           value: selectedPayment.supplierName },
@@ -444,6 +527,40 @@ const AdminPayments = () => {
                 ))}
               </div>
 
+              {/* Show existing receipt if already paid */}
+              {selectedPayment.status === 'PAID' && selectedPayment.receiptBase64 && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 mb-5">
+                  <p className="text-sm font-semibold text-emerald-800 mb-3 flex items-center gap-2">
+                    <span>✓</span> Bank Receipt Attached
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-2xl">{isPDF(selectedPayment) ? '📄' : '🖼️'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-emerald-800 m-0 truncate">{selectedPayment.receiptName || 'Receipt'}</p>
+                      <p className="text-xs text-emerald-600 m-0 mt-0.5">
+                        {isPDF(selectedPayment) ? 'PDF Document' : 'Image'} · {((selectedPayment.receiptSize || 0) / 1024).toFixed(0)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => downloadReceipt(selectedPayment)}
+                      className="flex-shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors"
+                    >
+                      ⬇ Download
+                    </button>
+                  </div>
+                  {!isPDF(selectedPayment) && (
+                    <img
+                      src={selectedPayment.receiptBase64}
+                      alt="Receipt"
+                      className="mt-4 w-full max-h-[250px] object-contain rounded-lg border border-emerald-200"
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Payment type hints */}
               {selectedPayment.paymentType === 'INITIAL' && selectedPayment.status !== 'PAID' && (
                 <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-5">
                   <p className="text-[13px] text-violet-800 font-medium m-0">
@@ -459,15 +576,95 @@ const AdminPayments = () => {
                 </div>
               )}
 
+              {/* ── Upload Receipt Section ── */}
+              {selectedPayment.status !== 'PAID' && (
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-5 mb-5">
+                  <p className="text-sm font-semibold text-slate-700 mb-1">
+                    Upload Bank Receipt (Payment Slip) <span className="text-red-500">*</span>
+                  </p>
+                  <p className="text-[13px] text-slate-500 mb-4">
+                    Upload as <strong>PDF</strong>, JPG or PNG · Max <strong>900KB</strong>. The supplier will be able to download this slip.
+                  </p>
+
+                  {!receiptPreview ? (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex flex-col items-center justify-center gap-3 py-10 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
+                    >
+                      <span className="text-5xl">📎</span>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-slate-700 mb-0.5">Click to upload payment slip</p>
+                        <p className="text-xs text-slate-400">PDF, JPG or PNG · Max 900KB</p>
+                      </div>
+                      <span className="mt-1 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg">Browse Files</span>
+                    </div>
+                  ) : receiptPreview === 'pdf' ? (
+                    <div className="flex items-center gap-4 bg-blue-50 rounded-xl p-4 border border-blue-200">
+                      <div className="w-14 h-14 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <span className="text-3xl">📄</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-blue-800 m-0 truncate">{receiptFile?.name}</p>
+                        <p className="text-xs text-blue-600 m-0 mt-1">
+                          PDF · {((receiptFile?.size || 0) / 1024).toFixed(0)} KB · Ready to submit
+                        </p>
+                      </div>
+                      <button
+                        onClick={clearReceipt}
+                        className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 hover:bg-red-200 text-red-600 border-none cursor-pointer text-base transition-colors flex-shrink-0"
+                      >×</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="relative">
+                        <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-[220px] object-contain rounded-xl border-2 border-slate-200" />
+                        <button
+                          onClick={clearReceipt}
+                          className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white border-none cursor-pointer text-sm font-bold transition-colors shadow-md"
+                        >×</button>
+                      </div>
+                      <div className="mt-2 px-3 py-2 bg-slate-50 rounded-lg flex items-center gap-2">
+                        <span>🖼️</span>
+                        <p className="text-xs text-slate-600 m-0 truncate">{receiptFile?.name} · {((receiptFile?.size || 0) / 1024).toFixed(0)} KB</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {receiptPreview && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-3 w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-lg border-none cursor-pointer transition-colors"
+                    >Replace file</button>
+                  )}
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/jpg,application/pdf"
+                    onChange={handleReceiptChange}
+                    className="hidden"
+                  />
+                </div>
+              )}
+
+              {/* ── Mark as Paid button ── */}
               {selectedPayment.status !== 'PAID' && (
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 text-center">
                   <button
                     onClick={() => markAsPaid(selectedPayment.id)}
-                    className="w-full py-3.5 px-6 bg-emerald-500 hover:bg-emerald-600 text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg mb-2"
+                    disabled={uploading || !receiptBase64}
+                    className={`w-full py-3.5 px-6 text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 mb-2
+                      ${uploading || !receiptBase64
+                        ? 'bg-slate-300 cursor-not-allowed'
+                        : 'bg-emerald-500 hover:bg-emerald-600 hover:-translate-y-0.5 hover:shadow-lg'}`}
                   >
-                    ✓ Mark as Paid
+                    {uploading ? '⏳ Saving...' : '✓ Mark as Paid'}
                   </button>
-                  <p className="m-0 text-[13px] text-blue-700">Click to record this payment as completed</p>
+                  <p className="m-0 text-[13px] text-blue-700">
+                    {receiptBase64
+                      ? 'Receipt ready — click to complete payment'
+                      : 'Upload a bank receipt to enable payment confirmation'}
+                  </p>
                 </div>
               )}
             </div>
@@ -476,8 +673,9 @@ const AdminPayments = () => {
       )}
 
       <style>{`
-        @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes fadeIn       { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp      { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideInRight { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
     </div>
   );
