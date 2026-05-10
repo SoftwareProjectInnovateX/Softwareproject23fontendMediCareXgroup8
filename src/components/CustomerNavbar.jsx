@@ -30,6 +30,8 @@ export default function CustomerNavbar() {
     { name: "Orders",   href: "/customer/orders" },
     { name: "Brands",   href: "/customer/brands" },
     { name: "Contact",  href: "/customer/contact" },
+      { name: "About",  href: "/customer/about" },
+
   ];
 
   const socialLinks = [
@@ -51,7 +53,7 @@ export default function CustomerNavbar() {
   const topLinkStyle = {
     fontSize: 12.5, fontWeight: 500, color: "rgba(255,255,255,0.82)",
     textDecoration: "none", letterSpacing: "0.01em", transition: "color 0.15s",
-    display: "flex", alignItems: "center", gap: 5,
+    display: "flex", alignItems: "center", gap: 2,
   };
 
   const iconBtnBase = {
@@ -65,7 +67,7 @@ export default function CustomerNavbar() {
 
       {/* Top Bar */}
       <div style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}>
-        <div style={{ maxWidth: "100%", margin: "0 auto", padding: "0 40px", height: 42, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 24 }}>
+        <div style={{ maxWidth: "100%", margin: "0 auto", padding: "0 40px", height: 42, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 20 }}>
           {socialLinks.map(({ icon, label, href, target }) =>
             href ? (
               <a key={label} href={href} target={target || undefined} rel={target === "_blank" ? "noreferrer" : undefined}
@@ -93,7 +95,7 @@ export default function CustomerNavbar() {
           <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
             {/* Logo */}
-            <Link to="/customer" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", flexShrink: 0 }}>
+            <Link to="/customer" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flexShrink: 0 }}>
               <div style={{ width: 46, height: 46, borderRadius: "50%", backgroundImage: "url('/logo.png')", backgroundSize: "cover", backgroundPosition: "center", border: "2.5px solid rgba(26,135,225,0.22)", flexShrink: 0 }} />
               <div>
                 <div style={{ fontFamily: FONT.display, fontWeight: 700, fontSize: 20, color: "var(--text-primary)", lineHeight: 1.2 }}>
@@ -106,28 +108,56 @@ export default function CustomerNavbar() {
             </Link>
 
             {/* Nav Links */}
-            <nav style={{ display: "flex", alignItems: "center", gap: 80, position: "absolute", left: "50%", transform: "translateX(-50%)" }}>
-              {navLinks.map((link) => (
-                <Link key={link.href} to={link.href}
-                  style={{
-                    padding: "8px 16px", borderRadius: 10, fontSize: 17, fontWeight: 800,
-                    fontFamily: FONT.body, textDecoration: "none", letterSpacing: "0.01em",
-                    transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
-                    ...(isActive(link.href)
-                      ? { background: "#1749b5", color: "#ffffff", boxShadow: "0 4px 20px rgba(26,135,225,0.28)" }
-                      : { color: "var(--text-primary)", background: "transparent" }
-                    ),
-                  }}
-                  onMouseEnter={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "var(--accent-blue-soft)"; e.currentTarget.style.color = "var(--accent-blue)"; } }}
-                  onMouseLeave={e => { if (!isActive(link.href)) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--text-primary)"; } }}
-                >
-                  {link.name}
-                </Link>
-              ))}
-            </nav>
+           <nav style={{
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 40,
+  flex: 1
+}}>
+  {navLinks.map((link) => (
+    <Link key={link.href} to={link.href}
+      style={{
+        padding: "8px 16px",
+        borderRadius: 10,
+        fontSize: 17,
+        fontWeight: 800,
+        fontFamily: FONT.body,
+        textDecoration: "none",
+        letterSpacing: "0.01em",
+        transition: "background 0.15s, color 0.15s, box-shadow 0.15s",
+        ...(isActive(link.href)
+          ? {
+              background: "#1749b5",
+              color: "#ffffff",
+              boxShadow: "0 4px 20px rgba(26,135,225,0.28)"
+            }
+          : {
+              color: "var(--text-primary)",
+              background: "transparent"
+            }
+        ),
+      }}
+      onMouseEnter={e => {
+        if (!isActive(link.href)) {
+          e.currentTarget.style.background = "var(--accent-blue-soft)";
+          e.currentTarget.style.color = "var(--accent-blue)";
+        }
+      }}
+      onMouseLeave={e => {
+        if (!isActive(link.href)) {
+          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.color = "var(--text-primary)";
+        }
+      }}
+    >
+      {link.name}
+    </Link>
+  ))}
+</nav>
 
             {/* Right: Cart + Profile + Theme Toggle + Logout */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
 
               {/* Theme Toggle */}
               <button
