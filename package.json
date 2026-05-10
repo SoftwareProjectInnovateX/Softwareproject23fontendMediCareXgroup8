@@ -4,23 +4,23 @@
   "private": true,
   "type": "module",
   "scripts": {
-  "start": "react-scripts start",
-  "dev": "vite",
-  "build": "react-scripts build",
-  "vite-build": "vite build",
-  "test": "react-scripts test",
-  "preview": "vite preview",
-  "lint": "eslint .",
-  "eject": "react-scripts eject"
-},
-"jest": {
-  "transformIgnorePatterns": [
-    "/node_modules/(?!(react-router-dom|@remix-run)/)"
-  ],
-  "moduleNameMapper": {
-    "react-router-dom": "<rootDir>/node_modules/react-router-dom/dist/index.js"
-  }
-},
+    "start": "react-scripts start",
+    "dev": "vite",
+    "build": "react-scripts build",
+    "vite-build": "vite build",
+    "test": "react-scripts test",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "eject": "react-scripts eject"
+  },
+  "jest": {
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(react-router-dom|@remix-run)/)"
+    ],
+    "moduleNameMapper": {
+      "react-router-dom": "<rootDir>/node_modules/react-router-dom/dist/index.js"
+    }
+  },
   "dependencies": {
     "axios": "^1.15.0",
     "crypto-js": "^4.2.0",
