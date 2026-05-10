@@ -12,19 +12,16 @@ export default function ProductsPage() {
   const [products, setProducts]                 = useState([]);
   const [smartResults, setSmartResults]         = useState(null);
   const [loading, setLoading]                   = useState(true);
-  // ── ADDED: error state to show user-friendly message ──
   const [error, setError]                       = useState(null);
 
   const fetchProducts = useCallback(async () => {
-    // ── ADDED: reset error on each fetch attempt ──
     setError(null);
     try {
-      const res  = await fetch(`${API_BASE}/products`);
+      const res  = await fetch(`${API_BASE}/products/customer`);
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch products:', err);
-      // ── ADDED: set error message for UI display ──
       setError('Failed to load products. Please try again.');
     } finally {
       setLoading(false);
@@ -63,7 +60,6 @@ export default function ProductsPage() {
       />
 
       <div className="max-w-[1200px] mx-auto px-6 py-9">
-        {/* ── ADDED: show error message if fetch failed ── */}
         {error ? (
           <div
             className="rounded-2xl py-[72px] text-center"
