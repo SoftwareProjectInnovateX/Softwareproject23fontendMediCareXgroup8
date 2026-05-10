@@ -51,6 +51,13 @@ import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
 import Success from "./pages/customer/Success";
 import Cancel from "./pages/customer/Cancel";
 import CustomerSettings from "./pages/customer/CustomerSettings";
+import ProductDetailPage from './pages/customer/ProductDetailPage';
+import About from "./pages/customer/About";
+
+
+
+// Inside your <Routes>:
+<Route path="/products/:id" element={<ProductDetailPage />} />
 
 /* PHARMACIST */
 import AddProductForm from "./pages/pharmacist/Addproductform";
@@ -142,12 +149,14 @@ export default function App() {
         <Route path="checkout/success" element={<Success />} />
         <Route path="checkout/cancel" element={<Cancel />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="/customer/about" element={<About />} />
         <Route path="brands" element={<BrandsPage />} />
         <Route path="contact" element={<ContactPage />} />
         <Route path="prescription" element={<PrescriptionPage />} />
         <Route path="returns" element={<ReturnPage />} />
         <Route path="/customer/profile" element={<CustomerProfilePage />} />
         <Route path="/customer/settings" element={<CustomerSettings />} />
+       <Route path="products/:id" element={<ProductDetailPage />} />
       </Route>
 
       {/* PHARMACIST */}
