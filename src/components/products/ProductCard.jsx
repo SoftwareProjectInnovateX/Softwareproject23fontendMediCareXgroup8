@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ShoppingCart, X, Package } from 'lucide-react';
+import { ShoppingCart, Package } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../stores/cartStore';
-import { db } from '../../services/firebase';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { C, FONT } from './categoryConfig';
 
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
@@ -41,19 +40,19 @@ function AddToCartButton({ availableStock, onClick, size = 'sm' }) {
 }
 
 export default function ProductCard({ product }) {
+  const navigate       = useNavigate();
   const addItem        = useCartStore((s) => s.addItem);
   const cartItems      = useCartStore((s) => s.items);
-  const [showModal, setShowModal]   = useState(false);
   const [localStock, setLocalStock] = useState(product.stock ?? 0);
 
   useEffect(() => { setLocalStock(product.stock ?? 0); }, [product.stock]);
 
-  const cartQty        = cartItems.find((i) => i.id === product.id)?.qty ?? 0;
+  // ── FIXED: String() comparison handles id being number or string ──
+  const cartQty        = cartItems.find((i) => String(i.id) === String(product.id))?.qty ?? 0;
   const availableStock = localStock - cartQty;
 
   const handleAddToCart = async (e) => {
     e?.stopPropagation();
-    // ── ADDED: guard — do nothing if no stock ──
     if (availableStock <= 0) return;
 
     addItem(product, 1);
@@ -70,14 +69,12 @@ export default function ProductCard({ product }) {
             body:    JSON.stringify({ quantity: 1 }),
           }
         );
-        // ── ADDED: revert optimistic update if backend rejects ──
         if (!res.ok) {
           setLocalStock((prev) => prev + 1);
           console.error('Stock decrement rejected by server:', res.status);
         }
       }
     } catch (err) {
-      // ── ADDED: revert optimistic update on network failure ──
       setLocalStock((prev) => prev + 1);
       console.error('Failed to update stock:', err);
     }
@@ -86,56 +83,27 @@ export default function ProductCard({ product }) {
   const price = product.retailPrice ? Number(product.retailPrice).toFixed(2) : product.price;
 
   return (
-    <>
-      <div
-        onClick={() => setShowModal(true)}
-        className="rounded-2xl overflow-hidden cursor-pointer transition-shadow duration-200"
-        style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(26,135,225,0.07)', fontFamily: FONT.body }}
-        onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 8px 24px rgba(26,135,225,0.15)')}
-        onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 1px 4px rgba(26,135,225,0.07)')}
-      >
-        <ProductImage imageUrl={product.imageUrl} name={product.name} />
-        <div className="px-[18px] py-4">
-          <h3 className="text-[15px] font-bold mb-1.5" style={{ color: C.textPrimary }}>{product.name}</h3>
-          <p className="text-xs leading-relaxed mb-2.5 line-clamp-2" style={{ color: C.textMuted }}>{product.description}</p>
-          <p className="text-base font-bold mb-1.5" style={{ color: C.accent }}>Rs. {price}</p>
-          <p className="text-xs mb-3.5" style={{ color: C.textMuted }}>Stock: {localStock}</p>
-          <AddToCartButton availableStock={availableStock} onClick={handleAddToCart} />
-        </div>
+    <div
+      // ── FIXED: absolute path so navigation works correctly from any page ──
+      onClick={() => navigate(`/customer/products/${product.id}`, { state: { product } })}
+      className="rounded-2xl overflow-hidden cursor-pointer transition-shadow duration-200"
+      style={{
+        background: C.surface,
+        border:     `1px solid ${C.border}`,
+        boxShadow:  '0 1px 4px rgba(26,135,225,0.07)',
+        fontFamily: FONT.body,
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 8px 24px rgba(26,135,225,0.15)')}
+      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = '0 1px 4px rgba(26,135,225,0.07)')}
+    >
+      <ProductImage imageUrl={product.imageUrl} name={product.name} />
+      <div className="px-[18px] py-4">
+        <h3 className="text-[15px] font-bold mb-1.5" style={{ color: C.textPrimary }}>{product.name}</h3>
+        <p className="text-xs leading-relaxed mb-2.5 line-clamp-2" style={{ color: C.textMuted }}>{product.description}</p>
+        <p className="text-base font-bold mb-1.5" style={{ color: C.accent }}>Rs. {price}</p>
+        <p className="text-xs mb-3.5" style={{ color: C.textMuted }}>Stock: {localStock}</p>
+        <AddToCartButton availableStock={availableStock} onClick={handleAddToCart} />
       </div>
-
-      {showModal && (
-        <div className="fixed inset-0 flex justify-center items-center p-4 z-50" style={{ background: 'rgba(15,42,94,0.55)' }}>
-          <div
-            className="rounded-[20px] w-full max-w-[540px] overflow-hidden"
-            style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 24px 48px rgba(15,42,94,0.2)', fontFamily: FONT.body }}
-          >
-            <div className="flex justify-end px-[18px] py-3.5" style={{ borderBottom: `1px solid ${C.border}`, background: 'rgba(26,135,225,0.04)' }}>
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer"
-                style={{ background: 'rgba(26,135,225,0.08)', border: `1px solid ${C.border}` }}
-              >
-                <X size={15} color={C.textMuted} />
-              </button>
-            </div>
-
-            <ProductImage imageUrl={product.imageUrl} name={product.name} height={240} iconSize={64} />
-
-            <div className="px-6 pt-5 pb-6">
-              <h2 className="text-[22px] font-bold mb-2" style={{ color: C.textPrimary }}>{product.name}</h2>
-              <p className="text-[13px] leading-[1.7] mb-3.5" style={{ color: C.textMuted }}>{product.description}</p>
-              <p className="text-xl font-bold mb-2" style={{ color: C.accent }}>Rs. {price}</p>
-              <p className="text-xs mb-5" style={{ color: C.textMuted }}>Stock: {localStock}</p>
-              <AddToCartButton
-                availableStock={availableStock}
-                onClick={(e) => { handleAddToCart(e); setShowModal(false); }}
-                size="lg"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 }
