@@ -1,418 +1,644 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { getDispensedHistory, updateDispensedRecord, updatePatient, getPatients, getPrescriptions, updatePrescription } from '../../services/pharmacistService';
-import { 
-  ClipboardCheck, 
-  Hourglass, 
-  CheckCircle, 
-  AlertTriangle,
-  Search,
-  Filter,
-  Snowflake,
-  ShieldAlert,
-  Clock,
-  Printer,
-  X,
-  PackageCheck,
-  Banknote
-} from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  FileText, Clock, CheckCircle, XCircle,
+  ChevronDown, ChevronUp, Banknote,
+  TrendingUp, AlertCircle, BadgeCheck, RefreshCw,
+  Pill, User, Hash, DollarSign, ClipboardList,
+  MapPin, Phone, Calendar, CreditCard, X,
+  MessageSquare, Tag
+} from "lucide-react";
 
-const PharmacistDispensing = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [dispOrders, setDispOrders] = useState([]);
-  const [selectedOrder, setSelectedOrder] = useState(null); // High-level object for the Modal
-  const [dailyRevenue, setDailyRevenue] = useState(0);
+const API_BASE = "http://localhost:5000/api";
 
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-        try {
-            const h = await getDispensedHistory();
-            const todayStr = new Date().toDateString();
-
-            // Compute today's revenue from backend — no localStorage
-            const todayRecords = h.filter(d => {
-              const ds = d.dispensedDate || (d.dispensedAt ? new Date(d.dispensedAt).toDateString() : null) || (d.createdAt ? new Date(d.createdAt).toDateString() : null);
-              return ds === todayStr && d.paymentStatus === 'Paid';
-            });
-            const totalToday = todayRecords.reduce((sum, d) => sum + (parseFloat(d.total) || 0), 0);
-            setDailyRevenue(totalToday);
-
-            // Active dispensing queue: not finalized, not walk-in
-            const activeQueue = h
-                .filter(d => !d.finalized && !(d.id && d.id.toString().startsWith('WALKIN')))
-                .map(order => ({
-                    ...order,
-                    rxId: (order.rxId || order.id || '').toString(),
-                    verifiedPatient: order.verifiedPatient || order.patientName || 'Unknown Patient',
-                    orderItems: order.orderItems || order.medicines || [],
-                    total: order.total || order.totalAmount || 0
-                }));
-            setDispOrders(activeQueue);
-            setIsLoading(false);
-        } catch (e) {
-            console.error(e);
-            setIsLoading(false);
-        }
-    };
-    
-    fetchData();
-    const poller = setInterval(fetchData, 30000); 
-    return () => clearInterval(poller);
-  }, []);
-
-  const markAsPaid = async (orderId) => {
-    const order = dispOrders.find(o => o.rxId === orderId);
-    if (!order) return;
-    
-    // update local state
-    const updated = dispOrders.map(o => o.rxId === orderId ? { ...o, paymentStatus: 'Paid' } : o);
-    setDispOrders(updated);
-    
-    // update backend
-    await updateDispensedRecord(order.firebaseId || order.id, { paymentStatus: 'Paid' }).catch(console.error);
-    
-    // Update daily revenue total from payment
-    if (order.total) {
-      setDailyRevenue(prev => prev + parseFloat(order.total));
-    }
-  };
-
-  const handleOpenDispenseModal = (orderId) => {
-    const orderToDispense = dispOrders.find(o => o.rxId === orderId);
-    if (orderToDispense) {
-      setSelectedOrder(orderToDispense);
-    }
-  };
-
-  const handlePrintLabel = (item) => {
-    window.print();
-  };
-
-  const finalizeDispense = async () => {
-    if (!selectedOrder) return;
-    const orderId = selectedOrder.rxId;
-
-    // 1. Update Patient's Medication List in Firebase
-    try {
-        const pts = await getPatients();
-        const pt = pts.find(p => p.name === selectedOrder.verifiedPatient || p.id === selectedOrder.patientId);
-         const now = new Date();
-         const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-         const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-         
-         const newMeds = selectedOrder.orderItems.map(item => ({
-            name: item.name,
-            form: `Qty: ${item.qty} | ${item.form || 'Standard'}`,
-            sig: item.freq || 'Take as directed by physician',
-            date: `${dateStr} at ${timeStr}`,
-            timestamp: now.getTime(),
-            prescriber: 'Verified Pharmacist',
-            status: 'Active'
-         }));
-
-        if (pt) {
-             const updatedMeds = [...newMeds, ...(pt.medications || [])];
-             await updatePatient(pt.firebaseId || pt.id, {
-                 medications: updatedMeds,
-                 activeCount: updatedMeds.filter(m => m.status === 'Active').length
-             });
-        } else {
-             // Register missing dummy patients from test data
-             const { addPatient } = await import('../../services/pharmacistService');
-             const newId = selectedOrder.patientId || `#PT-${Date.now().toString().slice(-6)}`;
-             const newPatient = {
-                 id: newId,
-                 name: selectedOrder.verifiedPatient || 'Unknown Patient',
-                 dob: 'Unknown',
-                 age: 30,
-                 gender: 'Unknown',
-                 phone: 'N/A',
-                 email: 'N/A',
-                 address: 'Online Order Auto-Reg',
-                 insurance: 'N/A',
-                 insuranceId: 'N/A',
-                 physician: 'N/A',
-                 activeCount: newMeds.length,
-                 fading: false,
-                 avatarColor: '0ea5e9',
-                 avatarBg: 'e0f2fe',
-                 timestamp: Date.now(),
-                 medications: newMeds,
-                 notes: []
-             };
-             await addPatient(newPatient).catch(console.error);
-        }
-    } catch(e) { console.error('Failed to update patient profile:', e); }
-
-    // 2. Clear from Verification Queue Context (if it still exists in Queue)
-    try {
-        const qs = await getPrescriptions();
-        const rx = qs.find(q => q.id === orderId || q.queueId === orderId);
-        if (rx) {
-             await updatePrescription(rx.firebaseId || rx.id, {
-                 status: 'Completed',
-                 statusStyle: 'bg-slate-100 text-slate-500',
-                 actionLabel: 'Archived',
-                 rowStyle: 'opacity-50'
-             });
-        }
-    } catch(e) { console.error('Failed to update queue:', e); }
-
-    // 3. Mark as Finalized in Dispensed History
-    try {
-        const h = await getDispensedHistory();
-        const dispRecs = h.filter(d => d.rxId === orderId);
-        if (dispRecs.length > 0) {
-             for (const dispRec of dispRecs) {
-                 await updateDispensedRecord(dispRec.firebaseId || dispRec.id, { 
-                     finalized: true,
-                     dispensedTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                 });
-             }
-             window.dispatchEvent(new Event('dispensed_updated'));
-        }
-    } catch(e) { console.error('Failed to update dispensed history:', e); }
-    
-    // Update local state by removing from active
-    const filtered = dispOrders.filter(o => o.rxId !== orderId);
-    setDispOrders(filtered);
-    setSelectedOrder(null);
-  };
-
-  return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-10">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Pharmacy Dispensing</h1>
-          <p className="text-slate-500 mt-1 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-            Queue automatically updates when prescriptions are verified.
-          </p>
-        </div>
-        
-        <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl shadow-sm min-w-[220px] flex items-center justify-between">
-           <div>
-              <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Today's Collection</p>
-              <h3 className="text-2xl font-black text-emerald-800">Rs. {dailyRevenue.toFixed(2)}</h3>
-           </div>
-           <div className="bg-emerald-200/50 p-3 rounded-full flex items-center justify-center shrink-0 ml-4">
-              <Banknote className="w-6 h-6 text-emerald-700" />
-           </div>
-        </div>
-      </div>
-
-      {/* Main Table Interface */}
-      <div className="card p-0 overflow-hidden pt-4 mt-6 border border-slate-200 shadow-sm">
-        
-        {/* Filters */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between px-6 pb-4 border-b border-slate-100">
-           <div className="relative w-full md:w-96 mb-4 md:mb-0">
-             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-             <input type="text" placeholder="Search verified prescriptions..." className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#0b5ed7] focus:bg-white transition-colors" />
-           </div>
-           
-           <div className="flex flex-wrap items-center gap-3">
-              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-red-50 text-red-600 text-xs font-bold border border-red-100 hover:bg-red-100 transition-colors">
-                 <AlertTriangle className="w-3.5 h-3.5" /> Urgent
-              </button>
-              <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-50 text-amber-600 text-xs font-bold border border-amber-100 hover:bg-amber-100 transition-colors">
-                 <Snowflake className="w-3.5 h-3.5" /> Fridge
-              </button>
-           </div>
-        </div>
-
-        {/* Table Component */}
-        <div className="table-container shadow-none border-x-0 border-b-0 rounded-none bg-white">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="th-header">Status</th>
-                <th className="th-header">Order ID</th>
-                <th className="th-header">Patient Name</th>
-                <th className="th-header">Medications Prepared</th>
-                <th className="th-header">Time In Queue</th>
-                <th className="th-header text-right pr-6">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              
-              {dispOrders.map((order, index) => (
-                <tr key={index} className="hover:bg-slate-50 transition-colors">
-                  <td className="td-cell pt-4">
-                     {order.paymentStatus === 'Pending Payment' ? (
-                       <span className="bg-amber-50 text-amber-600 border border-amber-100 font-black text-[10px] uppercase px-2 py-1 rounded w-max flex items-center gap-1"><Hourglass className="w-3 h-3"/> Pending Payment</span>
-                     ) : (
-                       <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 font-black text-[10px] uppercase px-2 py-1 rounded w-max flex items-center gap-1">
-                         <CheckCircle className="w-3 h-3"/> {order.paymentMethod ? `Paid (${order.paymentMethod})` : 'Paid'}
-                       </span>
-                     )}
-                  </td>
-                  <td className="td-cell text-slate-500 font-medium">
-                     <span className="bg-slate-100 px-2 py-1 rounded text-xs font-mono font-bold text-slate-600 tracking-wider">#{order.rxId.toUpperCase()}</span>
-                  </td>
-                  <td className="td-cell">
-                    <div className="font-bold text-slate-800 flex items-center flex-wrap gap-2">
-                       {order.verifiedPatient}
-                       {order.patientId && <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded tracking-wider">{order.patientId}</span>}
-                    </div>
-                    <div className="text-xs font-black text-[#0b5ed7] mt-1 bg-blue-50 px-2 py-0.5 rounded w-max">Rs. {order.total?.toFixed(2)}</div>
-                  </td>
-                  <td className="td-cell">
-                    <div className="font-medium text-slate-600 leading-tight space-y-1">
-                      {order.orderItems.map((i, idx) => (
-                         <div key={idx} className="flex gap-2 items-center text-xs border border-slate-100 bg-slate-50 rounded px-2 py-1 w-max">
-                            <span className="font-bold">{i.name}</span>
-                            <span className="text-slate-400">|</span>
-                            <span className="text-[#0b5ed7] font-black">Qty {i.qty}</span>
-                         </div>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="td-cell text-emerald-600 font-bold flex items-center gap-1 mt-4">
-                    <Clock className="w-4 h-4 text-emerald-500" /> Active
-                  </td>
-                  <td className="td-cell text-right pr-6">
-                    {order.paymentStatus === 'Pending Payment' ? (
-                       <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => markAsPaid(order.rxId)} className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm px-6 py-2.5 rounded-lg transition-colors shadow">Mark as Paid</button>
-                       </div>
-                    ) : (
-                       <button onClick={() => handleOpenDispenseModal(order.rxId)} className="bg-[#0b5ed7] hover:bg-[#084298] text-white font-bold text-sm px-4 py-2.5 rounded-lg transition-colors shadow flex items-center justify-end gap-2 ml-auto">
-                          Dispense Items <CheckCircle className="w-4 h-4" />
-                       </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-
-              {dispOrders.length === 0 && (
-                <tr>
-                   <td colSpan="6" className="py-16 text-center text-slate-400">
-                     <div className="flex flex-col items-center">
-                        <ClipboardCheck className="w-12 h-12 mb-3 text-slate-300" />
-                        <h3 className="font-bold text-slate-500">No Orders in Dispensing</h3>
-                        <p className="text-sm mt-1">Orders verified from the queue will appear here.</p>
-                     </div>
-                   </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* DISPENSING LABEL & FULFILLMENT MODAL */}
-      {selectedOrder && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}></div>
-            
-            {/* Modal Content */}
-            <div className="bg-[#f5f9ff] w-full max-w-4xl rounded-2xl shadow-xl z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-               
-               {/* Header */}
-               <div className="bg-[#0b5ed7] px-6 py-4 flex justify-between items-center shrink-0">
-                  <div className="flex items-center gap-3">
-                     <div className="bg-white/20 p-2 rounded-lg">
-                        <PackageCheck className="w-6 h-6 text-white" />
-                     </div>
-                     <div>
-                        <h2 className="text-white font-black text-xl leading-none">Dispensing Fulfillment</h2>
-                        <p className="text-blue-100 font-medium text-xs mt-1">Order #{selectedOrder.rxId}</p>
-                     </div>
-                  </div>
-                  <button onClick={() => setSelectedOrder(null)} className="text-white hover:bg-white/20 p-2 rounded-full transition-colors"><X className="w-5 h-5"/></button>
-               </div>
-
-               {/* Patient Info Bar */}
-               <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shrink-0 shadow-sm z-10">
-                  <div>
-                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Dispensing To</span>
-                     <div className="font-bold text-slate-800 text-base flex items-center gap-2">
-                       {selectedOrder.verifiedPatient}
-                       {selectedOrder.patientId && <span className="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded uppercase tracking-wider">{selectedOrder.patientId}</span>}
-                     </div>
-                  </div>
-                  <div className="text-right flex items-center gap-3">
-                     <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1 rounded text-xs font-black flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3" /> Payment Verified
-                     </span>
-                  </div>
-               </div>
-
-               {/* Scrollable Medication List for Packing */}
-               <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#f5f9ff]">
-                  
-                  <div className="flex items-center gap-2 mb-2">
-                     <span className="w-1.5 h-1.5 rounded-full bg-[#0b5ed7]"></span>
-                     <h3 className="font-black text-slate-700 text-sm tracking-wide uppercase">Print Labels & Pack Covers</h3>
-                  </div>
-
-                  {selectedOrder.orderItems.map((item, index) => (
-                     <div key={index} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col md:flex-row">
-                        {/* Label Preview Area */}
-                        <div className="p-5 flex-1 relative print-section bg-[url('https://www.transparenttextures.com/patterns/clean-textile.png')]">
-                           {/* Simulated Medication Label Design */}
-                           <div className="border-2 border-dashed border-slate-300 rounded-lg p-5 bg-white relative max-w-sm mx-auto shadow-sm">
-                              <div className="flex justify-between border-b-2 border-slate-800 pb-2 mb-3">
-                                 <h4 className="font-black text-slate-800">MediCareX Pharmacy</h4>
-                                 <span className="font-bold text-slate-500 text-xs text-right">RX#{selectedOrder.rxId}</span>
-                              </div>
-                              <p className="font-black text-xs uppercase tracking-widest text-slate-500 mb-1">Patient</p>
-                              <div className="font-bold text-slate-800 text-sm mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-                                {selectedOrder.verifiedPatient}
-                                {selectedOrder.patientId && <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider">{selectedOrder.patientId}</span>}
-                              </div>
-                              
-                              <p className="font-bold text-xs uppercase text-slate-500 bg-slate-100 px-2 py-0.5 w-max mb-1">Take {item.freq}</p>
-                              <p className="font-medium text-slate-700 leading-snug mb-4">Take {item.qty} {item.form} as directed regularly.</p>
-                              
-                              <div className="bg-slate-800 text-white p-3 rounded flex justify-between items-center">
-                                 <span className="font-black truncate block pr-2" title={item.name}>{item.name.split(' ')[0]} {item.name.split(' ')[1]}</span>
-                                 <span className="text-xs font-black bg-white text-slate-800 px-2 py-1 rounded">Qty {item.qty}</span>
-                              </div>
-                              <div className="text-[9px] font-bold text-slate-400 mt-3 text-center">Date: {new Date().toLocaleDateString()} | Pharmacist: Verified</div>
-                           </div>
-                        </div>
-                        
-                        {/* Action Area */}
-                        <div className="bg-slate-50 border-t md:border-t-0 md:border-l border-slate-200 w-full md:w-56 p-5 flex flex-col justify-center items-center shrink-0">
-                           <button 
-                              onClick={() => handlePrintLabel(item)}
-                              className="w-full bg-white border border-[#0b5ed7] text-[#0b5ed7] hover:bg-blue-50 py-3 rounded-lg font-black text-sm flex items-center justify-center gap-2 transition-colors mb-3 shadow-sm"
-                           >
-                              <Printer className="w-4 h-4" /> Print Label
-                           </button>
-                           <p className="text-[10px] text-slate-500 text-center font-bold">Print and fix to cover {index + 1}</p>
-                        </div>
-                     </div>
-                  ))}
-
-               </div>
-
-               {/* Footer / Finalize Button */}
-               <div className="bg-white border-t border-slate-200 p-6 flex justify-between items-center shrink-0 rounded-b-2xl">
-                  <p className="text-xs font-bold text-slate-400 max-w-sm">By clicking Finish, you confirm medications are packed according to labels and handed to the patient.</p>
-                  <div className="flex gap-3">
-                     <button onClick={() => setSelectedOrder(null)} className="px-6 py-3 font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">Cancel</button>
-                     <button 
-                        onClick={finalizeDispense} 
-                        className="px-8 py-3 font-black text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors shadow-md flex items-center gap-2"
-                     >
-                        <CheckCircle className="w-5 h-5 text-emerald-200" /> Finish Dispensing
-                     </button>
-                  </div>
-               </div>
-
-            </div>
-         </div>
-      )}
-
-    </div>
-  );
+const C = {
+  bg:          "#f8fafc",
+  surface:     "#ffffff",
+  border:      "rgba(148,163,184,0.25)",
+  textPrimary: "#0f172a",
+  textMuted:   "#64748b",
+  textSoft:    "#475569",
 };
 
-export default PharmacistDispensing;
+const FONT = {
+  display: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+  body:    "'DM Sans', 'Inter', sans-serif",
+};
+
+function statusStyle(status) {
+  switch ((status || "").toLowerCase()) {
+    case "completed":  return { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0", dot: "#22c55e" };
+    case "dispensed":  return { bg: "#f0fdfa", color: "#0f766e", border: "#99f6e4", dot: "#14b8a6" };
+    case "approved":   return { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe", dot: "#3b82f6" };
+    case "processing": return { bg: "#faf5ff", color: "#7e22ce", border: "#e9d5ff", dot: "#a855f7" };
+    case "cancelled":  return { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca", dot: "#ef4444" };
+    default:           return { bg: "#fffbeb", color: "#b45309", border: "#fde68a", dot: "#f59e0b" };
+  }
+}
+
+function paymentStatusStyle(status) {
+  switch ((status || "").toLowerCase()) {
+    case "paid":   return { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0", dot: "#22c55e" };
+    case "failed": return { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca", dot: "#ef4444" };
+    default:       return { bg: "#fffbeb", color: "#b45309", border: "#fde68a", dot: "#f59e0b" };
+  }
+}
+
+function getBorderColor(rx) {
+  const s = (rx.status || "pending").toLowerCase();
+  const p = (rx.paymentStatus || "pending").toLowerCase();
+  if (p === "paid") return "#22c55e";
+  switch (s) {
+    case "completed":  return "#22c55e";
+    case "dispensed":  return "#14b8a6";
+    case "approved":   return "#3b82f6";
+    case "processing": return "#a855f7";
+    case "cancelled":  return "#ef4444";
+    default:           return "#f59e0b";
+  }
+}
+
+function fmtTs(seconds) {
+  if (!seconds) return null;
+  return new Date(seconds * 1000).toLocaleString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// ── Badge ──────────────────────────────────────────────────────────────────────
+function Badge({ label, style: s }) {
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20,
+      background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+      display: "inline-flex", alignItems: "center", gap: 4,
+      whiteSpace: "nowrap", letterSpacing: "0.02em", fontFamily: FONT.body,
+    }}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
+      {label}
+    </span>
+  );
+}
+
+// ── Info Row ───────────────────────────────────────────────────────────────────
+function InfoRow({ icon: Icon, label, value, mono }) {
+  if (!value) return null;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <div style={{ width: 26, height: 26, borderRadius: 7, background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+        <Icon size={12} color={C.textMuted} />
+      </div>
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT.body }}>{label}</div>
+        <div style={{ fontSize: 12, color: C.textPrimary, fontFamily: mono ? "monospace" : FONT.body, marginTop: 1, wordBreak: "break-all" }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── StatCard ───────────────────────────────────────────────────────────────────
+function StatCard({ icon: Icon, label, value, color, bg }) {
+  return (
+    <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      <div style={{ width: 42, height: 42, borderRadius: 11, background: bg, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Icon size={19} color={color} strokeWidth={2} />
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body }}>{label}</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: C.textPrimary, lineHeight: 1.15, marginTop: 2, fontFamily: FONT.display }}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Weekly Chart ───────────────────────────────────────────────────────────────
+function WeeklyChart({ items }) {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const today = new Date().getDay();
+  const counts = new Array(7).fill(0);
+  items.forEach(rx => {
+    const ts = rx.processedAt?._seconds || rx.createdAt?._seconds || rx.dispensedAt?._seconds;
+    if (ts) counts[new Date(ts * 1000).getDay()]++;
+  });
+  const max = Math.max(...counts, 1);
+  const reordered = Array.from({ length: 7 }, (_, i) => {
+    const idx = (today - 6 + i + 7) % 7;
+    return { day: days[idx], count: counts[idx], isToday: idx === today };
+  });
+  return (
+    <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body }}>Prescriptions this week</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.textPrimary, lineHeight: 1.2, marginTop: 2, fontFamily: FONT.display }}>{items.length} total</div>
+        </div>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <TrendingUp size={16} color="#2563eb" />
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 64 }}>
+        {reordered.map(({ day, count, isToday }, i) => (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+            <div title={`${count} prescriptions`} style={{ width: "100%", height: Math.max((count / max) * 48, count > 0 ? 8 : 3), borderRadius: "4px 4px 0 0", background: isToday ? "linear-gradient(180deg,#3b82f6,#1d4ed8)" : count > 0 ? "#bfdbfe" : "#f1f5f9", minHeight: 3, transition: "height 0.3s ease" }} />
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: isToday ? "#2563eb" : "#94a3b8", fontFamily: FONT.body }}>{day}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Payment Donut ──────────────────────────────────────────────────────────────
+function PaymentChart({ items }) {
+  const canvasRef = useRef(null);
+  const cod        = items.filter(rx => (rx.paymentMethod || "").toLowerCase() === "cod");
+  const codPaid    = cod.filter(rx => (rx.paymentStatus || "").toLowerCase() === "paid").length;
+  const codPending = cod.filter(rx => (rx.paymentStatus || "").toLowerCase() !== "paid").length;
+  const online     = items.filter(rx => (rx.paymentMethod || "").toLowerCase() !== "cod");
+  const onlinePaid = online.filter(rx => (rx.paymentStatus || "").toLowerCase() === "paid").length;
+  const total      = items.length;
+  const paidTotal  = items.filter(rx => (rx.paymentStatus || "").toLowerCase() === "paid").length;
+  const pct        = total > 0 ? Math.round((paidTotal / total) * 100) : 0;
+
+  useEffect(() => {
+    const canvas = canvasRef.current; if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, 80, 80);
+    const segments = [
+      { value: codPaid, color: "#22c55e" }, { value: codPending, color: "#f59e0b" },
+      { value: onlinePaid, color: "#3b82f6" },
+      { value: Math.max(0, total - codPaid - codPending - onlinePaid), color: "#e2e8f0" },
+    ].filter(s => s.value > 0);
+    const cx = 40, cy = 40, r = 34, ir = 22;
+    let start = -Math.PI / 2;
+    segments.forEach(seg => {
+      const angle = (seg.value / (total || 1)) * 2 * Math.PI;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, start, start + angle);
+      ctx.closePath(); ctx.fillStyle = seg.color; ctx.fill(); start += angle;
+    });
+    ctx.beginPath(); ctx.arc(cx, cy, ir, 0, 2 * Math.PI); ctx.fillStyle = "#fff"; ctx.fill();
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#0f172a"; ctx.font = "bold 13px sans-serif";
+    ctx.fillText(pct + "%", cx, cy);
+  }, [items]);
+
+  return (
+    <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body, marginBottom: 14 }}>Payment overview</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+        <canvas ref={canvasRef} width={80} height={80} style={{ flexShrink: 0 }} />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+          {[
+            { dot: "#22c55e", label: "COD settled", val: codPaid },
+            { dot: "#f59e0b", label: "COD pending", val: codPending },
+            { dot: "#3b82f6", label: "Online paid",  val: onlinePaid },
+          ].map((r, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 7, fontFamily: FONT.body }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: r.dot }} />{r.label}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: r.dot, fontFamily: FONT.display }}>{r.val}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Action Button ──────────────────────────────────────────────────────────────
+function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) {
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8,
+      display: "flex", alignItems: "center", gap: 6,
+      background: disabled ? "#f8fafc" : bg, color: disabled ? "#94a3b8" : color,
+      border: `1px solid ${disabled ? "#e2e8f0" : border}`,
+      cursor: disabled ? "not-allowed" : "pointer", fontFamily: FONT.body, opacity: disabled ? 0.6 : 1,
+    }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.opacity = "0.82"; }}
+      onMouseLeave={e => { if (!disabled) e.currentTarget.style.opacity = "1"; }}
+    >
+      <Icon size={13} strokeWidth={2.5} />{label}
+    </button>
+  );
+}
+
+// ── Prescription Row ───────────────────────────────────────────────────────────
+function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const sStyle     = statusStyle(rx.status);
+  const pStyle     = paymentStatusStyle(rx.paymentStatus);
+  const isCOD      = (rx.paymentMethod || "").toLowerCase() === "cod";
+  const status     = (rx.status || "pending").toLowerCase();
+  const isTerminal = status === "completed" || status === "cancelled";
+  const isPaid     = (rx.paymentStatus || "").toLowerCase() === "paid";
+  const meds       = rx.medications || [];
+
+  const patientName = rx.patientName || rx.customerName || rx.userName || rx.name || "Patient";
+  const phone       = rx.phone || rx.phoneNumber || rx.contactNumber;
+  const address     = rx.address || rx.deliveryAddress || rx.location;
+
+  // Best timestamp for the summary row
+  const mainTs  = rx.processedAt?._seconds || rx.createdAt?._seconds || rx.dispensedAt?._seconds;
+  const dateStr = fmtTs(mainTs) || "—";
+
+  return (
+    <div style={{
+      background: C.surface, borderRadius: 12,
+      border: `1px solid ${C.border}`, borderLeft: `3.5px solid ${getBorderColor(rx)}`,
+      overflow: "hidden", transition: "box-shadow 0.15s",
+      boxShadow: expanded ? "0 4px 16px rgba(0,0,0,0.07)" : "0 1px 3px rgba(0,0,0,0.04)",
+    }}>
+      {isPaid && <div style={{ height: 2, background: "linear-gradient(90deg,#22c55e,#86efac)", width: "100%" }} />}
+
+      {/* Summary row */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1.1fr 0.7fr 1fr 1fr 90px", gap: 12, padding: "13px 18px", alignItems: "center" }}>
+
+        {/* Patient */}
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{patientName}</span>
+            {isCOD && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", textTransform: "uppercase", letterSpacing: "0.06em" }}>COD</span>}
+            {isPaid && isCOD && (
+              <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", textTransform: "uppercase", letterSpacing: "0.06em", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <BadgeCheck size={9} />Settled
+              </span>
+            )}
+          </div>
+          {phone && (
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: FONT.body }}>
+              <Phone size={10} />{phone}
+            </div>
+          )}
+          {address && (
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontFamily: FONT.body }}>
+              <MapPin size={10} />{address}
+            </div>
+          )}
+          {!phone && rx.userId && (
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: FONT.body }}>
+              <User size={10} />{rx.userId.slice(0, 20)}…
+            </div>
+          )}
+        </div>
+
+        <div style={{ fontSize: 11, color: C.textSoft, fontFamily: FONT.body }}>{dateStr}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{meds.length} med{meds.length !== 1 ? "s" : ""}</div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          <Badge label={rx.paymentMethod || "—"} style={{ bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#94a3b8" }} />
+          <Badge label={rx.paymentStatus || "pending"} style={pStyle} />
+        </div>
+
+        <Badge label={rx.status || "pending"} style={sStyle} />
+
+        <button onClick={() => setExpanded(e => !e)} style={{
+          fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 8,
+          background: expanded ? "#eff6ff" : "#f8fafc",
+          border: `1px solid ${expanded ? "#bfdbfe" : C.border}`,
+          color: expanded ? "#1d4ed8" : C.textSoft,
+          cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+          fontFamily: FONT.body, transition: "all 0.15s",
+        }}>
+          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          {expanded ? "Hide" : "Details"}
+        </button>
+      </div>
+
+      {/* Expanded panel */}
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: "18px 20px", background: "#fafbfc" }}>
+
+          {isPaid && isCOD && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, marginBottom: 16, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
+              <BadgeCheck size={15} color="#15803d" />
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#15803d", fontFamily: FONT.body }}>Cash payment has been settled for this prescription</span>
+            </div>
+          )}
+
+          {/* Two-column detail cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+
+            {/* Patient details */}
+            <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body, paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>Patient details</div>
+              <InfoRow icon={User}    label="Patient name" value={patientName} />
+              <InfoRow icon={Phone}   label="Phone"        value={phone} />
+              <InfoRow icon={MapPin}  label="Address"      value={address} />
+              <InfoRow icon={User}    label="User ID"      value={rx.userId}  mono />
+              <InfoRow icon={Hash}    label="Rx ID"        value={rx.prescriptionId || rx.id} mono />
+            </div>
+
+            {/* Order details */}
+            <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body, paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>Order details</div>
+              <InfoRow icon={Calendar}   label="Order placed"   value={fmtTs(rx.createdAt?._seconds)} />
+              <InfoRow icon={Calendar}   label="Processed at"   value={fmtTs(rx.processedAt?._seconds)} />
+              <InfoRow icon={Calendar}   label="Dispensed at"   value={fmtTs(rx.dispensedAt?._seconds)} />
+              <InfoRow icon={CreditCard} label="Payment method" value={rx.paymentMethod} />
+              {rx.totalAmount !== undefined && (
+                <InfoRow icon={DollarSign} label="Total amount" value={`Rs. ${rx.totalAmount}`} />
+              )}
+              <InfoRow icon={Tag} label="Row style" value={rx.rowStyle} />
+            </div>
+          </div>
+
+          {/* Prescription image */}
+          {rx.imageUrl && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: FONT.body }}>Prescription image</div>
+              <img src={rx.imageUrl} alt="Prescription" onClick={() => window.open(rx.imageUrl, "_blank")}
+                style={{ maxWidth: 240, maxHeight: 180, borderRadius: 10, objectFit: "cover", border: `1px solid ${C.border}`, cursor: "pointer" }} />
+            </div>
+          )}
+
+          {/* Medications */}
+          {meds.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontFamily: FONT.body }}>Medications</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {meds.map((med, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.surface, borderRadius: 9, padding: "10px 14px", border: `1px solid ${C.border}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: "#f0fdf4", border: "1px solid #bbf7d0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Pill size={15} color="#15803d" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{med.name || med.medicineName || med.medicine || "—"}</div>
+                        {med.dosage       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Dosage: {med.dosage}</div>}
+                        {med.duration     && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Duration: {med.duration}</div>}
+                        {med.instructions && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Instructions: {med.instructions}</div>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      {med.qty   !== undefined && <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", fontFamily: FONT.display }}>×{med.qty}</div>}
+                      {med.price !== undefined && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Rs. {med.price}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pharmacist note */}
+          {rx.pharmacistNote && (
+            <div style={{ background: "#f8fbff", border: "1px solid #dbeafe", borderRadius: 9, padding: "10px 14px", marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontFamily: FONT.body, display: "flex", alignItems: "center", gap: 5 }}>
+                <MessageSquare size={10} />Pharmacist note
+              </div>
+              <div style={{ fontSize: 13, color: C.textSoft, fontFamily: FONT.body }}>{rx.pharmacistNote}</div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <ActionBtn label="Complete" icon={CheckCircle} disabled={isTerminal || updating}
+              onClick={() => onStatusUpdate(rx.id, "completed")} color="#1d4ed8" bg="#eff6ff" border="#bfdbfe" />
+            <ActionBtn label="Cancel" icon={X} disabled={isTerminal || updating}
+              onClick={() => onStatusUpdate(rx.id, "cancelled")} color="#b91c1c" bg="#fef2f2" border="#fecaca" />
+            {isCOD && (
+              <ActionBtn label="Payment settled" icon={Banknote} disabled={isPaid || updating}
+                onClick={() => onPaymentSettle(rx.id)} color="#15803d" bg="#f0fdf4" border="#bbf7d0" />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+function Toast({ message, type, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 3200); return () => clearTimeout(t); }, [onClose]);
+  return (
+    <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 50, display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderRadius: 12, background: type === "success" ? "#15803d" : "#b91c1c", color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: FONT.body, minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", animation: "slideInUp 0.22s ease" }}>
+      {type === "success" ? <BadgeCheck size={16} /> : <AlertCircle size={16} />}
+      {message}
+    </div>
+  );
+}
+
+// ── Filter Button ──────────────────────────────────────────────────────────────
+function FilterBtn({ active, label, onClick, accentColor, accentBg, accentBorder }) {
+  return (
+    <button onClick={onClick} style={{ fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, border: `1px solid ${active ? accentBorder : C.border}`, background: active ? accentBg : C.surface, color: active ? accentColor : C.textSoft, cursor: "pointer", fontFamily: FONT.body, transition: "all 0.15s" }}>
+      {label}
+    </button>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
+export default function Dispense() {
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [filter,   setFilter]   = useState("all");
+  const [search,   setSearch]   = useState("");
+  const [updating, setUpdating] = useState(false);
+  const [toast,    setToast]    = useState(null);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const res  = await fetch(`${API_BASE}/pharmacist/dispensed`);
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      list.sort((a, b) => {
+        const aTs = a.processedAt?._seconds || a.createdAt?._seconds || a.dispensedAt?._seconds || 0;
+        const bTs = b.processedAt?._seconds || b.createdAt?._seconds || b.dispensedAt?._seconds || 0;
+        return bTs - aTs;
+      });
+      setPrescriptions(list);
+    } catch (err) {
+      console.error("Failed to fetch dispensed history:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+    const interval = setInterval(fetchAll, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
+
+  const handleStatusUpdate = async (id, status) => {
+    setUpdating(true);
+    const prev = prescriptions;
+    setPrescriptions(p => p.map(x => x.id === id ? { ...x, status } : x));
+    try {
+      const res = await fetch(`${API_BASE}/pharmacist/dispensed/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await fetchAll();
+      setToast({ message: `Marked as ${status}`, type: "success" });
+    } catch (err) {
+      setPrescriptions(prev);
+      setToast({ message: `Failed: ${err.message}`, type: "error" });
+    } finally { setUpdating(false); }
+  };
+
+  const handlePaymentSettle = async (rxId) => {
+    setUpdating(true);
+    const prev = prescriptions;
+    setPrescriptions(p => p.map(x => x.id === rxId ? { ...x, paymentStatus: "paid" } : x));
+    try {
+      const res = await fetch(`${API_BASE}/pharmacist/dispensed/${rxId}/settle-payment`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await fetchAll();
+      setToast({ message: "Payment settled!", type: "success" });
+    } catch (err) {
+      setPrescriptions(prev);
+      setToast({ message: `Failed: ${err.message}`, type: "error" });
+    } finally { setUpdating(false); }
+  };
+
+  const total      = prescriptions.length;
+  const pending    = prescriptions.filter(rx => (rx.status || "pending").toLowerCase() === "pending").length;
+  const completed  = prescriptions.filter(rx => (rx.status || "").toLowerCase() === "completed").length;
+  const dispensed  = prescriptions.filter(rx => (rx.status || "").toLowerCase() === "dispensed").length;
+  const cancelled  = prescriptions.filter(rx => (rx.status || "").toLowerCase() === "cancelled").length;
+  const approved   = prescriptions.filter(rx => (rx.status || "").toLowerCase() === "approved").length;
+  const processing = prescriptions.filter(rx => (rx.status || "").toLowerCase() === "processing").length;
+  const cod        = prescriptions.filter(rx => (rx.paymentMethod || "").toLowerCase() === "cod").length;
+  const codSettled = prescriptions.filter(rx =>
+    (rx.paymentMethod || "").toLowerCase() === "cod" &&
+    (rx.paymentStatus || "").toLowerCase() === "paid"
+  ).length;
+  const paidRx = prescriptions.filter(rx => (rx.paymentStatus || "").toLowerCase() === "paid").length;
+
+  const visible = prescriptions.filter(rx => {
+    const s = (rx.status || "pending").toLowerCase();
+    const matchFilter =
+      filter === "all"        ? true :
+      filter === "pending"    ? s === "pending"    :
+      filter === "approved"   ? s === "approved"   :
+      filter === "processing" ? s === "processing" :
+      filter === "dispensed"  ? s === "dispensed"  :
+      filter === "completed"  ? s === "completed"  :
+      filter === "cancelled"  ? s === "cancelled"  :
+      filter === "cod"        ? (rx.paymentMethod || "").toLowerCase() === "cod" :
+      filter === "paid"       ? (rx.paymentStatus || "").toLowerCase() === "paid" : true;
+
+    const q = search.toLowerCase();
+    const matchSearch = !search ||
+      (rx.patientName   || "").toLowerCase().includes(q) ||
+      (rx.customerName  || "").toLowerCase().includes(q) ||
+      (rx.userName      || "").toLowerCase().includes(q) ||
+      (rx.phone         || "").toLowerCase().includes(q) ||
+      (rx.phoneNumber   || "").toLowerCase().includes(q) ||
+      (rx.address       || "").toLowerCase().includes(q) ||
+      (rx.deliveryAddress || "").toLowerCase().includes(q) ||
+      (rx.userId        || "").toLowerCase().includes(q) ||
+      (rx.id            || "").toLowerCase().includes(q) ||
+      (rx.medications   || []).some(m =>
+        (m.name || m.medicineName || m.medicine || "").toLowerCase().includes(q)
+      );
+
+    return matchFilter && matchSearch;
+  });
+
+  const filters = [
+    { key: "all",        label: `All (${total})`,             accent: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
+    { key: "pending",    label: `Pending (${pending})`,       accent: "#b45309", bg: "#fffbeb", border: "#fde68a" },
+    { key: "approved",   label: `Approved (${approved})`,     accent: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
+    { key: "processing", label: `Processing (${processing})`, accent: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
+    { key: "dispensed",  label: `Dispensed (${dispensed})`,   accent: "#0f766e", bg: "#f0fdfa", border: "#99f6e4" },
+    { key: "completed",  label: `Completed (${completed})`,   accent: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" },
+    { key: "cancelled",  label: `Cancelled (${cancelled})`,   accent: "#b91c1c", bg: "#fef2f2", border: "#fecaca" },
+    { key: "cod",        label: `COD (${cod})`,               accent: "#b45309", bg: "#fffbeb", border: "#fde68a" },
+    { key: "paid",       label: `Paid (${paidRx})`,           accent: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" },
+  ];
+
+  return (
+    <div style={{ fontFamily: FONT.body, minHeight: "100vh", background: C.bg }}>
+      <style>{`
+        @keyframes slideInUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        * { box-sizing: border-box; }
+      `}</style>
+
+      <div style={{ maxWidth: 1160, margin: "0 auto", padding: "28px 24px" }}>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
+          <div>
+            <h1 style={{ fontSize: 26, fontWeight: 700, color: C.textPrimary, fontFamily: FONT.display, margin: 0 }}>Dispense</h1>
+            <p style={{ fontSize: 13, color: C.textMuted, marginTop: 5, fontFamily: FONT.body }}>Full prescription history — patient info, medications, timestamps & payment</p>
+          </div>
+          {updating && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 12, fontWeight: 600, color: "#1d4ed8", fontFamily: FONT.body }}>
+              <div style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #bfdbfe", borderTopColor: "#2563eb", animation: "spin 0.7s linear infinite" }} />
+              Updating…
+            </div>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 16 }}>
+          <StatCard icon={ClipboardList} label="Total Rx"    value={total}      color="#2563eb" bg="#eff6ff" />
+          <StatCard icon={Clock}         label="Pending"      value={pending}    color="#b45309" bg="#fffbeb" />
+          <StatCard icon={Pill}          label="Dispensed"    value={dispensed}  color="#0f766e" bg="#f0fdfa" />
+          <StatCard icon={CheckCircle}   label="Completed"    value={completed}  color="#15803d" bg="#f0fdf4" />
+          <StatCard icon={XCircle}       label="Cancelled"    value={cancelled}  color="#b91c1c" bg="#fef2f2" />
+          <StatCard icon={BadgeCheck}    label="COD Settled"  value={codSettled} color="#15803d" bg="#f0fdf4" />
+        </div>
+
+        {/* Charts */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 22 }}>
+          <WeeklyChart items={prescriptions} />
+          <PaymentChart items={prescriptions} />
+        </div>
+
+        {/* Filters + search */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+          {filters.map(f => (
+            <FilterBtn key={f.key} active={filter === f.key} label={f.label}
+              onClick={() => setFilter(f.key)} accentColor={f.accent} accentBg={f.bg} accentBorder={f.border} />
+          ))}
+          <input placeholder="Search patient, phone, address, medicine…" value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ marginLeft: "auto", padding: "7px 12px", fontSize: 12, borderRadius: 8, outline: "none", border: `1px solid ${C.border}`, background: C.surface, color: C.textPrimary, fontFamily: FONT.body, width: 260 }}
+          />
+        </div>
+
+        {/* Table header */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1.1fr 0.7fr 1fr 1fr 90px", gap: 12, padding: "10px 18px", background: "linear-gradient(135deg,#f0f9ff,#f8fafc)", border: `1px solid ${C.border}`, borderRadius: "12px 12px 0 0", borderBottom: "none" }}>
+          {["Patient", "Date", "Meds", "Payment", "Status", ""].map((h, i) => (
+            <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body }}>{h}</div>
+          ))}
+        </div>
+
+        {/* List */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+          {visible.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "56px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: "0 0 12px 12px" }}>
+              <FileText size={40} color={C.textMuted} style={{ margin: "0 auto 12px" }} />
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.textSoft, fontFamily: FONT.body }}>No prescriptions found</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, fontFamily: FONT.body }}>Try changing your filter or search query</div>
+            </div>
+          ) : visible.map(rx => (
+            <PrescriptionRow key={rx.id} rx={rx}
+              onStatusUpdate={handleStatusUpdate}
+              onPaymentSettle={handlePaymentSettle}
+              updating={updating}
+            />
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>
+            <RefreshCw size={11} />Auto-refreshes every 30 seconds
+          </div>
+          <div style={{ fontSize: 12, color: C.textMuted, fontFamily: FONT.body }}>
+            Showing <strong style={{ color: "#2563eb" }}>{visible.length}</strong> of <strong style={{ color: C.textPrimary }}>{total}</strong> prescriptions
+          </div>
+        </div>
+      </div>
+
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
