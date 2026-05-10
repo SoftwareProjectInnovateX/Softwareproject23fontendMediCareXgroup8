@@ -12,7 +12,6 @@ import {
   BarChart2,
   Settings,
   LogOut,
-  RotateCcw,
   Package,
   PlusCircle,
   Tag,
@@ -31,82 +30,135 @@ const PharmacistSidebar = () => {
   const navItems = [
     { path: '/pharmacist/dashboard',     name: 'Dashboard',      icon: LayoutDashboard },
     { path: '/pharmacist/prescriptions', name: 'Prescriptions',  icon: FileText, badge: pendingRxCount > 0 ? pendingRxCount.toString() : null },
-    { path: '/pharmacist/orders', name: 'Orders',         icon: Package },
+    { path: '/pharmacist/orders',        name: 'Orders',         icon: Package },
     { path: '/pharmacist/dispensing',    name: 'Dispensing',     icon: Pill },
     { path: '/pharmacist/patients',      name: 'Patients',       icon: Users },
     { path: '/pharmacist/inventory',     name: 'Inventory',      icon: Archive },
     { path: '/pharmacist/lookup',        name: 'Drug Lookup',    icon: Search },
-
     { path: '/pharmacist/notifications', name: 'Notifications',  icon: Bell, dot: unreadAlerts > 0 },
     { path: '/pharmacist/reports',       name: 'Reports',        icon: BarChart2 },
-    // ── New pages ──────────────────────────────────────────────
+  ];
+
+  const managementItems = [
     { path: '/pharmacist/add-product',   name: 'Add Product',    icon: PlusCircle },
-    { path: '/pharmacist/brands', name: 'Add Brand', icon: Tag },
+    { path: '/pharmacist/brands',        name: 'Add Brand',      icon: Tag },
     { path: '/pharmacist/my-products',   name: 'My Products',    icon: Layers },
     { path: '/pharmacist/messages',      name: 'Messages',       icon: MessageSquare, dot: false },
   ];
 
-  return (
-    <div className="w-64 bg-[#0b5ed7] text-white flex flex-col h-screen fixed left-0 top-0 transition-all duration-300">
-      {/* Logo */}
-      <div className="h-[70px] flex items-center px-6 bg-[#084298] border-b border-indigo-900/30">
-        <span className="text-3xl font-black tracking-wider antialiased text-white drop-shadow-sm">
-          MediCareX
-        </span>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-6 space-y-1">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.path}
-            className={({ isActive }) =>
-              `flex items-center justify-between px-6 py-3 transition-colors duration-200 ${
-                isActive
-                  ? 'bg-[#06357a] text-white font-medium'
-                  : 'hover:bg-[#084298] text-white'
-              }`
-            }
-          >
-            <div className="flex items-center gap-3">
-              <item.icon className="w-5 h-5" />
-              <span>{item.name}</span>
+  const NavItem = ({ item }) => (
+    <NavLink
+      key={item.name}
+      to={item.path}
+      className={({ isActive }) =>
+        `group flex items-center justify-between px-3 py-2.5 mx-2 rounded-lg transition-all duration-200 ${
+          isActive
+            ? 'bg-[#06357a] text-white font-medium shadow-sm'
+            : 'text-blue-100 hover:bg-[#084298] hover:text-white'
+        }`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <div className="flex items-center gap-3">
+            <div className={`p-1.5 rounded-md transition-colors duration-200 ${
+              isActive ? 'bg-white/15' : 'bg-transparent group-hover:bg-white/10'
+            }`}>
+              <item.icon className="w-4 h-4" />
             </div>
+            <span className="text-sm tracking-wide">{item.name}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
             {item.badge && (
-              <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              <span className="bg-white text-[#0b5ed7] text-[11px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center leading-4">
                 {item.badge}
               </span>
             )}
             {item.dot && (
-              <span className="w-2 h-2 rounded-full bg-red-400" />
+              <span className="w-2 h-2 rounded-full bg-red-400 ring-2 ring-red-400/30" />
             )}
-          </NavLink>
-        ))}
+          </div>
+        </>
+      )}
+    </NavLink>
+  );
+
+  return (
+    <div className="w-64 bg-[#0b5ed7] text-white flex flex-col h-screen fixed left-0 top-0">
+
+      {/* Logo */}
+      <div className="h-[70px] flex items-center gap-3 px-5 bg-[#084298] border-b border-white/10 shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+          <Pill className="w-4 h-4 text-white" />
+        </div>
+        <span className="text-xl font-black tracking-wide text-white">
+          MediCareX
+        </span>
+      </div>
+
+      {/* Scrollable nav */}
+      <div className="flex-1 overflow-y-auto py-4 scrollbar-thin scrollbar-thumb-blue-400/30 scrollbar-track-transparent">
+
+        {/* Main section */}
+        <div className="mb-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300/70 px-5 mb-1.5">
+            Main
+          </p>
+          <nav className="space-y-0.5">
+            {navItems.map((item) => (
+              <NavItem key={item.name} item={item} />
+            ))}
+          </nav>
+        </div>
+
+        {/* Divider */}
+        <div className="mx-5 border-t border-white/10 my-3" />
+
+        {/* Management section */}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-300/70 px-5 mb-1.5">
+            Management
+          </p>
+          <nav className="space-y-0.5">
+            {managementItems.map((item) => (
+              <NavItem key={item.name} item={item} />
+            ))}
+          </nav>
+        </div>
       </div>
 
       {/* Footer */}
-      <div className="border-t border-blue-400/40 p-3">
+      <div className="shrink-0 border-t border-white/10 p-3 space-y-0.5">
         <NavLink
           to="/pharmacist/settings"
           className={({ isActive }) =>
-            `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
+            `group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
               isActive
                 ? 'bg-[#06357a] text-white font-medium'
-                : 'hover:bg-[#084298] text-white'
+                : 'text-blue-100 hover:bg-[#084298] hover:text-white'
             }`
           }
         >
-          <Settings className="w-5 h-5" />
-          <span>Settings</span>
+          {({ isActive }) => (
+            <>
+              <div className={`p-1.5 rounded-md transition-colors duration-200 ${
+                isActive ? 'bg-white/15' : 'bg-transparent group-hover:bg-white/10'
+              }`}>
+                <Settings className="w-4 h-4" />
+              </div>
+              <span className="text-sm tracking-wide">Settings</span>
+            </>
+          )}
         </NavLink>
 
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-4 py-3 text-white rounded-lg hover:bg-red-500/80 transition-colors duration-200 bg-transparent border-none mt-1"
+          className="group flex items-center gap-3 w-full px-3 py-2.5 text-blue-100 rounded-lg hover:bg-red-500/80 hover:text-white transition-all duration-200"
         >
-          <LogOut className="w-5 h-5" />
-          <span>Logout</span>
+          <div className="p-1.5 rounded-md bg-transparent group-hover:bg-white/10 transition-colors duration-200">
+            <LogOut className="w-4 h-4" />
+          </div>
+          <span className="text-sm tracking-wide">Logout</span>
         </button>
       </div>
     </div>
