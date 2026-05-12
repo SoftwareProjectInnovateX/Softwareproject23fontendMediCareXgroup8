@@ -43,20 +43,19 @@ export default function ProductCard({ product }) {
   const navigate       = useNavigate();
   const addItem        = useCartStore((s) => s.addItem);
   const cartItems      = useCartStore((s) => s.items);
-  const [localStock, setLocalStock] = useState(product.stock ?? 0);
-
-  useEffect(() => { setLocalStock(product.stock ?? 0); }, [product.stock]);
 
   // ── FIXED: String() comparison handles id being number or string ──
-  const cartQty        = cartItems.find((i) => String(i.id) === String(product.id))?.qty ?? 0;
-  const availableStock = localStock - cartQty;
+  const productKey    = product.productCode || product.productId || product.id;
+  const cartQty       = cartItems.find((i) => String(i.productId) === String(productKey))?.qty ?? 0;
+  const productStock  = product.stock ?? 0;
+  const displayStock  = Math.max(0, productStock - cartQty);
+  const availableStock = displayStock;
 
   const handleAddToCart = async (e) => {
     e?.stopPropagation();
     if (availableStock <= 0) return;
 
     addItem(product, 1);
-    setLocalStock((prev) => Math.max(0, prev - 1));
 
     try {
       const stockId = product.stockId || product.productCode;
@@ -70,12 +69,10 @@ export default function ProductCard({ product }) {
           }
         );
         if (!res.ok) {
-          setLocalStock((prev) => prev + 1);
           console.error('Stock decrement rejected by server:', res.status);
         }
       }
     } catch (err) {
-      setLocalStock((prev) => prev + 1);
       console.error('Failed to update stock:', err);
     }
   };
@@ -101,7 +98,7 @@ export default function ProductCard({ product }) {
         <h3 className="text-[15px] font-bold mb-1.5" style={{ color: C.textPrimary }}>{product.name}</h3>
         <p className="text-xs leading-relaxed mb-2.5 line-clamp-2" style={{ color: C.textMuted }}>{product.description}</p>
         <p className="text-base font-bold mb-1.5" style={{ color: C.accent }}>Rs. {price}</p>
-        <p className="text-xs mb-3.5" style={{ color: C.textMuted }}>Stock: {localStock}</p>
+        <p className="text-xs mb-3.5" style={{ color: C.textMuted }}>Stock: {displayStock}</p>
         <AddToCartButton availableStock={availableStock} onClick={handleAddToCart} />
       </div>
     </div>
