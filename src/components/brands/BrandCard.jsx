@@ -1,16 +1,15 @@
-import { Star, Package, Calendar, Globe, ShieldCheck, Trophy } from "lucide-react";
+import { Star, Package, Globe, ShieldCheck, Calendar } from "lucide-react";
 
 const C = {
-  bg: "var(--bg-primary)",
-  surface: "var(--bg-secondary)",
-  border: "var(--card-border)",
-  accent: "var(--accent-blue)",
-  textPrimary: "var(--text-primary)",
-  textMuted: "var(--text-secondary)",
-  textSoft: "var(--text-secondary)",
+  surface: "#ffffff",
+  border: "rgba(148,163,184,0.18)",
+  accent: "#2563EB",
+  textPrimary: "#0F172A",
+  textMuted: "#64748B",
+  textSoft: "#475569",
 };
 
-export default function BrandCard({ brand, FONT }) {
+export default function BrandCard({ brand }) {
   return (
     <div
       className="rounded-2xl overflow-hidden"
@@ -69,7 +68,6 @@ export default function BrandCard({ brand, FONT }) {
           {brand.description}
         </p>
 
-       
       </div>
     </div>
   );
