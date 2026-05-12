@@ -171,13 +171,15 @@ export default function ProductDetailPage() {
     })();
   }, [reviewsLoaded, id]);
 
-  const cartQty        = cartItems.find((i) => String(i.id) === String(id))?.qty ?? 0;
-  const availableStock = localStock - cartQty;
+  const productKey    = product?.productCode || product?.productId || product?.id || id;
+  const cartQty       = cartItems.find((i) => String(i.productId) === String(productKey))?.qty ?? 0;
+  const productStock  = product?.stock ?? localStock;
+  const displayStock  = Math.max(0, productStock - cartQty);
+  const availableStock = displayStock;
 
   const handleAddToCart = async () => {
     if (availableStock < qty || !product) return;
     addItem(product, qty);
-    setLocalStock((p) => Math.max(0, p - qty));
     try {
       const stockId = product.stockId || product.productCode;
       if (stockId) {
@@ -185,10 +187,12 @@ export default function ProductDetailPage() {
           `${API_BASE}/products/${encodeURIComponent(stockId)}/decrement-stock`,
           { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quantity: qty }) }
         );
-        if (!res.ok) setLocalStock((p) => p + qty);
+        if (!res.ok) {
+          console.error('Stock decrement failed.');
+        }
       }
-    } catch {
-      setLocalStock((p) => p + qty);
+    } catch (err) {
+      console.error('Stock update failed:', err);
     }
   };
 
@@ -378,7 +382,7 @@ export default function ProductDetailPage() {
                 <span style={{ fontSize: 10, color: 'var(--blue)', letterSpacing: 1, fontWeight: 600, fontFamily: "'Sora', sans-serif" }}>ZOOM</span>
               </div>
 
-              {localStock > 0 && localStock <= 5 && (
+              {displayStock > 0 && displayStock <= 5 && (
                 <div style={{
                   position: 'absolute', top: 16, left: 16,
                   background: 'linear-gradient(135deg, #FEF2F2, #FECACA)',
@@ -387,11 +391,11 @@ export default function ProductDetailPage() {
                   border: '1px solid #FECACA', borderRadius: 20,
                   fontFamily: "'Sora', sans-serif",
                 }}>
-                  ONLY {localStock} LEFT
+                  ONLY {displayStock} LEFT
                 </div>
               )}
 
-              {localStock === 0 && (
+              {displayStock === 0 && (
                 <div style={{
                   position: 'absolute', inset: 0,
                   background: 'rgba(240,245,255,0.85)',
@@ -488,15 +492,15 @@ export default function ProductDetailPage() {
               <div style={{ marginTop: 12 }}>
                 <span style={{
                   fontSize: 11, fontWeight: 600, letterSpacing: 1.5,
-                  color: localStock > 0 ? '#16A34A' : '#DC2626',
-                  background: localStock > 0 ? '#F0FDF4' : '#FEF2F2',
-                  border: `1px solid ${localStock > 0 ? '#BBF7D0' : '#FECACA'}`,
+                  color: displayStock > 0 ? '#16A34A' : '#DC2626',
+                  background: displayStock > 0 ? '#F0FDF4' : '#FEF2F2',
+                  border: `1px solid ${displayStock > 0 ? '#BBF7D0' : '#FECACA'}`,
                   padding: '4px 14px', borderRadius: 20,
                   display: 'inline-block',
                   fontFamily: "'Sora', sans-serif",
                   textTransform: 'uppercase',
                 }}>
-                  {localStock > 0 ? `In Stock — ${localStock} units` : 'Out of Stock'}
+                  {displayStock > 0 ? `In Stock — ${displayStock} units` : 'Out of Stock'}
                 </span>
               </div>
             </div>
