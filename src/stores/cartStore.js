@@ -33,22 +33,49 @@ export const useCartStore = create((set, get) => ({
     const existing  = get().items.find((i) => i.productId === productId);
 
     if (existing) {
-      const newQty = existing.qty + delta;
+      const newQty   = existing.qty + delta;
+      const stockKey = existing.stockId || product.stockId || product.productCode || product.productId || product.id || "";
 
       set((state) => ({
-        items: state.items.map((i) =>
-          i.productId === productId ? { ...i, qty: newQty } : i
-        ),
+        items: state.items
+          .map((i) =>
+            i.productId === productId ? { ...i, qty: Math.max(0, newQty) } : i
+          )
+          .filter((i) => i.qty > 0),
       }));
 
       try {
-        await fetch(`${API}/${existing.id}`, {
-          method:  "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ qty: newQty }),
-        });
+        if (newQty <= 0) {
+          await fetch(`${API}/${existing.id}`, { method: "DELETE" });
+        } else {
+          await fetch(`${API}/${existing.id}`, {
+            method:  "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ qty: newQty }),
+          });
+        }
+
+        if (delta > 0) {
+          await fetch(
+            `${API.replace('/cart', '/products')}/${encodeURIComponent(stockKey)}/decrement-stock`,
+            {
+              method:  'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ quantity: delta }),
+            }
+          );
+        } else if (delta < 0) {
+          await fetch(
+            `${API.replace('/cart', '/products')}/${encodeURIComponent(stockKey)}/increment-stock`,
+            {
+              method:  'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ quantity: Math.abs(delta) }),
+            }
+          );
+        }
       } catch (err) {
-        console.error("updateQty error:", err);
+        console.error("updateQty stock error:", err);
         get().fetchItems(customerId);
       }
 
@@ -58,6 +85,7 @@ export const useCartStore = create((set, get) => ({
     const newItem = {
       customerId,
       productId,
+      stockId:  product.stockId || product.productCode || product.productId || product.id || "",
       name:     product.name,
       price:    product.retailPrice ?? product.price,
       imageUrl: product.imageUrl ?? "",
