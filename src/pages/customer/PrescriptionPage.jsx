@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../../lib/firebase';
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { Upload, FileText, User, Phone, MapPin, ExternalLink, FileX, CheckCircle, CreditCard, Pill, Receipt, Clock, ChevronRight, Truck, ShoppingCart, ArrowRight, Package } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -89,8 +89,9 @@ function UploadForm({ onUploaded, userId }) {
       const { prescription } = await res.json();
 
       // Save to localStorage for tracking
-      const localHistory = JSON.parse(localStorage.getItem('my_prescriptions') || '[]');
-      localStorage.setItem('my_prescriptions', JSON.stringify([prescription.id, ...localHistory]));
+      const localKey = `my_prescriptions_${userId}`;
+      const localHistory = JSON.parse(localStorage.getItem(localKey) || '[]');
+      localStorage.setItem(localKey, JSON.stringify([prescription.id, ...localHistory]));
 
       setSuccess(true);
       setProgress('');
@@ -330,17 +331,27 @@ export default function PrescriptionsPage() {
 
   useEffect(() => {
     setLoading(true);
-    const q = query(collection(db, 'prescriptions'), orderBy('createdAt', 'desc'));
+    if (!currentUser?.uid) {
+      setPrescriptions([]);
+      setLoading(false);
+      return;
+    }
+
+    const localKey = `my_prescriptions_${currentUser.uid}`;
+    const q = query(
+      collection(db, 'prescriptions'),
+      where('userId', '==', currentUser.uid),
+      orderBy('createdAt', 'desc')
+    );
 
     const unsub = onSnapshot(q, (snap) => {
       const allFirestore = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const localIds = JSON.parse(localStorage.getItem('my_prescriptions') || '[]');
+      const localIds = JSON.parse(localStorage.getItem(localKey) || '[]');
 
       setPrescriptions(prev => {
         const authorizedFirestore = allFirestore.filter(p => {
           if (currentUser?.uid && p.userId === currentUser.uid) return true;
           if (localIds.includes(p.id)) return true;
-          if (currentUser?.phoneNumber && p.customerPhone === currentUser.phoneNumber) return true;
           return false;
         });
 
