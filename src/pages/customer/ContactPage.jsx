@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Send, Mail, CheckCircle, MailOpen, Clock, Pill, MessageSquare, Search, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Mail, Phone, MapPin, CheckCircle, MailOpen, Clock, Pill, Search, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { initializeApp, getApps } from 'firebase/app';
 import { C, FONT } from '../../components/profile/profileTheme';
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
@@ -174,229 +174,243 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="min-h-screen px-4 py-10" style={{ background: C.bg, fontFamily: FONT.body }}>
-      <div className="max-w-[560px] mx-auto flex flex-col gap-5">
-
-        {/* Contact form card */}
-        <div className="rounded-2xl px-7 py-7"
-          style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(26,135,225,0.07)" }}>
-          <div className="text-center mb-6">
-            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-[14px]"
-              style={{ background: "rgba(26,135,225,0.1)", border: `1px solid ${C.border}` }}>
-              <Mail size={20} color={C.accent} />
-            </div>
-            <h1 className="text-2xl font-semibold mb-[6px]">Contact Us</h1>
-            <p className="text-[13px]" style={{ color: C.textMuted }}>
-              Send us a message and our pharmacist will reply shortly.
-            </p>
-          </div>
-
-          {/* Success banner — auto-hides after 4 seconds */}
-          {sent && (
-            <div className="flex items-center gap-2 rounded-lg px-[14px] py-[10px] mb-[18px]"
-              style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }}>
-              <CheckCircle size={15} color="#059669" />
-              <span className="text-[13px] font-medium" style={{ color: "#059669" }}>
-                Message sent! We'll get back to you soon.
-              </span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <input type="text" placeholder="Your Name" value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border"
-              style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }}
-              required />
-            <input type="email" placeholder="Your Email" value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border"
-              style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }}
-              required />
-            <textarea placeholder="Your Message" value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="w-full rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border h-[120px] resize-none"
-              style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }}
-              required />
-            {/* Submit button — disabled while request is in flight */}
-            <button type="submit" disabled={sending}
-              className="flex items-center justify-center gap-[7px] text-white border-none rounded-[9px] py-3 text-[14px] font-semibold"
-              style={{
-                background: sending ? "rgba(26,135,225,0.4)" : C.accent,
-                cursor:     sending ? "not-allowed" : "pointer",
-                fontFamily: FONT.body,
-                boxShadow:  sending ? "none" : "0 4px 12px rgba(26,135,225,0.25)",
-              }}>
-              <Send size={14} />
-              {sending ? "Sending..." : "Send Message"}
-            </button>
-          </form>
-
-          {/* Toggle button to show or hide the past messages panel */}
-          <button
-            onClick={handleTogglePastPanel}
-            className="mt-4 w-full flex items-center justify-center gap-2 rounded-[9px] py-[10px] text-[13px] font-semibold border transition-all"
-            style={{
-              background: "transparent",
-              border:     `1px solid ${C.border}`,
-              color:      C.accent,
-              cursor:     "pointer",
-              fontFamily: FONT.body,
-            }}>
-            <History size={14} />
-            {showPastPanel ? "Hide Past Messages" : "View My Past Messages"}
-            {showPastPanel ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          </button>
+    <div className="min-h-screen px-4 py-12" style={{ background: C.bg, fontFamily: FONT.body }}>
+      <div className="max-w-7xl mx-auto space-y-10">
+        <div className="space-y-3 text-center lg:text-left">
+          <p className="text-[11px] uppercase tracking-[0.28em]" style={{ color: C.accent }}>
+            Support & Contact
+          </p>
+          <h1 className="text-3xl md:text-4xl font-bold" style={{ color: C.textPrimary }}>
+            Need help? We're here for you.
+          </h1>
+          <p className="max-w-3xl text-sm leading-7" style={{ color: C.textMuted }}>
+            Message our team directly or use the contact details below to reach the pharmacy, order support, or customer care. We strive to respond within one business day.
+          </p>
         </div>
 
-        {/* Past Messages Panel — only rendered when showPastPanel is true */}
-        {showPastPanel && (
-          <div className="rounded-2xl px-7 py-6"
-            style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(26,135,225,0.07)" }}>
-            <div className="flex items-center gap-2 mb-4">
-              <History size={15} color={C.accent} />
-              <h2 className="text-[14px] font-bold" style={{ color: C.textPrimary }}>Check Past Messages</h2>
+        <div className="grid gap-8 lg:grid-cols-[420px_minmax(0,1fr)]">
+          <section className="rounded-[28px] p-8" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 15px 40px rgba(15,23,42,0.05)' }}>
+            <div className="flex items-start gap-4 mb-8">
+              <div className="flex h-14 w-14 items-center justify-center rounded-3xl" style={{ background: 'rgba(26,135,225,0.1)' }}>
+                <Mail size={24} color={C.accent} />
+              </div>
+              <div>
+                <p className="text-sm uppercase tracking-[0.24em] font-semibold" style={{ color: C.accent }}>
+                  Contact Information
+                </p>
+                <h2 className="mt-3 text-2xl font-semibold" style={{ color: C.textPrimary }}>
+                  Visit or call our support team
+                </h2>
+              </div>
             </div>
-            <p className="text-[12px] mb-3" style={{ color: C.textMuted }}>
-              Enter the email you used when sending your message.
-            </p>
-            <div className="flex gap-2 mb-3">
-              <input type="email" placeholder="Enter your email" value={pastEmail}
-                onChange={(e) => { setPastEmail(e.target.value); setPastError(''); }}
-                className="flex-1 rounded-lg px-[14px] py-[10px] text-[13px] outline-none box-border"
-                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }} />
-              {/* Search button — disabled while fetching or if email is empty */}
-              <button onClick={handleCheckPast} disabled={pastChecking || !pastEmail.trim()}
-                className="flex items-center gap-[6px] text-white border-none rounded-[9px] px-4 py-[10px] text-[13px] font-semibold"
+
+            <div className="space-y-5">
+              <div className="rounded-3xl p-5" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <MapPin size={18} color={C.accent} />
+                  <h3 className="text-sm font-semibold" style={{ color: C.textPrimary }}>
+                    Head Office
+                  </h3>
+                </div>
+                <p className="text-sm leading-6" style={{ color: C.textMuted }}>
+                  123 MediCareX Road, Colombo 05, Sri Lanka
+                </p>
+              </div>
+
+              <div className="rounded-3xl p-5" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <Phone size={18} color={C.accent} />
+                  <h3 className="text-sm font-semibold" style={{ color: C.textPrimary }}>
+                    Phone Numbers
+                  </h3>
+                </div>
+                <p className="text-sm leading-6" style={{ color: C.textMuted }}>
+                  Customer Support: <span style={{ color: C.textPrimary, fontWeight: 600 }}>+94 77 123 4567</span>
+                </p>
+                <p className="text-sm leading-6" style={{ color: C.textMuted }}>
+                  Pharmacy Support: <span style={{ color: C.textPrimary, fontWeight: 600 }}>+94 71 765 4321</span>
+                </p>
+              </div>
+
+              <div className="rounded-3xl p-5" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <MailOpen size={18} color={C.accent} />
+                  <h3 className="text-sm font-semibold" style={{ color: C.textPrimary }}>
+                    Email
+                  </h3>
+                </div>
+                <p className="text-sm leading-6" style={{ color: C.textMuted }}>
+                  support@medicarex.lk
+                </p>
+              </div>
+
+              <div className="rounded-3xl p-5" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                <div className="flex items-center gap-3 mb-3">
+                  <Clock size={18} color={C.accent} />
+                  <h3 className="text-sm font-semibold" style={{ color: C.textPrimary }}>
+                    Working Hours
+                  </h3>
+                </div>
+                <p className="text-sm leading-6" style={{ color: C.textMuted }}>
+                  Mon - Fri: <span style={{ color: C.textPrimary, fontWeight: 600 }}>8:00 AM – 8:00 PM</span>
+                </p>
+                <p className="text-sm leading-6" style={{ color: C.textMuted }}>
+                  Sat: <span style={{ color: C.textPrimary, fontWeight: 600 }}>9:00 AM – 5:00 PM</span> | Sun: Closed
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-6">
+            <div className="rounded-[28px] p-8" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 15px 40px rgba(15,23,42,0.05)' }}>
+              <div className="text-center mb-8 lg:text-left">
+                <p className="text-[11px] uppercase tracking-[0.28em]" style={{ color: C.accent }}>
+                  Message us
+                </p>
+                <h2 className="mt-3 text-3xl font-semibold" style={{ color: C.textPrimary }}>
+                  Send a request
+                </h2>
+                <p className="mt-3 text-sm leading-7" style={{ color: C.textMuted }}>
+                  Share your question, order inquiry, or prescription request and our team will reply quickly.
+                </p>
+              </div>
+
+              {sent && (
+                <div className="flex items-center gap-2 rounded-xl px-4 py-3 mb-6"
+                  style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                  <CheckCircle size={16} color="#059669" />
+                  <span className="text-sm font-medium" style={{ color: '#059669' }}>Message sent successfully.</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="grid gap-4">
+                <input type="text" placeholder="Full Name" value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-3xl px-5 py-4 text-sm outline-none"
+                  style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }}
+                  required />
+                <input type="email" placeholder="Email Address" value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-3xl px-5 py-4 text-sm outline-none"
+                  style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }}
+                  required />
+                <textarea placeholder="How can we help you?" value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="w-full min-h-[170px] rounded-3xl px-5 py-4 text-sm outline-none resize-none"
+                  style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }}
+                  required />
+                <button type="submit" disabled={sending}
+                  className="flex w-full items-center justify-center gap-3 rounded-3xl py-4 text-sm font-semibold border-none text-white"
+                  style={{
+                    background: sending ? 'rgba(26,135,225,0.4)' : C.accent,
+                    cursor: sending ? 'not-allowed' : 'pointer',
+                    boxShadow: sending ? 'none' : '0 10px 30px rgba(59,130,246,0.18)',
+                    fontFamily: FONT.body,
+                  }}>
+                  <Send size={16} />
+                  {sending ? 'Sending...' : 'Submit Message'}
+                </button>
+              </form>
+
+              <button
+                onClick={handleTogglePastPanel}
+                className="mt-6 inline-flex items-center justify-center gap-2 rounded-3xl border px-5 py-3 text-sm font-semibold"
                 style={{
-                  background: pastChecking || !pastEmail.trim() ? "rgba(26,135,225,0.4)" : C.accent,
-                  cursor:     pastChecking || !pastEmail.trim() ? "not-allowed" : "pointer",
+                  borderColor: C.border,
+                  color: C.accent,
+                  background: 'transparent',
                   fontFamily: FONT.body,
                 }}>
-                <Search size={13} />
-                {pastChecking ? "..." : "Search"}
+                <History size={14} />
+                {showPastPanel ? 'Hide My Messages' : 'View Past Messages'}
+                {showPastPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
             </div>
 
-            {/* Error message when no results are found or fetch fails */}
-            {pastError && (
-              <p className="text-[12px] text-center py-2" style={{ color: "#d97706" }}>{pastError}</p>
-            )}
-
-            {/* List of past messages with status badge and pharmacist reply */}
-            {pastMessages.length > 0 && (
-              <div className="flex flex-col gap-3 mt-2">
-                {pastMessages.map((msg) => {
-                  const s = statusStyle(msg.status);
-                  const StatusIcon = s.icon;
-                  return (
-                    <div key={msg.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-                      <div className="px-4 py-[14px]" style={{ background: C.bg }}>
-                        <div className="flex justify-between items-center mb-2">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: C.textMuted }}>
-                            Your Message
-                          </p>
-                          <span className="text-[10px] font-bold px-[10px] py-[3px] rounded-[20px] uppercase tracking-[0.06em] inline-flex items-center gap-1"
-                            style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-                            <StatusIcon size={10} /> {s.label}
-                          </span>
-                        </div>
-                        <p className="text-[13px] leading-[1.6]" style={{ color: C.textPrimary }}>{msg.message}</p>
-                      </div>
-
-                      {/* Show pharmacist reply if available, otherwise show waiting state */}
-                      {msg.reply ? (
-                        <div className="px-4 py-[14px]"
-                          style={{ background: "rgba(26,135,225,0.04)", borderTop: `1px solid ${C.border}` }}>
-                          <div className="flex items-center gap-[6px] mb-2">
-                            <Pill size={12} color={C.accent} />
-                            <p className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: C.accent }}>
-                              Pharmacist Reply
-                            </p>
-                          </div>
-                          <p className="text-[13px] leading-[1.6]" style={{ color: C.textPrimary }}>{msg.reply}</p>
-                        </div>
-                      ) : (
-                        <div className="px-4 py-3 flex items-center justify-center gap-[6px]"
-                          style={{ background: "rgba(245,158,11,0.04)", borderTop: "1px solid rgba(245,158,11,0.2)" }}>
-                          <Clock size={12} color="#d97706" />
-                          <p className="text-[12px] font-medium" style={{ color: "#d97706" }}>
-                            Waiting for pharmacist reply...
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Current session messages — only shown when past panel is open and messages exist */}
-        {myMessages.length > 0 && showPastPanel && (
-          <div className="rounded-2xl px-7 py-6"
-            style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: "0 1px 4px rgba(26,135,225,0.07)" }}>
-            <div className="flex items-center justify-between mb-[18px]">
-              <div className="flex items-center gap-2">
-                <MessageSquare size={16} color={C.accent} />
-                <h2 className="text-[15px] font-bold" style={{ color: C.textPrimary }}>Your Messages</h2>
-              </div>
-              {/* Clear button removes saved email and unsubscribes the listener */}
-              <button onClick={handleClear}
-                className="text-[11px] border-none bg-transparent cursor-pointer"
-                style={{ color: C.textMuted }}>
-                Clear
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {myMessages.map((msg) => {
-                const s = statusStyle(msg.status);
-                const StatusIcon = s.icon;
-                return (
-                  <div key={msg.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-                    <div className="px-4 py-[14px]" style={{ background: C.bg }}>
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: C.textMuted }}>
-                          Your Message
-                        </p>
-                        <span className="text-[10px] font-bold px-[10px] py-[3px] rounded-[20px] uppercase tracking-[0.06em] inline-flex items-center gap-1"
-                          style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-                          <StatusIcon size={10} /> {s.label}
-                        </span>
-                      </div>
-                      <p className="text-[13px] leading-[1.6]" style={{ color: C.textPrimary }}>{msg.message}</p>
-                    </div>
-
-                    {/* Show pharmacist reply if available, otherwise show waiting state */}
-                    {msg.reply ? (
-                      <div className="px-4 py-[14px]"
-                        style={{ background: "rgba(26,135,225,0.04)", borderTop: `1px solid ${C.border}` }}>
-                        <div className="flex items-center gap-[6px] mb-2">
-                          <Pill size={12} color={C.accent} />
-                          <p className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: C.accent }}>
-                            Pharmacist Reply
-                          </p>
-                        </div>
-                        <p className="text-[13px] leading-[1.6]" style={{ color: C.textPrimary }}>{msg.reply}</p>
-                      </div>
-                    ) : (
-                      <div className="px-4 py-3 flex items-center justify-center gap-[6px]"
-                        style={{ background: "rgba(245,158,11,0.04)", borderTop: "1px solid rgba(245,158,11,0.2)" }}>
-                        <Clock size={12} color="#d97706" />
-                        <p className="text-[12px] font-medium" style={{ color: "#d97706" }}>
-                          Waiting for pharmacist reply...
-                        </p>
-                      </div>
-                    )}
+            {showPastPanel && (
+              <div className="rounded-[28px] p-6" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 12px 30px rgba(15,23,42,0.05)' }}>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                  <div className="flex items-center gap-2">
+                    <History size={16} color={C.accent} />
+                    <h3 className="text-lg font-semibold" style={{ color: C.textPrimary }}>Past support messages</h3>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                  <button onClick={handleClear}
+                    className="text-sm font-semibold bg-transparent border-none"
+                    style={{ color: C.textMuted, cursor: 'pointer' }}>
+                    Clear saved email
+                  </button>
+                </div>
 
+                <p className="text-sm leading-6 mb-4" style={{ color: C.textMuted }}>
+                  Enter the email used when you sent your message to review prior replies.
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <input type="email" placeholder="Enter your email" value={pastEmail}
+                    onChange={(e) => { setPastEmail(e.target.value); setPastError(''); }}
+                    className="flex-1 rounded-3xl px-5 py-4 text-sm outline-none"
+                    style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }} />
+                  <button onClick={handleCheckPast} disabled={pastChecking || !pastEmail.trim()}
+                    className="inline-flex items-center justify-center gap-2 rounded-3xl px-5 py-4 text-sm font-semibold text-white border-none"
+                    style={{
+                      background: pastChecking || !pastEmail.trim() ? 'rgba(26,135,225,0.4)' : C.accent,
+                      cursor: pastChecking || !pastEmail.trim() ? 'not-allowed' : 'pointer',
+                      fontFamily: FONT.body,
+                    }}>
+                    <Search size={14} />
+                    {pastChecking ? 'Searching...' : 'Search Messages'}
+                  </button>
+                </div>
+
+                {pastError && (
+                  <p className="mt-4 text-sm" style={{ color: '#d97706' }}>{pastError}</p>
+                )}
+
+                {pastMessages.length > 0 && (
+                  <div className="space-y-4 mt-4">
+                    {pastMessages.map((msg) => {
+                      const s = statusStyle(msg.status);
+                      const StatusIcon = s.icon;
+                      return (
+                        <div key={msg.id} className="rounded-3xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+                          <div className="px-5 py-4" style={{ background: C.bg }}>
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: C.textMuted }}>
+                                Your Message
+                              </p>
+                              <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold"
+                                style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+                                <StatusIcon size={12} /> {s.label}
+                              </span>
+                            </div>
+                            <p className="text-sm leading-6" style={{ color: C.textPrimary }}>{msg.message}</p>
+                          </div>
+                          {msg.reply ? (
+                            <div className="px-5 py-4" style={{ background: 'rgba(26,135,225,0.04)', borderTop: `1px solid ${C.border}` }}>
+                              <div className="flex items-center gap-2 mb-3">
+                                <Pill size={14} color={C.accent} />
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.accent }}>
+                                  Pharmacist Reply
+                                </p>
+                              </div>
+                              <p className="text-sm leading-6" style={{ color: C.textPrimary }}>{msg.reply}</p>
+                            </div>
+                          ) : (
+                            <div className="px-5 py-4 flex items-center gap-2 rounded-b-3xl" style={{ background: 'rgba(245,158,11,0.04)', borderTop: '1px solid rgba(245,158,11,0.2)' }}>
+                              <Clock size={14} color="#d97706" />
+                              <p className="text-sm" style={{ color: '#d97706' }}>
+                                Waiting for pharmacist reply...
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
