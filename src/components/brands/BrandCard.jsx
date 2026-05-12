@@ -12,7 +12,7 @@ const C = {
 export default function BrandCard({ brand }) {
   return (
     <div
-      className="rounded-2xl overflow-hidden"
+      className="rounded-2xl overflow-hidden min-h-0"
       style={{
         background: C.surface,
         border: `1px solid ${C.border}`,
@@ -21,53 +21,50 @@ export default function BrandCard({ brand }) {
     >
       {/* Image */}
       {brand.imageUrl ? (
-        <img src={brand.imageUrl} alt={brand.name} className="w-full h-[200px] object-cover" />
+        <img src={brand.imageUrl} alt={brand.name} className="w-full h-[220px] object-cover" />
       ) : (
-        <div className="w-full h-[200px] flex items-center justify-center" style={{ background: "rgba(26,135,225,0.06)" }}>
-          <span className="text-[72px] font-bold" style={{ color: C.accent }}>
+        <div className="w-full h-[220px] flex items-center justify-center" style={{ background: "rgba(26,135,225,0.06)" }}>
+          <span className="text-[56px] font-bold" style={{ color: C.accent }}>
             {brand.name?.charAt(0)}
           </span>
         </div>
       )}
 
       {/* Header */}
-      <div className="px-5 py-[14px] flex justify-between items-start" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div>
-          <p className="text-[18px] font-bold" style={{ color: C.textPrimary }}>{brand.name}</p>
-          <p className="text-[12px] font-medium mt-[3px]" style={{ color: C.accent }}>{brand.tagline}</p>
+      <div className="px-4 py-4 flex flex-col gap-3" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold" style={{ color: C.textPrimary }}>{brand.name}</p>
+            <p className="text-[12px] mt-1" style={{ color: C.accent }}>{brand.tagline}</p>
+          </div>
+          <span
+            className="text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase"
+            style={{ background: "rgba(26,135,225,0.12)", color: C.accent }}
+          >
+            {brand.category}
+          </span>
         </div>
-
-        <span
-          className="text-[10px] font-bold px-[10px] py-[3px] rounded-[20px] uppercase"
-          style={{ background: "rgba(26,135,225,0.1)", color: C.accent }}
-        >
-          {brand.category}
-        </span>
       </div>
 
       {/* Content */}
-      <div className="px-5 py-[18px]">
-
-        {/* Stats */}
-        <div className="flex justify-between pb-[14px] mb-[14px]" style={{ borderBottom: `1px solid ${C.border}` }}>
+      <div className="px-4 py-4">
+        <div className="grid grid-cols-4 gap-2 text-center pb-3 mb-3" style={{ borderBottom: `1px solid ${C.border}` }}>
           {[
             { icon: Star, value: brand.rating },
             { icon: Package, value: brand.products },
             { icon: Calendar, value: brand.established },
             { icon: Globe, value: brand.country },
           ].map(({ icon: Icon, value }, i) => (
-            <div key={i} className="text-center">
-              <Icon size={12} color={C.textMuted} />
-              <p className="text-[14px] font-bold">{value}</p>
+            <div key={i} className="text-[10px] text-slate-500">
+              <Icon size={14} color={C.textMuted} className="mx-auto mb-1" />
+              <p className="font-semibold">{value}</p>
             </div>
           ))}
         </div>
 
-        {/* Description */}
-        <p className="text-[13px] mb-4" style={{ color: C.textSoft }}>
+        <p className="text-[13px] leading-5 text-slate-600 line-clamp-3">
           {brand.description}
         </p>
-
       </div>
     </div>
   );
