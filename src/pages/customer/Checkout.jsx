@@ -153,7 +153,11 @@ const Checkout = () => {
                     throw new Error("Order persistence failed");
                 }
 
-                if (shouldClearCart) clearCart();
+            }
+
+            if (shouldClearCart) {
+                const userId = currentUser?.uid || sessionStorage.getItem('userId');
+                if (userId) await clearCart(userId);
             }
 
             if (rxId) {
