@@ -133,7 +133,7 @@ export default function CustomerNavbar() {
               boxShadow: "0 4px 20px rgba(26,135,225,0.28)"
             }
           : {
-              color: "var(--text-primary)",
+              color: "var(--accent-blue)",
               background: "transparent"
             }
         ),
@@ -147,7 +147,7 @@ export default function CustomerNavbar() {
       onMouseLeave={e => {
         if (!isActive(link.href)) {
           e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.color = "var(--text-primary)";
+          e.currentTarget.style.color = "var(--accent-blue)";
         }
       }}
     >
