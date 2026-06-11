@@ -173,8 +173,8 @@ export default function AdminProductApproval() {
 
       {/* Header */}
       <div className="mb-7">
-        <h1 className="text-[22px] font-bold text-slate-900 tracking-tight">Product Approval</h1>
-        <p className="text-sm text-slate-400 mt-1">Review and approve supplier product submissions</p>
+        <h1 className="text-3xl font-bold text-slate-800 mb-2">Product Approval</h1>
+        <p className="text-slate-500 text-[15px]">Review and approve supplier product submissions</p>
       </div>
 
       {/* Stat cards */}
