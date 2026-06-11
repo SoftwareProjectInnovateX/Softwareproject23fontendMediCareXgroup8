@@ -17,17 +17,15 @@ import {
 } from "recharts";
 
 /* ================= SAFE DATE HELPER ================= */
-// Extracts month index (0-11) from various date formats (Firestore Timestamp, JS Date, or string)
 const getMonth = (val) => {
   if (!val) return -1;
-  if (typeof val.toDate === "function") return val.toDate().getMonth(); // Firestore Timestamp
-  if (val instanceof Date) return val.getMonth();                       // JS Date object
+  if (typeof val.toDate === "function") return val.toDate().getMonth();
+  if (val instanceof Date) return val.getMonth();
   const d = new Date(val);
-  return isNaN(d) ? -1 : d.getMonth();                                 // Fallback: parse string
+  return isNaN(d) ? -1 : d.getMonth();
 };
 
 /* ================= CUSTOM TOOLTIPS ================= */
-// Tooltip shown when hovering over bars in the bar chart
 const CustomBarTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -48,7 +46,6 @@ const CustomBarTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-// Tooltip shown when hovering over slices in the pie/donut chart
 const CustomPieTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const d = payload[0].payload;
@@ -67,19 +64,27 @@ const CustomPieTooltip = ({ active, payload }) => {
 
 /* ================= MAIN COMPONENT ================= */
 export default function FinancialAnalytics() {
-  // State for raw data fetched from Firestore
-  const [payments, setPayments] = useState([]);
+  const [products, setProducts]             = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [payments, setPayments]             = useState([]);
+  const [loading, setLoading]               = useState(true);
 
-  // Fetch payments (admin→supplier costs) and CustomerOrders (customer revenue) from Firestore
   useEffect(() => {
     const fetchData = async () => {
-      const paymentsSnap = await getDocs(collection(db, "payments"));
-      const customerSnap = await getDocs(collection(db, "CustomerOrders"));
-      setPayments(paymentsSnap.docs.map((d) => d.data()));
-      setCustomerOrders(customerSnap.docs.map((d) => d.data()));
-      setLoading(false);
+      try {
+        const [productsSnap, customerSnap, paymentsSnap] = await Promise.all([
+          getDocs(collection(db, "products")),
+          getDocs(collection(db, "CustomerOrders")),
+          getDocs(collection(db, "payments")),
+        ]);
+        setProducts(productsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setCustomerOrders(customerSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setPayments(paymentsSnap.docs.map((d) => d.data()));
+      } catch (err) {
+        console.error("Fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
@@ -94,26 +99,71 @@ export default function FinancialAnalytics() {
       </div>
     );
 
-  /* ================= SUMMARY ================= */
-  // Total cost = sum of all admin→supplier payments (amount field)
-  const totalCost = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  /* ─────────────────────────────────────────────────────
+     CATEGORY COST
+     Source: products collection
+     Logic : wholesalePrice × stock  (inventory value per product)
+             grouped by product.category
+  ───────────────────────────────────────────────────── */
+  const costByCategory = {};
+  products.forEach((p) => {
+    const cat  = p.category || "Uncategorised";
+    const cost = (p.wholesalePrice || 0) * (p.stock || 0);
+    costByCategory[cat] = (costByCategory[cat] || 0) + cost;
+  });
 
-  // Total revenue = sum of all customer order amounts (totalAmount field)
-  const totalRevenue = customerOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+  /* ─────────────────────────────────────────────────────
+     CATEGORY REVENUE
+     Source: CustomerOrders collection
+     Logic : sum totalAmount grouped by order.category
+             (you add a "category" field to each order doc)
+  ───────────────────────────────────────────────────── */
+  const revenueByCategory = {};
+  customerOrders.forEach((order) => {
+    const cat    = order.category || "Uncategorised";
+    const amount = order.totalAmount || 0;
+    revenueByCategory[cat] = (revenueByCategory[cat] || 0) + amount;
+  });
 
-  const profit = totalRevenue - totalCost;
-  const margin = totalRevenue ? ((profit / totalRevenue) * 100).toFixed(1) : 0; // Avoid division by zero
+  /* ─────────────────────────────────────────────────────
+     MERGE: all unique categories from both sources
+  ───────────────────────────────────────────────────── */
+  const allCategories = [
+    ...new Set([
+      ...Object.keys(costByCategory),
+      ...Object.keys(revenueByCategory),
+    ]),
+  ].filter(Boolean).sort();
 
-  /* ================= MONTHLY TREND ================= */
+  const categoryData = allCategories.map((cat) => {
+    const cost    = costByCategory[cat]    || 0;
+    const revenue = revenueByCategory[cat] || 0;
+    const profit  = revenue - cost;
+    const margin  = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : "0.0";
+    return { category: cat, cost, revenue, profit, margin };
+  });
+
+  /* ─────────────────────────────────────────────────────
+     OVERALL SUMMARY
+  ───────────────────────────────────────────────────── */
+  const totalCost    = categoryData.reduce((s, c) => s + c.cost, 0);
+  const totalRevenue = categoryData.reduce((s, c) => s + c.revenue, 0);
+  const profit       = totalRevenue - totalCost;
+  const margin       = totalRevenue > 0
+    ? ((profit / totalRevenue) * 100).toFixed(1)
+    : "0.0";
+
+  /* ─────────────────────────────────────────────────────
+     MONTHLY TREND  (payments collection for cost,
+                     CustomerOrders for revenue)
+  ───────────────────────────────────────────────────── */
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  // Build monthly revenue and cost data by matching each record's month to the index
   const trendData = months.map((month, i) => {
     const revenue = customerOrders
       .filter((o) => getMonth(o.createdAt) === i)
       .reduce((s, o) => s + (o.totalAmount || 0), 0);
 
-    // Cost from payments collection (admin→supplier), using paidDate or createdAt
     const cost = payments
       .filter((p) => getMonth(p.paidDate || p.createdAt) === i)
       .reduce((s, p) => s + (p.amount || 0), 0);
@@ -121,63 +171,13 @@ export default function FinancialAnalytics() {
     return { month, Revenue: revenue, Cost: cost };
   });
 
-  /* ================= CATEGORY DATA ================= */
-  // Collect unique categories from payments (productName used as category key)
-  const paymentCategories = [...new Set(payments.map((p) => p.productName))].filter(Boolean);
-
-  // Flatten line items from all customer orders for category-level revenue calculation
-  const customerLineItems = [];
-  customerOrders.forEach((order) => {
-    if (Array.isArray(order.types)) {
-      order.types.forEach((item) => {
-        customerLineItems.push({
-          name: item.name,
-          revenue: (item.price || 0) * (item.quantity || 1),
-          category: item.category || item.name,
-        });
-      });
-    }
-  });
-
-  // Merge all unique categories from payments and customer line items
-  const allCategories = [
-    ...new Set([
-      ...paymentCategories,
-      ...customerLineItems.map((i) => i.category),
-    ]),
-  ].filter(Boolean);
-
-  // For each category, compute revenue (from customer line items), cost (from payments), profit, and margin
-  const categoryData = allCategories.map((cat) => {
-    const revenue = customerLineItems
-      .filter((i) => i.category === cat)
-      .reduce((s, i) => s + i.revenue, 0);
-
-    // Match payments by productName as the category identifier
-    const cost = payments
-      .filter((p) => p.productName === cat)
-      .reduce((s, p) => s + (p.amount || 0), 0);
-
-    const profit = revenue - cost;
-    return {
-      category: cat,
-      revenue,
-      cost,
-      profit,
-      margin: revenue ? ((profit / revenue) * 100).toFixed(1) : 0,
-    };
-  });
-
-  // Colors cycled for chart slices and category dot indicators
+  /* ─────────────────────────────────────────────────────
+     COLOURS
+  ───────────────────────────────────────────────────── */
   const CHART_COLORS = [
-    "#f59e0b",
-    "#10b981",
-    "#ef4444",
-    "#8b5cf6",
-    "#06b6d4",
-    "#f97316",
-    "#ec4899",
-    "#84cc16",
+    "#f59e0b","#10b981","#ef4444","#8b5cf6","#06b6d4",
+    "#f97316","#ec4899","#84cc16","#3b82f6","#a16207",
+    "#0ea5e9","#d946ef","#14b8a6","#f43f5e","#6366f1",
   ];
 
   const summaryCards = [
@@ -187,10 +187,13 @@ export default function FinancialAnalytics() {
     { title: "Profit Margin", value: `${margin}%` },
   ];
 
+  /* ─────────────────────────────────────────────────────
+     RENDER
+  ───────────────────────────────────────────────────── */
   return (
     <div className="min-h-screen bg-slate-50">
 
-      {/* ── Page Header ── */}
+      {/* Page Header */}
       <div className="px-8 py-6">
         <h1 className="text-2xl font-bold text-gray-900">Financial Analytics</h1>
         <p className="text-gray-400 text-sm mt-0.5">Track costs, revenue, and profit margins</p>
@@ -198,17 +201,17 @@ export default function FinancialAnalytics() {
 
       <div className="px-6 pb-6">
 
-        {/* ── Summary Cards ── */}
+        {/* Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {summaryCards.map((card) => (
             <Card key={card.title} title={card.title} value={card.value} />
           ))}
         </div>
 
-        {/* ── Charts Row ── */}
+        {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-5 mb-6">
 
-          {/* Bar Chart - monthly revenue vs cost */}
+          {/* Bar Chart - monthly trend */}
           <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -232,7 +235,7 @@ export default function FinancialAnalytics() {
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: "#94a3b8", fontSize: 11 }}
-                  tickFormatter={(v) => `Rs.${(v / 1000).toFixed(0)}k`} // Format Y-axis as "Rs. Xk"
+                  tickFormatter={(v) => `Rs.${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip content={<CustomBarTooltip />} cursor={{ fill: "#f8fafc" }} />
                 <Legend wrapperStyle={{ paddingTop: 14, fontSize: 12, color: "#64748b" }} />
@@ -242,7 +245,7 @@ export default function FinancialAnalytics() {
             </ResponsiveContainer>
           </div>
 
-          {/* Pie/Donut Chart - profit share by category */}
+          {/* Donut Chart - profit by category */}
           <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
@@ -253,40 +256,62 @@ export default function FinancialAnalytics() {
                 Donut
               </span>
             </div>
-            <ResponsiveContainer width="100%" height={270}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  dataKey="profit"
-                  nameKey="category"
-                  innerRadius={68}
-                  outerRadius={105}
-                  paddingAngle={3}
-                >
-                  {/* Assign a color to each slice by cycling through CHART_COLORS */}
-                  {categoryData.map((_, index) => (
-                    <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} stroke="transparent" />
-                  ))}
-                </Pie>
-                <Tooltip content={<CustomPieTooltip />} />
-                <Legend wrapperStyle={{ paddingTop: 14, fontSize: 12, color: "#64748b" }} />
-              </PieChart>
-            </ResponsiveContainer>
+
+            {/* Show message if no revenue data yet */}
+            {categoryData.every((c) => c.revenue === 0) ? (
+              <div className="flex flex-col items-center justify-center h-[270px] gap-2">
+                <p className="text-sm text-gray-400 text-center">
+                  No revenue data yet.
+                </p>
+                <p className="text-xs text-gray-300 text-center">
+                  Add a <span className="font-semibold">category</span> field to CustomerOrders to see this chart.
+                </p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={270}>
+                <PieChart>
+                  <Pie
+                    data={categoryData.filter((c) => c.profit > 0)}
+                    dataKey="profit"
+                    nameKey="category"
+                    innerRadius={68}
+                    outerRadius={105}
+                    paddingAngle={3}
+                  >
+                    {categoryData
+                      .filter((c) => c.profit > 0)
+                      .map((_, index) => (
+                        <Cell
+                          key={index}
+                          fill={CHART_COLORS[index % CHART_COLORS.length]}
+                          stroke="transparent"
+                        />
+                      ))}
+                  </Pie>
+                  <Tooltip content={<CustomPieTooltip />} />
+                  <Legend wrapperStyle={{ paddingTop: 14, fontSize: 12, color: "#64748b" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
-        {/* ── Category Breakdown Table ── */}
+        {/* Category Breakdown Table */}
         <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-base font-semibold text-gray-800">Category Breakdown</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Cost, revenue and profit per category</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Cost from products inventory · Revenue from CustomerOrders
+              </p>
             </div>
             <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
               {categoryData.length} Categories
             </span>
           </div>
 
+          {/* Legend explaining data sources */}
+          
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
               <thead>
@@ -303,8 +328,7 @@ export default function FinancialAnalytics() {
               </thead>
               <tbody>
                 {categoryData.map((c, i) => {
-                  // Color-code margin badge: green >= 30%, amber >= 15%, red below 15%
-                  const marginNum = parseFloat(c.margin);
+                  const marginNum  = parseFloat(c.margin);
                   const marginColor =
                     marginNum >= 30 ? "text-emerald-600 bg-emerald-50"
                     : marginNum >= 15 ? "text-amber-600 bg-amber-50"
@@ -325,7 +349,7 @@ export default function FinancialAnalytics() {
                             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                             style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}
                           />
-                          <span className="font-medium text-gray-800">{c.category}</span>
+                          <span className="font-medium text-gray-800 capitalize">{c.category}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3.5 font-mono text-red-500 text-[13px] font-medium">
@@ -333,13 +357,15 @@ export default function FinancialAnalytics() {
                       </td>
                       <td className="px-4 py-3.5 font-mono text-emerald-600 text-[13px] font-medium">
                         Rs. {c.revenue.toLocaleString()}
+                        {c.revenue === 0 && (
+                          <span className="ml-1.5 text-[10px] text-amber-400 font-sans">no orders</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 font-mono text-blue-700 text-[13px] font-semibold">
                         Rs. {c.profit.toLocaleString()}
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
-                          {/* Mini progress bar showing margin visually, capped at 100% */}
                           <div className="w-16 h-1.5 rounded-full bg-gray-100">
                             <div
                               className={`h-full rounded-full ${barColor}`}
@@ -356,7 +382,7 @@ export default function FinancialAnalytics() {
                 })}
               </tbody>
 
-              {/* Totals footer - aggregated row across all categories */}
+              {/* Totals footer */}
               <tfoot>
                 <tr className="bg-slate-50 border-t-2 border-slate-200">
                   <td className="px-4 py-3.5 text-xs font-bold text-gray-500 uppercase tracking-wider">
