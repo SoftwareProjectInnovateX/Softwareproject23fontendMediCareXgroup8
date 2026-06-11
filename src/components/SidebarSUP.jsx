@@ -18,6 +18,7 @@ export default function Sidebar() {
     { id: 5, icon: <MdLocalShipping size={20} />, text: "Update Delivery",    path: "/supplier/update-delivery" },
     { id: 6, icon: <MdReceiptLong size={20} />,   text: "Invoice & Payments", path: "/supplier/invoices" },
     { id: 7, icon: <MdSettings size={20} />,      text: "Settings",           path: "/supplier/settings" },
+    { id: 8, icon: <MdDashboard size={20} />,     text: "AI Analytics",       path: "/supplier/aianalytics" },
   ];
 
   return (
