@@ -395,15 +395,13 @@ export default function SalesForecast() {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                <IconChart className="w-4 h-4" />
-              </div>
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight">
+              
+              <h1 className="text-3xl font-bold text-slate-800 mb-2">
                 AI Sales Forecast
               </h1>
             </div>
-            <p className="text-xs text-slate-500 ml-10">
-              Demand prediction · 7-day &amp; 30-day outlook · Real sales data + Gemini AI
+            <p className="text-slate-500 text-[15px]">
+              Demand prediction · 7-day &amp; 30-day outlook · Real sales data + AI Insight
             </p>
           </div>
           <div className="flex items-center gap-2 bg-blue-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-sm">
@@ -658,7 +656,7 @@ export default function SalesForecast() {
                   <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center text-white">
                     <IconSparkle className="w-3 h-3" />
                   </div>
-                  <span className="text-sm font-bold text-slate-800">Gemini AI Insight</span>
+                  <span className="text-sm font-bold text-slate-800">AI Insight</span>
                 </div>
                 <button
                   onClick={fetchAiInsight}
@@ -698,7 +696,7 @@ export default function SalesForecast() {
                   <p className="text-xs text-slate-400">
                     Select a product and click{" "}
                     <span className="font-medium text-blue-500">Analyse</span> for a
-                    Gemini AI-powered trend analysis and restocking recommendation.
+                     AI-powered trend analysis and restocking recommendation.
                   </p>
                 </div>
               )}
