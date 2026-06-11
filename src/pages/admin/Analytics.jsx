@@ -68,28 +68,22 @@ const TableRow = ({ cells, highlight }) => (
 
 /* ─── main component ─────────────────────────────────────────── */
 export default function SalesAnalytics() {
-  const [orders, setOrders]                   = useState([]);
-  const [purchaseOrders, setPurchaseOrders]   = useState([]);
-  const [payments, setPayments]               = useState([]);
-  const [customerOrders, setCustomerOrders]   = useState([]); 
-  const [loading, setLoading]                 = useState(true);
-  const [year, setYear]                       = useState(CURRENT_YEAR);
-  const [activeTab, setActiveTab]             = useState("overview"); // overview | products | suppliers
+  const [payments, setPayments]             = useState([]);
+  const [customerOrders, setCustomerOrders] = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [year, setYear]                     = useState(CURRENT_YEAR);
+  const [activeTab, setActiveTab]           = useState("overview"); // overview | products | suppliers
 
   /* ── fetch ── */
   useEffect(() => {
     const fetch = async () => {
       try {
-        const [oSnap, poSnap, pySnap, coSnap] = await Promise.all([
-          getDocs(collection(db, "orders")),
-          getDocs(collection(db, "purchaseOrders")),
+        const [pySnap, coSnap] = await Promise.all([
           getDocs(collection(db, "payments")),
-          getDocs(collection(db, "CustomerOrders")), 
+          getDocs(collection(db, "CustomerOrders")),
         ]);
-        setOrders(oSnap.docs.map((d) => d.data()));
-        setPurchaseOrders(poSnap.docs.map((d) => d.data()));
         setPayments(pySnap.docs.map((d) => d.data()));
-        setCustomerOrders(coSnap.docs.map((d) => d.data())); 
+        setCustomerOrders(coSnap.docs.map((d) => d.data()));
       } catch (e) {
         console.error(e);
       } finally {
@@ -100,39 +94,44 @@ export default function SalesAnalytics() {
   }, []);
 
   /* ── derived data ── */
-  const { filteredOrders, filteredPO, filteredPayments, filteredCustomerOrders } = useMemo(() => {
-    const byYear = (arr, field) =>
-      arr.filter((d) => toDate(d[field])?.getFullYear() === year);
-
+  const { filteredPayments, filteredCustomerOrders } = useMemo(() => {
     return {
-      filteredOrders:         byYear(orders, "createdAt"),
-      filteredPO:             byYear(purchaseOrders, "createdAt"),
-      filteredPayments:       payments.filter((p) => p.status === "PAID" && toDate(p.paidDate)?.getFullYear() === year),
-      filteredCustomerOrders: byYear(customerOrders, "createdAt"), // NEW
+      // Cost: payments made by admin to suppliers (PAID status), filtered by year using paidDate or createdAt
+      filteredPayments: payments.filter(
+        (p) => p.status === "PAID" && toDate(p.paidDate || p.createdAt)?.getFullYear() === year
+      ),
+      // Revenue: customer orders filtered by year
+      filteredCustomerOrders: customerOrders.filter(
+        (o) => toDate(o.createdAt)?.getFullYear() === year
+      ),
     };
-  }, [orders, purchaseOrders, payments, customerOrders, year]);
+  }, [payments, customerOrders, year]);
 
   /* ── KPIs ── */
   // Revenue = what customers paid admin (CustomerOrders → totalAmount)
   const totalRevenue  = filteredCustomerOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
-  // Cost = what admin paid suppliers (purchaseOrders)
-  const totalCost     = filteredPO.reduce((s, p) => s + (p.amount || p.totalAmount || 0), 0);
+  // Cost = what admin paid suppliers (payments collection → amount)
+  const totalCost     = filteredPayments.reduce((s, p) => s + (p.amount || 0), 0);
   const totalProfit   = totalRevenue - totalCost;
   const margin        = totalRevenue ? ((totalProfit / totalRevenue) * 100).toFixed(1) : 0;
-  const totalOrders   = filteredCustomerOrders.length; // count of customer orders
+  const totalOrders   = filteredCustomerOrders.length;
   const avgOrderValue = totalOrders ? (totalRevenue / totalOrders) : 0;
   const overdueAmt    = payments.filter((p) => p.status === "OVERDUE").reduce((s, p) => s + (p.amount || 0), 0);
 
   /* ── monthly trend ── */
   const monthlyTrend = useMemo(() => MONTHS.map((month, i) => {
     // Revenue: from CustomerOrders
-    const rev  = filteredCustomerOrders.filter((o) => toDate(o.createdAt)?.getMonth() === i).reduce((s, o) => s + (o.totalAmount || 0), 0);
-    // Cost: from purchaseOrders
-    const cost = filteredPO.filter((p) => toDate(p.createdAt)?.getMonth() === i).reduce((s, p) => s + (p.amount || p.totalAmount || 0), 0);
+    const rev  = filteredCustomerOrders
+      .filter((o) => toDate(o.createdAt)?.getMonth() === i)
+      .reduce((s, o) => s + (o.totalAmount || 0), 0);
+    // Cost: from payments (admin→supplier), using paidDate or createdAt
+    const cost = filteredPayments
+      .filter((p) => toDate(p.paidDate || p.createdAt)?.getMonth() === i)
+      .reduce((s, p) => s + (p.amount || 0), 0);
     // Order count: from CustomerOrders
     const cnt  = filteredCustomerOrders.filter((o) => toDate(o.createdAt)?.getMonth() === i).length;
     return { month, Revenue: rev, Cost: cost, Profit: rev - cost, Orders: cnt };
-  }), [filteredCustomerOrders, filteredPO]);
+  }), [filteredCustomerOrders, filteredPayments]);
 
   /* ── category breakdown ──
      CustomerOrders don't have a top-level category; derive from types[] items.
@@ -149,7 +148,6 @@ export default function SalesAnalytics() {
           map[cat].orders  += 1;
         });
       } else {
-        // fallback: use top-level category if present
         const cat = o.category || "Uncategorized";
         if (!map[cat]) map[cat] = { category: cat, revenue: 0, orders: 0 };
         map[cat].revenue += o.totalAmount || 0;
@@ -175,7 +173,6 @@ export default function SalesAnalytics() {
           map[name].orders  += 1;
         });
       } else {
-        // fallback: original orders collection product fields
         const name = o.productName || o.product || "Unknown";
         if (!map[name]) map[name] = { name, qty: 0, revenue: 0, orders: 0 };
         map[name].qty     += o.quantity || 0;
@@ -186,17 +183,18 @@ export default function SalesAnalytics() {
     return Object.values(map).sort((a, b) => b.qty - a.qty).slice(0, 8);
   }, [filteredCustomerOrders]);
 
-  /* ── top suppliers ── (unchanged — still from purchaseOrders) */
+  /* ── top suppliers ──
+     From payments collection — group by supplierName, sum amount paid */
   const supplierData = useMemo(() => {
     const map = {};
-    filteredPO.forEach((po) => {
-      const name = po.supplierName || "Unknown";
+    filteredPayments.forEach((p) => {
+      const name = p.supplierName || "Unknown";
       if (!map[name]) map[name] = { name, spend: 0, orders: 0 };
-      map[name].spend  += po.amount || po.totalAmount || 0;
+      map[name].spend  += p.amount || 0;
       map[name].orders += 1;
     });
     return Object.values(map).sort((a, b) => b.spend - a.spend).slice(0, 8);
-  }, [filteredPO]);
+  }, [filteredPayments]);
 
   /* ── order status distribution — from CustomerOrders ── */
   const statusDist = useMemo(() => {
@@ -208,14 +206,14 @@ export default function SalesAnalytics() {
     return Object.entries(map).map(([status, count]) => ({ status, count }));
   }, [filteredCustomerOrders]);
 
-  /* ── available years — derived from CustomerOrders ── */
+  /* ── available years — derived from CustomerOrders and payments ── */
   const years = useMemo(() => {
     const ys = new Set([
       ...customerOrders.map((o) => toDate(o.createdAt)?.getFullYear()),
-      ...orders.map((o) => toDate(o.createdAt)?.getFullYear()),
+      ...payments.map((p) => toDate(p.paidDate || p.createdAt)?.getFullYear()),
     ].filter(Boolean));
     return [...ys].sort((a, b) => b - a);
-  }, [customerOrders, orders]);
+  }, [customerOrders, payments]);
 
   /* ─── loading ─── */
   if (loading) {
@@ -242,7 +240,7 @@ export default function SalesAnalytics() {
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-1">Sales Analytics</h1>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Sales Analytics</h1>
           <p className="text-slate-500 text-[15px]">Track revenue, orders, and business performance</p>
         </div>
 
@@ -478,7 +476,7 @@ export default function SalesAnalytics() {
               <table className="w-full border-collapse text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    {["Rank", "Supplier", "Purchase Orders", "Total Spend", "Avg. PO Value", "Spend Share"].map((h) => (
+                    {["Rank", "Supplier", "Payments", "Total Spend", "Avg. Payment", "Spend Share"].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">{h}</th>
                     ))}
                   </tr>

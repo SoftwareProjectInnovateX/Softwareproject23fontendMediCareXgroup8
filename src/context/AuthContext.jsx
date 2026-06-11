@@ -1,22 +1,20 @@
+// src/contexts/AuthContext.jsx
 import { createContext, useContext, useEffect, useState } from "react";
-import {
+import { 
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  GoogleAuthProvider,
-  signInWithPopup,
+  signOut
 } from "firebase/auth";
-import {
-  doc,
+import { 
+  doc, 
+  setDoc, 
   getDoc,
   collection,
   getDocs,
   addDoc,
-  setDoc,
-  Timestamp,
-} from "firebase/firestore";
+  Timestamp
+} from 'firebase/firestore';
 import { auth, db } from "../services/firebase";
 
 const AuthContext = createContext();
@@ -32,21 +30,19 @@ export function AuthProvider({ children }) {
     try {
       const collectionRef = collection(db, collectionName);
       const snapshot = await getDocs(collectionRef);
-
-      // Get the highest number
+      
       let maxNum = 0;
-      snapshot.forEach((doc) => {
+      snapshot.forEach(doc => {
         const data = doc.data();
         const idField = `${collectionName.slice(0, -1)}Id`;
         if (data[idField]) {
-          const num = parseInt(data[idField].replace(prefix, ""));
+          const num = parseInt(data[idField].replace(prefix, ''));
           if (num > maxNum) maxNum = num;
         }
       });
-
-      // Generate next ID
+      
       const nextNum = maxNum + 1;
-      return `${prefix}${String(nextNum).padStart(3, "0")}`;
+      return `${prefix}${String(nextNum).padStart(3, '0')}`;
     } catch (error) {
       console.error(`Error generating ${collectionName} ID:`, error);
       return `${prefix}${String(Date.now()).slice(-3)}`;
@@ -58,127 +54,102 @@ export function AuthProvider({ children }) {
     const { role } = userData;
 
     try {
-      if (role === "customer") {
-        // ── Customer: create account immediately ──
+      if (role === 'customer') {
         const { fullName, email, password, phone } = userData;
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password,
-        );
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
-        const customerId = await generateNextId("users", "C");
+
+        // correctly find the highest existing customerId
+        const snapshot = await getDocs(collection(db, 'users'));
+        let maxNum = 0;
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.customerId) {
+            const num = parseInt(data.customerId.replace('C', ''));
+            if (num > maxNum) maxNum = num;
+          }
+        });
+        const customerId = `C${String(maxNum + 1).padStart(3, '0')}`;
 
         const savedUserData = {
           customerId,
-          userId: user.uid,
+          userId:    user.uid,
           fullName,
           email,
-          phone: phone || "",
-          role: "customer",
-          status: "active",
+          phone:     phone || '',
+          role:      'customer',
+          status:    'active',
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         };
-        await setDoc(doc(db, "users", user.uid), savedUserData);
+
+        await setDoc(doc(db, 'users', user.uid), savedUserData);
+        sessionStorage.setItem('userId',    user.uid);
+        sessionStorage.setItem('userRole',  'customer');
+        sessionStorage.setItem('userName',  fullName);
+        sessionStorage.setItem('userEmail', email);
+        setUserRole('customer');
 
         return {
           success: true,
-          user: { uid: user.uid, email, role: "customer", ...savedUserData },
+          user: { uid: user.uid, email, role: 'customer', ...savedUserData },
         };
-      } else if (role === "supplier") {
-        // ── Supplier: save as pending request (NO Firebase Auth yet) ──
+
+      } else if (role === 'supplier') {
         const {
-          companyName,
-          email,
-          contactPerson,
-          phone,
-          businessRegNo,
-          businessAddress,
-          categories,
-          bankName,
-          accountNumber,
-          accountHolderName,
+          companyName, email, password, contactPerson, phone,
+          businessRegNo, businessAddress, categories,
+          bankName, accountNumber, accountHolderName,
         } = userData;
 
-        // Save request to pendingRequests collection
-        await addDoc(collection(db, "pendingRequests"), {
-          type: "supplier",
+        await addDoc(collection(db, 'pendingRequests'), {
+          type:               'supplier',
           companyName,
           email,
+          password,
           contactPerson,
           phone,
           businessRegNo,
           businessAddress,
-          categories: categories || [],
+          categories:         categories || [],
           bankName,
           accountNumber,
           accountHolderName,
-          status: "pending",
-          requestedAt: Timestamp.now(),
-        });
-
-        // Notify admin that a new account request has been submitted
-        await addDoc(collection(db, "notifications"), {
-          type: "ACCOUNT_REQUEST",
-          message: `New supplier account request from ${companyName}`,
-          applicantName: companyName,
-          applicantEmail: email,
-          applicantRole: "supplier",
-          recipientType: "admin",
-          read: false,
-          createdAt: Timestamp.now(),
+          status:             'pending',
+          requestedAt:        Timestamp.now(),
         });
 
         return { success: true, pending: true };
-      } else if (role === "pharmacist") {
-        //Pharmacist: save as pending request
+
+      } else if (role === 'pharmacist') {
         const {
-          fullName,
-          email,
-          phone,
-          nicNumber,
-          licenseNumber,
-          licenseExpiry,
-          specialization,
+          fullName, email, password, phone,
+          nicNumber, licenseNumber, licenseExpiry, specialization,
         } = userData;
 
-        await addDoc(collection(db, "pendingRequests"), {
-          type: "pharmacist",
+        await addDoc(collection(db, 'pendingRequests'), {
+          type:          'pharmacist',
           fullName,
           email,
+          password,
           phone,
           nicNumber,
           licenseNumber,
           licenseExpiry,
           specialization,
-          status: "pending",
-          requestedAt: Timestamp.now(),
-        });
-
-        // Notify admin that a new account request has been submitted
-        await addDoc(collection(db, "notifications"), {
-          type: "ACCOUNT_REQUEST",
-          message: `New pharmacist account request from ${fullName}`,
-          applicantName: fullName,
-          applicantEmail: email,
-          applicantRole: "pharmacist",
-          recipientType: "admin",
-          read: false,
-          createdAt: Timestamp.now(),
+          status:        'pending',
+          requestedAt:   Timestamp.now(),
         });
 
         return { success: true, pending: true };
       }
+
     } catch (error) {
-      console.error("Registration error:", error);
-      let message = "Registration failed";
-      if (error.code === "auth/email-already-in-use")
-        message = "Email already registered";
-      else if (error.code === "auth/weak-password")
-        message = "Password too weak";
-      else if (error.code === "auth/invalid-email")
-        message = "Invalid email address";
+      console.error('Registration error:', error);
+      let message = 'Registration failed';
+      if (error.code === 'auth/email-already-in-use') message = 'Email already registered';
+      else if (error.code === 'auth/weak-password')   message = 'Password too weak';
+      else if (error.code === 'auth/invalid-email')   message = 'Invalid email address';
       throw new Error(message);
     }
   };
@@ -186,24 +157,20 @@ export function AuthProvider({ children }) {
   // Login user
   const login = async (email, password) => {
     try {
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password,
-      );
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       let userData = null;
       let actualRole = null;
 
       const roleCollections = {
-        supplier: "suppliers",
-        customer: "users",
-        pharmacist: "pharmacists",
-        admin: "admins",
+        'supplier': 'suppliers',
+        'customer': 'users',
+        'pharmacist': 'pharmacists',
+        'admin': 'admins'
       };
 
-      for (const [, collectionName] of Object.entries(roleCollections)) {
+      for (const [role, collectionName] of Object.entries(roleCollections)) {
         const userDoc = await getDoc(doc(db, collectionName, user.uid));
         if (userDoc.exists()) {
           userData = userDoc.data();
@@ -212,141 +179,48 @@ export function AuthProvider({ children }) {
         }
       }
 
-      //if user data not found, throw erroe
       if (!userData) {
         await signOut(auth);
-        throw new Error(
-          "User profile not found. Please contact administrator.",
-        );
+        throw new Error('User profile not found. Please contact administrator.');
       }
 
-      // Check account is active
-      if (userData.status && userData.status !== "active") {
-        await signOut(auth);
-        throw new Error(
-          "Your account is suspended. Please contact the administrator.",
-        );
-      }
-      // Update last login time
-      const _collectionName = roleCollections[actualRole];
+      const collectionName = roleCollections[actualRole];
+      await setDoc(doc(db, collectionName, user.uid), {
+        ...userData,
+        lastLogin: Timestamp.now()
+      }, { merge: true });
 
-      sessionStorage.setItem("userId", user.uid);
-      sessionStorage.setItem("userRole", actualRole);
-      sessionStorage.setItem("userName", userData.fullName || userData.name);
-      sessionStorage.setItem("userEmail", userData.email);
+      sessionStorage.setItem('userId', user.uid);
+      sessionStorage.setItem('userRole', actualRole);
+      sessionStorage.setItem('userName', userData.fullName || userData.name);
+      sessionStorage.setItem('userEmail', userData.email);
 
       setUserRole(actualRole);
 
-      return {
-        success: true,
+      console.log(` User logged in as ${actualRole} in this tab`);
+
+      return { 
+        success: true, 
         user: {
           uid: user.uid,
           email: user.email,
           role: actualRole,
-          ...userData,
-        },
+          ...userData
+        }
       };
     } catch (error) {
-      console.error("Login error:", error);
-
-      let message = "Login failed";
-      if (
-        error.code === "auth/user-not-found" ||
-        error.code === "auth/wrong-password"
-      ) {
-        message = "Invalid email or password";
-      } else if (error.code === "auth/invalid-credential") {
-        message = "Invalid email or password";
-      } else if (error.message.includes("not found")) {
+      console.error('Login error:', error);
+      
+      let message = 'Login failed';
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = 'Invalid email or password';
+      } else if (error.code === 'auth/invalid-credential') {
+        message = 'Invalid email or password';
+      } else if (error.message.includes('not found')) {
         message = error.message;
       }
-
+      
       throw new Error(message);
-    }
-  };
-
-  // Login with Google
-  const loginWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      let userData = null;
-      let actualRole = null;
-
-      const roleCollections = {
-        supplier: "suppliers",
-        customer: "users",
-        pharmacist: "pharmacists",
-        admin: "admins",
-      };
-
-      // 1. Check if user already exists in any collection
-      for (const [, collectionName] of Object.entries(roleCollections)) {
-        const userDoc = await getDoc(doc(db, collectionName, user.uid));
-        if (userDoc.exists()) {
-          userData = userDoc.data();
-          actualRole = userData.role;
-          break;
-        }
-      }
-
-      // 2. If user doesn't exist, create as a Customer by default
-      if (!userData) {
-        const customerId = await generateNextId("users", "C");
-        actualRole = "customer";
-        userData = {
-          customerId,
-          userId: user.uid,
-          fullName: user.displayName || "New Customer",
-          email: user.email,
-          phone: user.phoneNumber || "",
-          role: "customer",
-          status: "active",
-          createdAt: Timestamp.now(),
-          updatedAt: Timestamp.now(),
-        };
-        await setDoc(doc(db, "users", user.uid), userData);
-      }
-
-      // 3. Check account is active
-      if (userData.status && userData.status !== "active") {
-        await signOut(auth);
-        throw new Error("Your account is suspended. Please contact the administrator.");
-      }
-
-      // 4. Setup session
-      sessionStorage.setItem("userId", user.uid);
-      sessionStorage.setItem("userRole", actualRole);
-      sessionStorage.setItem("userName", userData.fullName || userData.name);
-      sessionStorage.setItem("userEmail", userData.email);
-
-      setUserRole(actualRole);
-
-      return {
-        success: true,
-        user: {
-          uid: user.uid,
-          email: user.email,
-          role: actualRole,
-          ...userData,
-        },
-      };
-    } catch (error) {
-      console.error("Google login error:", error);
-      throw error;
-    }
-  };
-
-  // Send password reset email
-  const resetPassword = async (email) => {
-    try {
-      await sendPasswordResetEmail(auth, email);
-      return { success: true };
-    } catch (error) {
-      console.error("Password reset error:", error);
-      throw error; // throw the raw error so ForgotPassword.jsx can read error.code
     }
   };
 
@@ -360,8 +234,8 @@ export function AuthProvider({ children }) {
       setUserRole(null);
       return { success: true };
     } catch (error) {
-      console.error("Logout error:", error);
-      throw new Error("Logout failed");
+      console.error('Logout error:', error);
+      throw new Error('Logout failed');
     }
   };
 
@@ -370,25 +244,15 @@ export function AuthProvider({ children }) {
     if (!currentUser) return null;
 
     try {
-      // Try to get from appropriate collection based on role
-      const role = sessionStorage.getItem("userRole");
+      const role = sessionStorage.getItem('userRole');
       let collectionName;
-
-      switch (role) {
-        case "supplier":
-          collectionName = "suppliers";
-          break;
-        case "customer":
-          collectionName = "users";
-          break;
-        case "pharmacist":
-          collectionName = "pharmacists";
-          break;
-        case "admin":
-          collectionName = "admins";
-          break;
-        default:
-          return null;
+      
+      switch(role) {
+        case 'supplier': collectionName = 'suppliers'; break;
+        case 'customer': collectionName = 'users'; break;
+        case 'pharmacist': collectionName = 'pharmacists'; break;
+        case 'admin': collectionName = 'admins'; break;
+        default: return null;
       }
 
       const userDoc = await getDoc(doc(db, collectionName, currentUser.uid));
@@ -397,23 +261,23 @@ export function AuthProvider({ children }) {
       }
       return null;
     } catch (error) {
-      console.error("Error fetching user data:", error);
+      console.error('Error fetching user data:', error);
       return null;
     }
   };
 
   // Get supplier profile for current user
   const getSupplierProfile = async () => {
-    if (!currentUser || userRole !== "supplier") return null;
+    if (!currentUser || userRole !== 'supplier') return null;
 
     try {
-      const supplierDoc = await getDoc(doc(db, "suppliers", currentUser.uid));
+      const supplierDoc = await getDoc(doc(db, 'suppliers', currentUser.uid));
       if (supplierDoc.exists()) {
         return { id: supplierDoc.id, ...supplierDoc.data() };
       }
       return null;
     } catch (error) {
-      console.error("Error fetching supplier profile:", error);
+      console.error('Error fetching supplier profile:', error);
       return null;
     }
   };
@@ -424,73 +288,67 @@ export function AuthProvider({ children }) {
       if (currentUser) {
         setUser(currentUser);
         setCurrentUser(currentUser);
-
-        // Check if we have role in sessionStorage (tab-specific)
-        const storedRole = sessionStorage.getItem("userRole");
-
+        
+        const storedRole = sessionStorage.getItem('userRole');
+        
         if (storedRole) {
           setUserRole(storedRole);
           setLoading(false);
           return;
         }
-
-        // If no stored role, fetch from database
+        
         try {
-          // Try suppliers first
-          let userDoc = await getDoc(doc(db, "suppliers", currentUser.uid));
+          let userDoc = await getDoc(doc(db, 'suppliers', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserRole(userData.role);
-            sessionStorage.setItem("userId", currentUser.uid);
-            sessionStorage.setItem("userRole", userData.role);
-            sessionStorage.setItem("userName", userData.name);
-            sessionStorage.setItem("userEmail", userData.email);
+            sessionStorage.setItem('userId', currentUser.uid);
+            sessionStorage.setItem('userRole', userData.role);
+            sessionStorage.setItem('userName', userData.name);
+            sessionStorage.setItem('userEmail', userData.email);
             setLoading(false);
             return;
           }
 
-          // Try pharmacists
-          userDoc = await getDoc(doc(db, "pharmacists", currentUser.uid));
+          userDoc = await getDoc(doc(db, 'pharmacists', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserRole(userData.role);
-            sessionStorage.setItem("userId", currentUser.uid);
-            sessionStorage.setItem("userRole", userData.role);
-            sessionStorage.setItem("userName", userData.name);
-            sessionStorage.setItem("userEmail", userData.email);
+            sessionStorage.setItem('userId', currentUser.uid);
+            sessionStorage.setItem('userRole', userData.role);
+            sessionStorage.setItem('userName', userData.name);
+            sessionStorage.setItem('userEmail', userData.email);
             setLoading(false);
             return;
           }
 
-          // Try admins
-          userDoc = await getDoc(doc(db, "admins", currentUser.uid));
+          userDoc = await getDoc(doc(db, 'admins', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserRole(userData.role);
-            sessionStorage.setItem("userId", currentUser.uid);
-            sessionStorage.setItem("userRole", userData.role);
-            sessionStorage.setItem("userName", userData.fullName);
-            sessionStorage.setItem("userEmail", userData.email);
+            sessionStorage.setItem('userId', currentUser.uid);
+            sessionStorage.setItem('userRole', userData.role);
+            sessionStorage.setItem('userName', userData.fullName);
+            sessionStorage.setItem('userEmail', userData.email);
             setLoading(false);
             return;
           }
 
-          // Try users (for customers)
-          userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          userDoc = await getDoc(doc(db, 'users', currentUser.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserRole(userData.role);
-            sessionStorage.setItem("userId", currentUser.uid);
-            sessionStorage.setItem("userRole", userData.role);
-            sessionStorage.setItem("userName", userData.fullName);
-            sessionStorage.setItem("userEmail", userData.email);
+            sessionStorage.setItem('userId', currentUser.uid);
+            sessionStorage.setItem('userRole', userData.role);
+            sessionStorage.setItem('userName', userData.fullName);
+            sessionStorage.setItem('userEmail', userData.email);
             setLoading(false);
             return;
           }
 
-          console.error("User data not found in any collection");
+          console.error('User data not found in any collection');
         } catch (error) {
-          console.error("Error fetching user role:", error);
+          console.error('Error fetching user role:', error);
         }
       } else {
         setUser(null);
@@ -498,7 +356,7 @@ export function AuthProvider({ children }) {
         setUserRole(null);
         sessionStorage.clear();
       }
-
+      
       setLoading(false);
     });
 
@@ -512,11 +370,9 @@ export function AuthProvider({ children }) {
     loading,
     register,
     login,
-    loginWithGoogle,
     logout,
-    resetPassword,
     getCurrentUserData,
-    getSupplierProfile,
+    getSupplierProfile
   };
 
   return (
@@ -526,11 +382,10 @@ export function AuthProvider({ children }) {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
+    throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
 }

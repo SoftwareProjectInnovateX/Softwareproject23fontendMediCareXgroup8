@@ -10,31 +10,36 @@ const formatTs = (ts) => {
   } catch { return null; }
 };
 
-const TimelineRow = ({ icon, label, value }) => {
+/* ── TimelineStep ── */
+const TimelineRow = ({ icon, label, value, isLast }) => {
   if (!value) return null;
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-600">
-        {icon}
+      <div className="flex flex-col items-center">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-600 ring-2 ring-white">
+          {icon}
+        </div>
+        {!isLast && <div className="mt-1 h-full w-px bg-teal-100" style={{ minHeight: 16 }} />}
       </div>
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</p>
-        <p className="mt-0.5 text-sm font-medium text-slate-700">{value}</p>
+      <div className="pb-4">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+        <p className="mt-0.5 text-sm font-semibold text-slate-700">{value}</p>
       </div>
     </div>
   );
 };
 
+/* ── FinalPaymentBadge ── */
 const FinalPaymentBadge = ({ status }) =>
   status === 'PAID' ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700">
       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75" />
       </svg>
       Fully Paid
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700">
       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
       </svg>
@@ -82,36 +87,59 @@ const TIMELINE_STEPS = [
   },
 ];
 
-const CompletedDeliveryCard = ({ delivery }) => (
-  <div className="rounded-xl border-2 border-teal-400 bg-white p-6 shadow-sm">
+const CompletedDeliveryCard = ({ delivery }) => {
+  const visibleSteps = TIMELINE_STEPS.filter(({ key, fallbackKey }) =>
+    formatTs(fallbackKey ? (delivery[key] ?? delivery[fallbackKey]) : delivery[key])
+  );
 
-    {/* Header */}
-    <div className="flex flex-wrap items-center gap-3 mb-5">
-      <StatusBadge status="COMPLETED" />
-      <span className="text-base font-bold text-slate-800">{delivery.poId}</span>
-      <span className="text-sm text-slate-500">{delivery.product || delivery.productName}</span>
-      <FinalPaymentBadge status={delivery.finalPaymentStatus} />
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+
+      {/* Teal accent top strip */}
+      <div className="h-1 w-full bg-gradient-to-r from-teal-400 to-teal-500" />
+
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <StatusBadge status="COMPLETED" />
+          <span className="text-sm font-bold text-slate-800">{delivery.poId}</span>
+          <span className="text-sm text-slate-500">{delivery.product || delivery.productName}</span>
+        </div>
+        <FinalPaymentBadge status={delivery.finalPaymentStatus} />
+      </div>
+
+      {/* Details */}
+      <div className="px-6 py-5">
+        <OrderDetailsGrid delivery={delivery} amountLabel="Total Amount" />
+      </div>
+
+      {/* Timeline */}
+      {visibleSteps.length > 0 && (
+        <div className="px-6 pb-5">
+          <div className="rounded-xl bg-slate-50 border border-slate-100 px-5 py-4">
+            <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-slate-400">Delivery Timeline</p>
+            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4">
+              {TIMELINE_STEPS.map(({ label, key, fallbackKey, icon }, i) => (
+                <TimelineRow
+                  key={label}
+                  label={label}
+                  value={formatTs(fallbackKey ? (delivery[key] ?? delivery[fallbackKey]) : delivery[key])}
+                  icon={icon}
+                  isLast={i === TIMELINE_STEPS.length - 1}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {delivery.trackingNumber && (
+        <div className="px-6 pb-5">
+          <TrackingRow trackingNumber={delivery.trackingNumber} />
+        </div>
+      )}
     </div>
-
-    <OrderDetailsGrid delivery={delivery} amountLabel="Total Amount" />
-
-    <div className="my-5 border-t border-slate-100" />
-
-    {/* Timeline */}
-    <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Delivery Timeline</p>
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {TIMELINE_STEPS.map(({ label, key, fallbackKey, icon }) => (
-        <TimelineRow
-          key={label}
-          label={label}
-          value={formatTs(fallbackKey ? (delivery[key] ?? delivery[fallbackKey]) : delivery[key])}
-          icon={icon}
-        />
-      ))}
-    </div>
-
-    <TrackingRow trackingNumber={delivery.trackingNumber} className="mt-4" />
-  </div>
-);
+  );
+};
 
 export default CompletedDeliveryCard;

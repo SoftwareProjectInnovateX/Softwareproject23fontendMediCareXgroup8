@@ -78,43 +78,66 @@ export default function RestockAlert() {
 
   // Stat card definitions — avoids repetitive inline JSX
   const statCards = [
-    { label: "Total Alerts", value: alerts.length,              icon: <MdInventory   size={28} className="text-slate-600" />, bg: "bg-white" },
-    { label: "Unread",       value: unreadCount,                icon: <MdWarning     size={28} className="text-white" />,     bg: "bg-gradient-to-br from-indigo-500 to-purple-600", white: true },
-    { label: "Read",         value: alerts.length - unreadCount, icon: <MdCheckCircle size={28} className="text-slate-600" />, bg: "bg-white" },
+    {
+      label: "Total Alerts",
+      value: alerts.length,
+      icon: <MdInventory size={24} className="text-blue-600" />,
+      bg: "bg-white",
+      iconBg: "bg-blue-100",
+      valueCls: "text-blue-950",
+      labelCls: "text-blue-400",
+    },
+    {
+      label: "Unread",
+      value: unreadCount,
+      icon: <MdWarning size={24} className="text-white" />,
+      bg: "bg-blue-600",
+      iconBg: "bg-white/20",
+      valueCls: "text-white",
+      labelCls: "text-blue-200",
+    },
+    {
+      label: "Read",
+      value: alerts.length - unreadCount,
+      icon: <MdCheckCircle size={24} className="text-blue-600" />,
+      bg: "bg-white",
+      iconBg: "bg-blue-100",
+      valueCls: "text-blue-950",
+      labelCls: "text-blue-400",
+    },
   ];
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen max-w-[1200px] mx-auto">
+    <div className="p-6 bg-[#f0f4fb] min-h-screen max-w-[1200px] mx-auto">
 
-      {/* Page header — badge only visible when there are unread alerts */}
-      <div className="flex justify-between items-start mb-8 flex-wrap gap-4">
+      {/* Page header */}
+      <div className="flex justify-between items-start mb-6 flex-wrap gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800 mb-1">Low Stock Alerts</h2>
-          <p className="text-slate-500 text-[15px]">Monitor inventory levels and restock notifications</p>
+          <h2 className="text-2xl font-bold text-blue-950 mb-1 tracking-tight">Low Stock Alerts</h2>
+          <p className="text-[13.5px] text-slate-500">Monitor inventory levels and restock notifications</p>
         </div>
         {unreadCount > 0 && (
-          <span className="bg-red-500 text-white px-4 py-2 rounded-full font-semibold text-sm">
+          <span className="bg-red-50 text-red-600 border border-red-200 px-4 py-1.5 rounded-lg font-bold text-xs uppercase tracking-widest">
             {unreadCount} Unread
           </span>
         )}
       </div>
 
       {/* Summary stat cards — Total / Unread / Read */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         {statCards.map((card) => (
           <div
             key={card.label}
-            className={`${card.bg} p-6 rounded-2xl shadow-sm flex items-center gap-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}
+            className={`${card.bg} p-6 rounded-2xl shadow-[0_1px_4px_rgba(15,36,99,0.08)] border border-blue-50 flex items-center gap-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(15,36,99,0.12)]`}
           >
-            {/* Icon uses semi-transparent bg on the gradient card */}
-            <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 ${card.white ? "bg-white/20" : "bg-slate-100"}`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${card.iconBg}`}>
               {card.icon}
             </div>
             <div>
-              <p className={`text-[1.8rem] font-bold m-0 leading-tight ${card.white ? "text-white" : "text-slate-800"}`}>
+              <p className={`text-3xl font-bold leading-tight tabular-nums ${card.valueCls}`}>
                 {card.value}
               </p>
-              <p className={`text-sm m-0 mt-0.5 ${card.white ? "text-white/90" : "text-slate-500"}`}>
+              <p className={`text-xs font-semibold uppercase tracking-widest mt-0.5 ${card.labelCls}`}>
                 {card.label}
               </p>
             </div>
@@ -122,16 +145,16 @@ export default function RestockAlert() {
         ))}
       </div>
 
-      {/* Filter tabs — active tab is filled indigo */}
-      <div className="flex gap-3 mb-8 flex-wrap">
+      {/* Filter tabs */}
+      <div className="flex gap-2 mb-6 flex-wrap">
         {["All", "Unread", "Read"].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-5 py-3 border-2 rounded-full font-medium text-[15px] cursor-pointer transition-all duration-300
+            className={`px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest cursor-pointer transition-all duration-200
               ${filter === f
-                ? "bg-indigo-500 text-white border-indigo-500"
-                : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:bg-indigo-50"
+                ? "bg-blue-600 text-white shadow-[0_4px_14px_rgba(37,99,235,0.30)]"
+                : "bg-white text-blue-500 border border-blue-200 hover:border-blue-400 hover:bg-blue-50"
               }`}
           >
             {f}
@@ -141,54 +164,53 @@ export default function RestockAlert() {
 
       {/* Alert list — three states: loading, empty, populated */}
       {loading ? (
-        <div className="text-center py-12 text-slate-400 text-lg">Loading alerts...</div>
+        <div className="text-center py-12 text-blue-300 text-sm font-semibold">Loading alerts...</div>
       ) : filteredAlerts.length === 0 ? (
         // Empty state
-        <div className="bg-white rounded-2xl shadow-sm py-16 text-center px-8">
-          <MdCheckCircle size={64} className="text-slate-200 mx-auto mb-4" />
-          <p className="text-lg text-slate-500 mb-1">No low stock alerts</p>
-          <small className="text-sm text-slate-400">All inventory levels are healthy</small>
+        <div className="bg-white rounded-2xl shadow-[0_1px_4px_rgba(15,36,99,0.08)] border border-blue-50 py-16 text-center px-8">
+          <MdCheckCircle size={56} className="text-blue-100 mx-auto mb-4" />
+          <p className="text-base font-semibold text-blue-950 mb-1">No low stock alerts</p>
+          <p className="text-sm text-blue-300">All inventory levels are healthy</p>
         </div>
       ) : (
-        // Alert cards — indigo left border for unread, amber for read
-        <div className="flex flex-col gap-4">
+        // Alert cards
+        <div className="flex flex-col gap-3">
           {filteredAlerts.map((alert) => (
             <div
               key={alert.id}
-              className={`relative bg-white rounded-2xl p-6 shadow-sm flex gap-4 border-l-4 transition-all duration-300
-                hover:shadow-md hover:translate-x-1
-                ${!alert.read ? "bg-indigo-50 border-indigo-500" : "border-amber-400"}`}
+              className={`relative bg-white rounded-2xl p-6 shadow-[0_1px_4px_rgba(15,36,99,0.08)] border border-blue-50 flex gap-4 border-l-4 transition-all duration-300 hover:shadow-[0_8px_24px_rgba(15,36,99,0.12)] hover:translate-x-0.5
+                ${!alert.read ? "border-l-blue-600" : "border-l-blue-200"}`}
             >
               {/* Warning icon */}
-              <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <MdWarning size={26} className="text-amber-600" />
+              <div className="w-11 h-11 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <MdWarning size={22} className="text-amber-500" />
               </div>
 
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
-                  <span className="text-xs font-semibold text-indigo-500 uppercase tracking-wide">
-                    LOW STOCK ALERT
+                  <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">
+                    Low Stock Alert
                   </span>
-                  <span className="text-[13px] text-slate-400">{formatDate(alert.createdAt)}</span>
+                  <span className="text-[12px] text-blue-300 font-medium">{formatDate(alert.createdAt)}</span>
                 </div>
 
-                <p className="text-base text-slate-800 leading-relaxed m-0 mb-4">{alert.message}</p>
+                <p className="text-sm text-blue-950 leading-relaxed mb-4 font-medium">{alert.message}</p>
 
-                {/* Detail pills — only rendered when fields are present */}
-                <div className="flex flex-wrap gap-4 pt-4 border-t border-slate-100">
+                {/* Detail pills */}
+                <div className="flex flex-wrap gap-3 pt-4 border-t border-blue-50">
                   {alert.productName && (
-                    <span className="text-sm text-slate-500">
-                      <strong className="text-slate-700 mr-1">Product:</strong>{alert.productName}
+                    <span className="text-xs text-blue-400 font-medium">
+                      <span className="text-blue-700 font-semibold mr-1">Product:</span>{alert.productName}
                     </span>
                   )}
                   {alert.currentStock !== undefined && (
-                    <span className="text-sm text-slate-500">
-                      <strong className="text-slate-700 mr-1">Current Stock:</strong>{alert.currentStock} units
+                    <span className="text-xs text-blue-400 font-medium">
+                      <span className="text-blue-700 font-semibold mr-1">Current Stock:</span>{alert.currentStock} units
                     </span>
                   )}
                   {alert.supplierId && (
-                    <span className="text-sm text-slate-500">
-                      <strong className="text-slate-700 mr-1">Supplier ID:</strong>{alert.supplierId}
+                    <span className="text-xs text-blue-400 font-medium">
+                      <span className="text-blue-700 font-semibold mr-1">Supplier ID:</span>{alert.supplierId}
                     </span>
                   )}
                 </div>
@@ -197,16 +219,16 @@ export default function RestockAlert() {
                 {!alert.read && (
                   <button
                     onClick={() => markAsRead(alert.id)}
-                    className="mt-4 px-4 py-1.5 text-xs font-semibold text-indigo-600 border border-indigo-300 rounded-full bg-white hover:bg-indigo-50 hover:border-indigo-500 transition-all duration-200 cursor-pointer"
+                    className="mt-4 px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-600 border border-blue-200 rounded-lg bg-white hover:bg-blue-50 hover:border-blue-400 transition-all duration-200 cursor-pointer"
                   >
                     Mark as Read
                   </button>
                 )}
               </div>
 
-              {/* Animated pulse dot — quick visual cue for unread alerts */}
+              {/* Pulse dot for unread alerts */}
               {!alert.read && (
-                <span className="absolute top-6 right-6 w-3 h-3 bg-indigo-500 rounded-full animate-pulse" />
+                <span className="absolute top-6 right-6 w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
               )}
             </div>
           ))}

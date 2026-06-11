@@ -9,13 +9,9 @@ import Card from '../../components/Card';
 import DeliveryCard from '../../components/DeliveryCard';
 import CompletedDeliveryCard from '../../components/CompletedDeliveryCard';
 
-// Order of statuses a delivery moves through
 const STATUS_FLOW  = ['APPROVED', 'PACKED', 'IN DELIVERY', 'DELIVERED'];
-
-// All statuses including COMPLETED for Firestore queries
 const ALL_STATUSES = [...STATUS_FLOW, 'COMPLETED'];
 
-// Format Firestore timestamp to "YYYY-MM-DD", returns "—" if invalid
 const formatDateOnly = (ts) => {
   if (!ts) return '—';
   try {
@@ -25,20 +21,146 @@ const formatDateOnly = (ts) => {
   } catch { return '—'; }
 };
 
+/* ── Inline Toast Notification ── */
+const Toast = ({ toasts, onDismiss }) => {
+  if (!toasts.length) return null;
+  return (
+    <div className="fixed top-5 right-5 z-50 flex flex-col gap-2 w-80">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-start gap-3 rounded-xl px-4 py-3 shadow-lg border text-sm font-medium transition-all
+            ${t.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+              t.type === 'error'   ? 'bg-red-50 border-red-200 text-red-800' :
+              t.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' :
+                                     'bg-blue-50 border-blue-200 text-blue-800'}`}
+        >
+          <span className="mt-0.5 shrink-0">
+            {t.type === 'success' && (
+              <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
+            )}
+            {t.type === 'error' && (
+              <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+            )}
+            {t.type === 'warning' && (
+              <svg className="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+            )}
+            {t.type === 'info' && (
+              <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
+            )}
+          </span>
+          <span className="flex-1 leading-snug">{t.message}</span>
+          <button onClick={() => onDismiss(t.id)} className="shrink-0 text-current opacity-40 hover:opacity-70 transition-opacity">
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ── Tracking Number Modal (replaces window.prompt) ── */
+const TrackingModal = ({ onConfirm, onCancel }) => {
+  const [value, setValue] = useState('');
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 p-6 mx-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
+            <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 0v10" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Enter Tracking Number</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Required before marking as In Delivery</p>
+          </div>
+        </div>
+        <input
+          autoFocus
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && value.trim()) onConfirm(value.trim()); }}
+          placeholder="e.g. TRK-20240101-001"
+          className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 mb-4"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={!value.trim()}
+            onClick={() => value.trim() && onConfirm(value.trim())}
+            className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Confirm Status Modal (replaces window.confirm) ── */
+const ConfirmModal = ({ message, onConfirm, onCancel }) => (
+  <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+    <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 p-6 mx-4">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
+          <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+          </svg>
+        </div>
+        <h3 className="text-sm font-semibold text-slate-800">Confirm Status Update</h3>
+      </div>
+      <p className="text-sm text-slate-600 mb-5 leading-relaxed">{message}</p>
+      <div className="flex gap-2">
+        <button
+          onClick={onCancel}
+          className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
+        >
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+let toastIdCounter = 0;
+
 const UpdateDelivery = () => {
   const [supplierId,    setSupplierId]    = useState(null);
   const [deliveries,    setDeliveries]    = useState([]);
   const [loading,       setLoading]       = useState(true);
-  const [updatingId,    setUpdatingId]    = useState(null);  // tracks which delivery is being updated
-  const [showCompleted, setShowCompleted] = useState(true);  // toggle for completed section
+  const [updatingId,    setUpdatingId]    = useState(null);
+  const [showCompleted, setShowCompleted] = useState(true);
+  const [toasts,        setToasts]        = useState([]);
+  const [trackingModal, setTrackingModal] = useState(null);  // { delivery, newStatus }
+  const [confirmModal,  setConfirmModal]  = useState(null);  // { message, delivery, newStatus }
 
-  // Listen for auth state and store current user's UID
+  const addToast = (message, type = 'info') => {
+    const id = ++toastIdCounter;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  };
+
+  const dismissToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => setSupplierId(user?.uid ?? null));
     return () => unsub();
   }, []);
 
-  // Real-time listener for supplier's purchase orders from Firestore
   useEffect(() => {
     if (!supplierId) { setLoading(false); return; }
     setLoading(true);
@@ -52,7 +174,6 @@ const UpdateDelivery = () => {
 
     const unsub = onSnapshot(q,
       (snapshot) => {
-        // Map each doc to a flat object with normalized timestamps and formatted date
         setDeliveries(snapshot.docs.map((d) => {
           const data = d.data();
           return {
@@ -67,55 +188,52 @@ const UpdateDelivery = () => {
         }));
         setLoading(false);
       },
-      (err) => { alert('Failed to load deliveries: ' + err.message); setLoading(false); }
+      (err) => {
+        addToast('Failed to load deliveries: ' + err.message, 'error');
+        setLoading(false);
+      }
     );
 
-    return () => unsub(); // cleanup listener on unmount
+    return () => unsub();
   }, [supplierId]);
 
-  // Write new status to Firestore and stamp the matching milestone timestamp
   const updateDeliveryStatus = async (deliveryId, newStatus, trackingNumber = '') => {
     try {
       setUpdatingId(deliveryId);
       const payload = { status: newStatus, updatedAt: new Date() };
 
       if (trackingNumber)              payload.trackingNumber = trackingNumber;
-
-      // Stamp timestamp based on which stage was reached
       if (newStatus === 'PACKED')      payload.packedAt       = new Date();
       if (newStatus === 'IN DELIVERY') payload.shippedAt      = new Date();
       if (newStatus === 'DELIVERED')   payload.deliveredAt    = new Date();
 
       await updateDoc(doc(db, 'purchaseOrders', deliveryId), payload);
-      alert(`Delivery status updated to ${newStatus}`);
+      addToast(`Status updated to ${newStatus}`, 'success');
     } catch (err) {
-      alert('Failed to update delivery: ' + err.message);
+      addToast('Failed to update delivery: ' + err.message, 'error');
     } finally {
       setUpdatingId(null);
     }
   };
 
-  // Validate preconditions before advancing status
   const handleStatusChange = (delivery, newStatus) => {
-    // Block if admin hasn't confirmed the initial 50% payment
     if (delivery.initialPaymentStatus !== 'PAID') {
-      alert('Delivery is locked.\n\nYou can only proceed once MediCareX has paid the initial 50% payment.\n\nCheck the Invoice & Payments page for the payment status.');
+      addToast('Delivery is locked. Proceed once MediCareX has paid the initial 50% payment. Check the Invoice & Payments page.', 'warning');
       return;
     }
-    // Require tracking number before moving to IN DELIVERY
     if (newStatus === 'IN DELIVERY' && !delivery.trackingNumber) {
-      const tn = window.prompt('Enter tracking number:');
-      if (tn) updateDeliveryStatus(delivery.id, newStatus, tn);
-    } else if (window.confirm(`Update status to ${newStatus}?`)) {
-      updateDeliveryStatus(delivery.id, newStatus);
+      setTrackingModal({ delivery, newStatus });
+    } else {
+      setConfirmModal({
+        message: `Are you sure you want to update the status of ${delivery.poId} to "${newStatus}"?`,
+        delivery,
+        newStatus,
+      });
     }
   };
 
-  // Split deliveries into active and completed for separate rendering
   const activeDeliveries    = deliveries.filter((d) => d.status !== 'COMPLETED');
   const completedDeliveries = deliveries.filter((d) => d.status === 'COMPLETED');
-
-  // Show locked notice if any approved order is awaiting payment
   const hasLockedApproved   = activeDeliveries.some(
     (d) => d.initialPaymentStatus !== 'PAID' && d.status === 'APPROVED'
   );
@@ -123,13 +241,46 @@ const UpdateDelivery = () => {
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-8">
 
-      {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Delivery Status</h1>
-        <p className="mt-1 text-sm text-slate-500">Track and update order delivery progress</p>
-      </div>
+      <Toast toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Status summary cards — shows count per status */}
+      {trackingModal && (
+        <TrackingModal
+          onConfirm={(tn) => {
+            updateDeliveryStatus(trackingModal.delivery.id, trackingModal.newStatus, tn);
+            setTrackingModal(null);
+          }}
+          onCancel={() => setTrackingModal(null)}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          onConfirm={() => {
+            updateDeliveryStatus(confirmModal.delivery.id, confirmModal.newStatus);
+            setConfirmModal(null);
+          }}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
+
+    {/* Page Header */}
+      <div className="mb-8">
+        <div className="flex items-start gap-3">
+          {/* Icon (if you add one later, place here) */}
+          
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+              Delivery Status
+            </h1>
+
+            <p className="text-sm text-slate-500 mt-1">
+              Track and update order delivery progress
+            </p>
+          </div>
+        </div>
+      </div>
+      {/* Status summary cards */}
       <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-5">
         {ALL_STATUSES.map((status) => (
           <Card
@@ -140,25 +291,26 @@ const UpdateDelivery = () => {
         ))}
       </div>
 
-      {/* Warning banner when an order is locked due to unpaid initial payment */}
+      {/* Warning banner */}
       {hasLockedApproved && (
-        <div className="mb-6 flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-300 p-4">
-          <svg className="h-5 w-5 flex-shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0-10.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.75c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.57-.598-3.75h-.152c-3.196 0-6.1-1.249-8.25-3.286zm0 13.036h.008v.008H12v-.008z" />
-          </svg>
-          <p className="text-sm text-amber-800 font-medium m-0">
+        <div className="mb-6 flex items-center gap-3 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100">
+            <svg className="h-3.5 w-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <p className="text-sm text-amber-800 font-medium">
             Some orders are awaiting initial payment from MediCareX before delivery can begin.
           </p>
         </div>
       )}
 
-      {/* Active deliveries — handles loading, empty, and populated states */}
+      {/* Active deliveries */}
       <div className="space-y-4">
         {loading ? (
-          // Spinner while data loads
-          <div className="flex items-center justify-center rounded-xl bg-white py-20 shadow-sm">
-            <div className="flex items-center gap-3 text-slate-400">
-              <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <div className="flex items-center justify-center rounded-2xl bg-white border border-slate-200 py-20">
+            <div className="flex flex-col items-center gap-3 text-slate-400">
+              <svg className="h-6 w-6 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>
@@ -166,12 +318,16 @@ const UpdateDelivery = () => {
             </div>
           </div>
         ) : activeDeliveries.length === 0 ? (
-          // Empty state
-          <div className="rounded-xl bg-white py-12 text-center shadow-sm">
-            <p className="text-sm text-slate-400">No active deliveries found</p>
+          <div className="flex flex-col items-center rounded-2xl bg-white border border-slate-200 py-14">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 mb-3">
+              <svg className="h-6 w-6 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-slate-500">No active deliveries found</p>
+            <p className="text-xs text-slate-400 mt-1">New orders will appear here once approved</p>
           </div>
         ) : (
-          // Render a card for each active delivery
           activeDeliveries.map((delivery) => (
             <DeliveryCard
               key={delivery.id}
@@ -183,34 +339,32 @@ const UpdateDelivery = () => {
         )}
       </div>
 
-      {/* Completed orders — collapsible, shown only when completed orders exist */}
+      {/* Completed orders */}
       {!loading && completedDeliveries.length > 0 && (
         <div className="mt-10">
-          {/* Toggle button with rotating chevron */}
           <button
             onClick={() => setShowCompleted((v) => !v)}
-            className="mb-4 flex w-full items-center justify-between rounded-xl bg-teal-50 border border-teal-200 px-5 py-3 text-left transition hover:bg-teal-100"
+            className="mb-4 flex w-full items-center justify-between rounded-xl bg-white border border-slate-200 px-5 py-3.5 text-left transition hover:border-blue-200 hover:bg-blue-50/40"
           >
             <div className="flex items-center gap-3">
-              <svg className="h-5 w-5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
-              </svg>
-              <span className="text-sm font-semibold text-teal-800">Completed Orders</span>
-              {/* Badge showing completed order count */}
-              <span className="rounded-full bg-teal-200 px-2 py-0.5 text-xs font-bold text-teal-800">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-100">
+                <svg className="h-3.5 w-3.5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />
+                </svg>
+              </div>
+              <span className="text-sm font-semibold text-slate-700">Completed Orders</span>
+              <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-bold text-teal-700">
                 {completedDeliveries.length}
               </span>
             </div>
-            {/* Chevron rotates when section is expanded */}
             <svg
-              className={`h-4 w-4 text-teal-600 transition-transform ${showCompleted ? 'rotate-180' : ''}`}
+              className={`h-4 w-4 text-slate-400 transition-transform ${showCompleted ? 'rotate-180' : ''}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
           </button>
 
-          {/* Render completed cards only when section is expanded */}
           {showCompleted && (
             <div className="space-y-4">
               {completedDeliveries.map((delivery) => (

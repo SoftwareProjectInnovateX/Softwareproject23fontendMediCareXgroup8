@@ -36,6 +36,7 @@ import AdminPayments from "./pages/admin/AdminPayments";
 import AccountRequests from "./pages/admin/AccountRequests";
 import SearchAnalytics from "./pages/admin/SearchAnalytics";
 import AdminProductApproval from "./pages/admin/AdminProductApproval";
+import SalesForecast from "./pages/admin/SalesForecast";
 
 /* CUSTOMER */
 import HomePage from "./pages/customer/HomePage";
@@ -131,6 +132,7 @@ export default function App() {
         <Route path="account-requests" element={<AccountRequests />} />
         <Route path="search-analytics" element={<SearchAnalytics />} />
         <Route path="adminproductapproval" element={<AdminProductApproval />} />
+        <Route path="salesforecast" element={<SalesForecast />} />
       </Route>
 
       {/* CUSTOMER */}
