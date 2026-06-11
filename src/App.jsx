@@ -22,6 +22,7 @@ import UpdateDelivery from "./pages/supplier/UpdateDelivery";
 import Settings from "./pages/supplier/Settings";
 import InvoicePayments from "./pages/supplier/InvoicePayments";
 import RestockAlert from "./pages/supplier/RestockAlert";
+import AIAnalytics from "./pages/supplier/AIAnalytics";
 
 /* ADMIN */
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -102,6 +103,7 @@ export default function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="invoices" element={<InvoicePayments />} />
         <Route path="restock-alert" element={<RestockAlert />} />
+        <Route path="aianalytics" element={<AIAnalytics />} />
       </Route>
 
       {/* ADMIN */}
