@@ -22,6 +22,7 @@ export default function Header() {
       case "/supplier/update-delivery":  return { title: "Update Delivery",     subtitle: "Update delivery status" };
       case "/supplier/restock-alert":    return { title: "Restock Alerts",      subtitle: "Check low stock products" };
       case "/supplier/invoices":         return { title: "Invoices & Payments", subtitle: "View invoices and payments" };
+      case "/supplier/aianalytics":      return { title: "AI Analytics",        subtitle: "Insights from our AI-powered analytics" };
       case "/supplier/notifications":    return { title: "Notifications",       subtitle: "Recent notifications" };
       case "/supplier/settings":         return { title: "Settings",            subtitle: "Update your preferences" };
       default:                           return { title: "Dashboard",           subtitle: "Welcome to MediCareX" };
