@@ -283,8 +283,8 @@ export default function Products() {
 
       {/* Header */}
       <div className="mb-7">
-        <h1 className="text-[22px] font-bold text-slate-900 tracking-tight">Inventory Management</h1>
-        <p className="text-sm text-slate-400 mt-1">Admin Dashboard — Consolidated Inventory</p>
+        <h1 className="text-3xl font-bold text-slate-800 mb-2">Inventory Management</h1>
+        <p className="text-slate-500 text-[15px]">Admin Dashboard — Consolidated Inventory</p>
       </div>
 
       {/* Category filter pills */}
