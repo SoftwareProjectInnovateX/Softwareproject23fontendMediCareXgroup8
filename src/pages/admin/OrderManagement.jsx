@@ -273,9 +273,8 @@ const OrderManagement = () => {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold tracking-widest text-slate-400 uppercase mb-1">Procurement</p>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Purchase Orders</h1>
-            <p className="text-sm text-slate-400 mt-0.5">Track, manage and verify all supplier orders</p>
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">Purchase Orders</h1>
+            <p className="text-slate-500 text-[15px]">Track, manage and verify all supplier orders</p>
           </div>
 
           {/* Live badge */}
