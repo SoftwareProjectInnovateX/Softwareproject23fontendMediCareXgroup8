@@ -1,8 +1,8 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, User, Phone, Shield, LogOut, ChevronDown, Mail } from "lucide-react";
+import { Bell, User, Phone, Shield, LogOut, ChevronDown, Mail, Edit2, Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { auth, db } from '../services/firebase';
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -26,10 +26,18 @@ export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [showProfile, setShowProfile] = useState(false);
-  const [adminData, setAdminData]     = useState(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [tokenClaims, setTokenClaims] = useState(null);
+  const [showProfile, setShowProfile]   = useState(false);
+  const [adminData, setAdminData]       = useState(null);
+  const [unreadCount, setUnreadCount]   = useState(0);
+  const [tokenClaims, setTokenClaims]   = useState(null);
+  const [currentUser, setCurrentUser]   = useState(null);
+  const [currentCol, setCurrentCol]     = useState("admins");
+
+  /* ── Edit profile state ── */
+  const [isEditing, setIsEditing]       = useState(false);
+  const [editForm, setEditForm]         = useState({ fullName: "", email: "", phone: "", role: "" });
+  const [saving, setSaving]             = useState(false);
+  const [saveMsg, setSaveMsg]           = useState("");
 
   const { title, subtitle } =
     PAGE_META[location.pathname] || { title: "Admin Panel", subtitle: "Manage your system" };
@@ -50,6 +58,7 @@ export default function Header() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) return;
+      setCurrentUser(user);
       try {
         const token   = await user.getIdToken();
         const payload = JSON.parse(atob(token.split(".")[1]));
@@ -69,8 +78,22 @@ export default function Header() {
           storedRole === "supplier"   ? "suppliers"   :
           storedRole === "pharmacist" ? "pharmacists" : "users";
 
+        setCurrentCol(col);
+
         const snap = await getDoc(doc(db, col, user.uid));
-        if (snap.exists()) setAdminData(snap.data());
+        if (snap.exists()) {
+          const data = snap.data();
+          setAdminData(data);
+          setEditForm({
+            fullName: data.fullName || "",
+            email:    data.email    || user.email || "",
+            phone:    data.phone    || "",
+            role:     data.role     || "Administrator",
+          });
+        } else {
+          /* Doc doesn't exist yet — pre-fill email from auth */
+          setEditForm((prev) => ({ ...prev, email: user.email || "" }));
+        }
       } catch (err) {
         console.error("Auth init error:", err);
       }
@@ -89,10 +112,36 @@ export default function Header() {
 
   /* ── Close dropdown on outside click ── */
   useEffect(() => {
-    const close = () => setShowProfile(false);
+    const close = () => { setShowProfile(false); setIsEditing(false); };
     window.addEventListener("click", close);
     return () => window.removeEventListener("click", close);
   }, []);
+
+  /* ── Save profile to Firestore ── */
+  const handleSave = async () => {
+    if (!currentUser) return;
+    if (!editForm.fullName.trim()) { setSaveMsg("Name is required."); return; }
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      const ref     = doc(db, currentCol, currentUser.uid);
+      const payload = {
+        fullName: editForm.fullName.trim(),
+        email:    editForm.email.trim(),
+        phone:    editForm.phone.trim(),
+        role:     editForm.role.trim() || "Administrator",
+      };
+      await setDoc(ref, payload, { merge: true });
+      setAdminData((prev) => ({ ...prev, ...payload }));
+      setSaveMsg("Saved!");
+      setTimeout(() => { setSaveMsg(""); setIsEditing(false); }, 1200);
+    } catch (err) {
+      console.error("Save error:", err);
+      setSaveMsg("Failed to save. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   /* ── Avatar initials ── */
   const initials = adminData?.fullName
@@ -142,7 +191,7 @@ export default function Header() {
         {/* Profile trigger */}
         <div className="relative">
           <button
-            onClick={(e) => { e.stopPropagation(); setShowProfile((p) => !p); }}
+            onClick={(e) => { e.stopPropagation(); setShowProfile((p) => !p); if (showProfile) setIsEditing(false); }}
             className={`
               flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer
               border transition-all duration-150
@@ -181,92 +230,187 @@ export default function Header() {
               className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl
                          border border-gray-100 z-50 overflow-hidden"
             >
-              {adminData ? (
-                <>
-                  {/* Card header */}
-                  <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-white/20 border border-white/30
-                                      flex items-center justify-center flex-shrink-0">
-                        <span className="text-[16px] font-bold text-white">{initials}</span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[14px] font-bold text-white truncate">
-                          {adminData.fullName}
-                        </p>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Shield size={11} className="text-blue-200" strokeWidth={2} />
-                          <p className="text-[11px] text-blue-200 capitalize font-medium">
-                            {adminData.role || "Administrator"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+              {/* ── Card header ── */}
+              <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-4 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/20 border border-white/30
+                                  flex items-center justify-center flex-shrink-0">
+                    <span className="text-[16px] font-bold text-white">{initials}</span>
                   </div>
-
-                  {/* Info rows */}
-                  <div className="px-4 py-3 space-y-2.5">
-                    <div className="flex items-center gap-2.5 text-gray-600">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <Mail size={13} strokeWidth={2} className="text-blue-500" />
-                      </div>
-                      <p className="text-[12.5px] truncate">{adminData.email || "No email"}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 text-gray-600">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <Phone size={13} strokeWidth={2} className="text-blue-500" />
-                      </div>
-                      <p className="text-[12.5px]">{adminData.phone || "No phone on record"}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2.5 text-gray-600">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                        <Shield size={13} strokeWidth={2} className="text-blue-500" />
-                      </div>
-                      <p className="text-[12.5px] text-blue-600 font-semibold capitalize">
-                        {adminData.role || "Administrator"}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[14px] font-bold text-white truncate">
+                      {adminData?.fullName || "Add your name"}
+                    </p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Shield size={11} className="text-blue-200" strokeWidth={2} />
+                      <p className="text-[11px] text-blue-200 capitalize font-medium">
+                        {adminData?.role || "Administrator"}
                       </p>
                     </div>
                   </div>
+                  {/* Edit / Cancel toggle */}
+                  <button
+                    onClick={() => { setIsEditing((e) => !e); setSaveMsg(""); }}
+                    className="w-7 h-7 rounded-lg bg-white/15 hover:bg-white/30 border border-white/25
+                               flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                    title={isEditing ? "Cancel editing" : "Edit profile"}
+                  >
+                    {isEditing
+                      ? <X size={13} strokeWidth={2} className="text-white" />
+                      : <Edit2 size={13} strokeWidth={2} className="text-white" />
+                    }
+                  </button>
+                </div>
+              </div>
 
-                  {/* Dev token claims */}
-                  {import.meta.env.DEV && tokenClaims && (
-                    <div className="px-4 pb-2">
-                      <details className="bg-gray-50 rounded-lg px-3 py-2">
-                        <summary className="text-[11px] text-gray-400 cursor-pointer select-none font-medium">
-                          Token claims (dev only)
-                        </summary>
-                        <pre className="text-[10px] text-gray-500 mt-2 overflow-auto max-h-24 leading-relaxed">
-                          {JSON.stringify(tokenClaims, null, 2)}
-                        </pre>
-                      </details>
+              {/* ── VIEW mode ── */}
+              {!isEditing && (
+                <div className="px-4 py-3 space-y-2.5">
+                  <div className="flex items-center gap-2.5 text-gray-600">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Mail size={13} strokeWidth={2} className="text-blue-500" />
                     </div>
-                  )}
-
-                  {/* Divider */}
-                  <div className="h-px bg-gray-100 mx-4" />
-
-                  {/* Logout */}
-                  <div className="px-4 py-3">
-                    <button
-                      onClick={() => { auth.signOut(); navigate("/login"); }}
-                      className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
-                                 bg-red-50 text-red-600 border border-red-100
-                                 hover:bg-red-500 hover:text-white hover:border-red-500
-                                 text-[13px] font-semibold transition-all duration-150"
-                    >
-                      <LogOut size={15} strokeWidth={2} />
-                      Sign out
-                    </button>
+                    <p className="text-[12.5px] truncate">{adminData?.email || "No email on record"}</p>
                   </div>
-                </>
-              ) : (
-                <div className="flex items-center justify-center py-8 gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
-                  <p className="text-[13px] text-gray-400">Loading profile...</p>
+
+                  <div className="flex items-center gap-2.5 text-gray-600">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Phone size={13} strokeWidth={2} className="text-blue-500" />
+                    </div>
+                    <p className="text-[12.5px]">{adminData?.phone || "No phone on record"}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 text-gray-600">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                      <Shield size={13} strokeWidth={2} className="text-blue-500" />
+                    </div>
+                    <p className="text-[12.5px] text-blue-600 font-semibold capitalize">
+                      {adminData?.role || "Administrator"}
+                    </p>
+                  </div>
+
+                  {!adminData && (
+                    <p className="text-[11.5px] text-amber-600 bg-amber-50 rounded-lg px-3 py-2 text-center">
+                      No profile yet — click <Edit2 size={11} className="inline" /> to add your details.
+                    </p>
+                  )}
                 </div>
               )}
+
+              {/* ── EDIT mode ── */}
+              {isEditing && (
+                <div className="px-4 py-3 space-y-3">
+                  {/* Full Name */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wide">
+                      Full Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.fullName}
+                      onChange={(e) => setEditForm((f) => ({ ...f, fullName: e.target.value }))}
+                      placeholder="e.g. John Silva"
+                      className="w-full px-3 py-2 text-[13px] rounded-lg border border-gray-200
+                                 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400
+                                 focus:border-transparent transition-all duration-150"
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wide">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                      placeholder="you@example.com"
+                      className="w-full px-3 py-2 text-[13px] rounded-lg border border-gray-200
+                                 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400
+                                 focus:border-transparent transition-all duration-150"
+                    />
+                  </div>
+
+                  {/* Phone */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wide">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                      placeholder="+94 77 000 0000"
+                      className="w-full px-3 py-2 text-[13px] rounded-lg border border-gray-200
+                                 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400
+                                 focus:border-transparent transition-all duration-150"
+                    />
+                  </div>
+
+                  {/* Role */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-500 mb-1 uppercase tracking-wide">
+                      Role
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.role}
+                      onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value }))}
+                      placeholder="Administrator"
+                      className="w-full px-3 py-2 text-[13px] rounded-lg border border-gray-200
+                                 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400
+                                 focus:border-transparent transition-all duration-150"
+                    />
+                  </div>
+
+                  {/* Save feedback */}
+                  {saveMsg && (
+                    <p className={`text-[12px] text-center font-medium rounded-lg px-3 py-1.5
+                      ${saveMsg === "Saved!"
+                        ? "text-green-700 bg-green-50 border border-green-100"
+                        : "text-red-600 bg-red-50 border border-red-100"
+                      }`}>
+                      {saveMsg}
+                    </p>
+                  )}
+
+                  {/* Save button */}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
+                               bg-blue-600 text-white border border-blue-700
+                               hover:bg-blue-700
+                               disabled:opacity-60 disabled:cursor-not-allowed
+                               text-[13px] font-semibold transition-all duration-150"
+                  >
+                    {saving
+                      ? <><div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" /> Saving…</>
+                      : <><Save size={14} strokeWidth={2} /> Save Profile</>
+                    }
+                  </button>
+                </div>
+              )}
+
+             
+
+              {/* ── Divider ── */}
+              <div className="h-px bg-gray-100 mx-4" />
+
+              {/* ── Logout ── */}
+              <div className="px-4 py-3">
+                <button
+                  onClick={() => { auth.signOut(); navigate("/login"); }}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
+                             bg-red-50 text-red-600 border border-red-100
+                             hover:bg-red-500 hover:text-white hover:border-red-500
+                             text-[13px] font-semibold transition-all duration-150"
+                >
+                  <LogOut size={15} strokeWidth={2} />
+                  Sign out
+                </button>
+              </div>
             </div>
           )}
         </div>
