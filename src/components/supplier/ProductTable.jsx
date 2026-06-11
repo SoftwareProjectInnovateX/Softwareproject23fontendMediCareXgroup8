@@ -25,7 +25,7 @@ const ProductTable = ({ loading, filteredProducts, onAddClick, onEdit, onDelete,
           </div>
           <button
             onClick={onAddClick}
-            className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[14px] font-semibold rounded-xl transition-all duration-200 hover:-translate-y-px hover:shadow-md hover:shadow-blue-200"
+            className="mt-1 inline-flex items-center gap-2 px-5 py-2.5 bg-gray-800 hover:bg-gray-900 text-white text-[14px] font-semibold rounded-xl transition-all duration-200 hover:-translate-y-px hover:shadow-md hover:shadow-gray-300"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M12 5v14M5 12h14" />
@@ -47,7 +47,7 @@ const ProductTable = ({ loading, filteredProducts, onAddClick, onEdit, onDelete,
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredProducts.map((product) => (
-                <tr key={product.id} className="hover:bg-blue-50/40 transition-colors duration-150 group">
+                <tr key={product.id} className="hover:bg-gray-50/60 transition-colors duration-150 group">
                   <td className="px-5 py-4">
                     <p className="font-semibold text-slate-800 text-[14px] leading-snug">{product.productName}</p>
                     <p className="text-[11.5px] text-slate-400 font-mono mt-0.5">{product.productCode}</p>
@@ -73,7 +73,7 @@ const ProductTable = ({ loading, filteredProducts, onAddClick, onEdit, onDelete,
                     <div className="flex gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => onEdit(product)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white text-[12.5px] font-semibold rounded-lg border border-blue-200 hover:border-blue-600 transition-all duration-200"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-800 text-gray-700 hover:text-white text-[12.5px] font-semibold rounded-lg border border-gray-200 hover:border-gray-800 transition-all duration-200"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
