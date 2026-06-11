@@ -22,41 +22,37 @@ import OrderDetailsModal   from "../../components/supplier/OrderDetailsModal";
 import RejectOrderModal    from "../../components/supplier/RejectOrderModal";
 
 // ─── Toast Notification System ────────────────────────────────────────────────
-/**
- * Renders a stack of toast notifications in the top-right corner.
- * Each toast auto-dismisses after 4 seconds and supports success / error / info types.
- */
 function ToastContainer({ toasts, onDismiss }) {
   return (
     <div className="fixed top-5 right-5 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`pointer-events-auto flex items-start gap-3 bg-white rounded-xl shadow-[0_8px_32px_rgba(15,36,99,0.18)] border px-4 py-3.5 transition-all duration-300
-            ${toast.type === "success" ? "border-l-4 border-l-emerald-500 border-blue-50" : ""}
-            ${toast.type === "error"   ? "border-l-4 border-l-red-500 border-blue-50"     : ""}
-            ${toast.type === "info"    ? "border-l-4 border-l-blue-500 border-blue-50"    : ""}
+          className={`pointer-events-auto flex items-start gap-3 bg-white rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] border px-4 py-3.5 transition-all duration-300
+            ${toast.type === "success" ? "border-l-4 border-l-emerald-500 border-gray-100" : ""}
+            ${toast.type === "error"   ? "border-l-4 border-l-red-500 border-gray-100"     : ""}
+            ${toast.type === "info"    ? "border-l-4 border-l-gray-500 border-gray-100"    : ""}
           `}
         >
           {/* Icon */}
           <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold
             ${toast.type === "success" ? "bg-emerald-500" : ""}
             ${toast.type === "error"   ? "bg-red-500"     : ""}
-            ${toast.type === "info"    ? "bg-blue-500"    : ""}
+            ${toast.type === "info"    ? "bg-gray-600"    : ""}
           `}>
             {toast.type === "success" && "✓"}
             {toast.type === "error"   && "✕"}
             {toast.type === "info"    && "i"}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-blue-950 leading-tight">{toast.title}</p>
+            <p className="text-sm font-bold text-gray-900 leading-tight">{toast.title}</p>
             {toast.message && (
-              <p className="text-xs text-blue-400 mt-0.5 leading-relaxed whitespace-pre-line">{toast.message}</p>
+              <p className="text-xs text-gray-500 mt-0.5 leading-relaxed whitespace-pre-line">{toast.message}</p>
             )}
           </div>
           <button
             onClick={() => onDismiss(toast.id)}
-            className="text-blue-300 hover:text-blue-600 transition-colors text-base leading-none flex-shrink-0 cursor-pointer bg-transparent border-none"
+            className="text-gray-400 hover:text-gray-700 transition-colors text-base leading-none flex-shrink-0 cursor-pointer bg-transparent border-none"
           >
             ✕
           </button>
@@ -66,11 +62,7 @@ function ToastContainer({ toasts, onDismiss }) {
   );
 }
 
-// ─── Inline Confirm Dialog (replaces window.confirm) ─────────────────────────
-/**
- * A card-style inline confirmation dialog rendered in the center of the screen.
- * Used for approve/reject confirmations — styled to match the blue theme.
- */
+// ─── Inline Confirm Dialog ────────────────────────────────────────────────────
 function ConfirmModal({
   title,
   message,
@@ -82,20 +74,20 @@ function ConfirmModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-blue-950/40 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={alertOnly ? onConfirm : onCancel}
     >
       <div
-        className="bg-white rounded-2xl p-7 max-w-md w-[90%] shadow-[0_20px_60px_rgba(15,36,99,0.22)] border border-blue-50"
+        className="bg-white rounded-2xl p-7 max-w-md w-[90%] shadow-[0_20px_60px_rgba(0,0,0,0.22)] border border-gray-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header accent bar */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="h-5 w-1 rounded-full bg-blue-600 flex-shrink-0" />
-          <h3 className="text-base font-bold text-blue-950 tracking-tight">{title}</h3>
+          <div className="h-5 w-1 rounded-full bg-gray-800 flex-shrink-0" />
+          <h3 className="text-base font-bold text-gray-900 tracking-tight">{title}</h3>
         </div>
 
-        <p className="text-sm text-blue-500 leading-relaxed whitespace-pre-line mb-6 pl-4">
+        <p className="text-sm text-gray-500 leading-relaxed whitespace-pre-line mb-6 pl-4">
           {message}
         </p>
 
@@ -103,7 +95,7 @@ function ConfirmModal({
           {!alertOnly && (
             <button
               onClick={onCancel}
-              className="px-5 py-2 rounded-lg border border-blue-200 bg-white text-blue-600 font-semibold text-sm cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all duration-200"
+              className="px-5 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold text-sm cursor-pointer hover:bg-gray-50 hover:border-gray-400 transition-all duration-200"
             >
               {cancelLabel}
             </button>
@@ -112,7 +104,7 @@ function ConfirmModal({
             onClick={onConfirm}
             className={`px-5 py-2 rounded-lg font-bold text-sm cursor-pointer text-white transition-all duration-200 hover:-translate-y-px
               ${alertOnly
-                ? "bg-blue-600 hover:bg-blue-700 shadow-[0_4px_14px_rgba(37,99,235,0.30)]"
+                ? "bg-gray-800 hover:bg-gray-900 shadow-[0_4px_14px_rgba(0,0,0,0.20)]"
                 : "bg-emerald-500 hover:bg-emerald-600 shadow-[0_4px_14px_rgba(16,185,129,0.30)]"
               }`}
           >
@@ -140,20 +132,18 @@ export default function PurchaseOrders() {
 
   const [confirmModal, setConfirmModal] = useState(null);
 
-  // Toast state — each toast: { id, type, title, message }
   const [toasts, setToasts] = useState([]);
 
   /* ── Toast helpers ────────────────────────────────────────────────────────── */
   const addToast = useCallback((type, title, message = "") => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [...prev, { id, type, title, message }]);
-    // Auto-dismiss after 4 seconds
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
   }, []);
 
   const dismissToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
-  /* ── showAlert / showConfirm now use ConfirmModal + toast on dismiss ──────── */
+  /* ── showAlert / showConfirm ─────────────────────────────────────────────── */
   const showAlert = (title, message) =>
     new Promise((resolve) => {
       setConfirmModal({
@@ -292,17 +282,14 @@ export default function PurchaseOrders() {
       const initialAmount  = totalAmount * 0.5;
       const batch          = writeBatch(db);
 
-      // 1. Mark order as APPROVED
       batch.update(doc(db, "purchaseOrders", orderId), {
         status: "APPROVED", approvedAt: now, approvalDate: now, updatedAt: now,
       });
 
-      // 2. Deduct from supplier remaining stock
       batch.update(productRef, {
         minStock: remainingStock - order.quantity, updatedAt: now,
       });
 
-      // 3. Add to admin product stock
       if (order.adminProductId) {
         const adminProductRef  = doc(db, "adminProducts", order.adminProductId);
         const adminProductSnap = await getDoc(adminProductRef);
@@ -318,7 +305,6 @@ export default function PurchaseOrders() {
         }
       }
 
-      // 4. Create 50% initial payment record
       batch.set(doc(collection(db, "payments")), {
         orderId:          order.poId,
         purchaseOrderId:  orderId,
@@ -334,7 +320,6 @@ export default function PurchaseOrders() {
         createdAt:        now, updatedAt: now,
       });
 
-      // 5. Create matching invoice
       batch.set(doc(collection(db, "invoices")), {
         purchaseOrderId:  orderId,
         orderId:          order.poId,
@@ -356,7 +341,6 @@ export default function PurchaseOrders() {
         createdAt:        now, updatedAt: now,
       });
 
-      // 6. Notify admin
       batch.set(doc(collection(db, "notifications")), {
         type: "ORDER_APPROVED", recipientId: "admin", recipientType: "admin",
         orderId, poId: order.poId, supplierId, supplierName,
@@ -445,22 +429,18 @@ export default function PurchaseOrders() {
 
   /* ── Render ──────────────────────────────────────────────────────────────── */
   return (
-    <div className="p-6 bg-[#f0f4fb] min-h-screen">
+    <div className="p-6 bg-[#f5f5f5] min-h-screen">
 
-      {/* Toast notifications — top-right stack */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
-      {/* Page title and supplier name */}
       <PurchaseOrderHeader supplierName={supplierName} />
 
-      {/* Status filter tabs and order count badges */}
       <OrderFilters
         filterStatus={filterStatus}
         setFilterStatus={setFilterStatus}
         orders={orders}
       />
 
-      {/* Main orders table with approve/reject actions */}
       <OrderTable
         loading={loading}
         orders={orders}
@@ -469,11 +449,6 @@ export default function PurchaseOrders() {
         onReject={openRejectModal}
         formatDate={formatDate}
       />
-
-      {/*
-        Modals are conditionally MOUNTED so their fixed backdrop only exists
-        when the modal is open — prevents invisible overlay swallowing clicks.
-      */}
 
       {selectedOrder && (
         <OrderDetailsModal
@@ -495,7 +470,6 @@ export default function PurchaseOrders() {
         />
       )}
 
-      {/* Inline confirm dialog — only mounts when needed */}
       {confirmModal && (
         <ConfirmModal
           title={confirmModal.title}
