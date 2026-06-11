@@ -240,7 +240,7 @@ export default function SalesAnalytics() {
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-1">Sales Analytics</h1>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">Sales Analytics</h1>
           <p className="text-slate-500 text-[15px]">Track revenue, orders, and business performance</p>
         </div>
 
