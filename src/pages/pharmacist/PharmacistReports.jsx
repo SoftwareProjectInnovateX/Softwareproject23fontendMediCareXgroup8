@@ -329,7 +329,7 @@ const PharmacistReports = () => {
                        <span className="w-1.5 h-6 bg-[#0b5ed7] rounded-full inline-block"></span> 
                        Prescription Output Trend
                     </h3>
-                    <p className="text-sm font-medium text-slate-500 ext-ml-3">Daily completed and verified transactions for {dateRange.toLowerCase()}.</p>
+                    <p className="text-sm font-medium text-slate-500 ml-3">Daily completed and verified transactions for {dateRange.toLowerCase()}.</p>
                   </div>
                </div>
 
