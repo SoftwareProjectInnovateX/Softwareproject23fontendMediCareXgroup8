@@ -17,7 +17,7 @@ export default function ProductsPage() {
   const fetchProducts = useCallback(async () => {
     setError(null);
     try {
-      const res  = await fetch(`${API_BASE}/products/customer`);
+      const res  = await fetch(`${API_BASE}/products`);
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : []);
     } catch (err) {
