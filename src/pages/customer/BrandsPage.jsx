@@ -333,7 +333,7 @@ export default function BrandsPage() {
 
           {/* RIGHT column: blue AI Advisor — cleaner, simpler and more helpful */}
           <div
-            className="rounded-[32px] p-6 text-slate-950 h-full min-h-[520px] overflow-hidden"
+            className="rounded-[32px] p-6 text-slate-950 h-full min-h-[380px] overflow-hidden"
             style={{
               background: 'linear-gradient(180deg, rgba(219,234,254,0.95), #E0F2FE)',
               border: `1px solid ${C.border}`,
