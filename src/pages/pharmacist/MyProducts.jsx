@@ -622,7 +622,7 @@ export default function PharmacistProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const res  = await fetch(PHARMACIST_API);
+      const res  = await fetch(`${PHARMACIST_API}/all`);
       const data = await res.json();
       setProducts(Array.isArray(data) ? data : []);
     } catch (err) {
