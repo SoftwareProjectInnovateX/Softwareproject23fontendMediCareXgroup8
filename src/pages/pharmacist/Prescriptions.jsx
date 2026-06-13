@@ -2,23 +2,35 @@ import { useState, useEffect, useRef } from "react";
 import { db } from "../../lib/firebase";
 import { collection, getDocs, orderBy, limit, query, doc, updateDoc, Timestamp, where } from "firebase/firestore";
 
+
 import {
   Phone, MapPin, ExternalLink, CheckCircle, XCircle,
   ClipboardList, Plus, Trash2, Clock, ChevronRight,
   User, Image as ImageIcon, Download, Search, Package
 } from "lucide-react";
 
-// ── Convert image URL to base64 via fetch ─────────────────────────────────────
-const fetchImageAsBase64 = async (url) => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch image: ${res.status}`);
-  const blob = await res.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+// ── Convert Firebase Storage path/URL to a signed download URL ───────────────
+const resolveFirebaseImageUrl = async (imageUrl) => {
+  if (!imageUrl) return null;
+  try {
+    const storage = getStorage();
+    // If it's already a full https URL, extract the path and get a fresh signed URL
+    if (imageUrl.startsWith("https://firebasestorage.googleapis.com")) {
+      // Extract the path from the URL (between /o/ and ?)
+      const match = imageUrl.match(/\/o\/(.+?)(\?|$)/);
+      if (match) {
+        const decodedPath = decodeURIComponent(match[1]);
+        const storageRef = ref(storage, decodedPath);
+        return await getDownloadURL(storageRef);
+      }
+    }
+    // If it's a plain storage path like "prescriptions/filename.jpg"
+    const storageRef = ref(storage, imageUrl);
+    return await getDownloadURL(storageRef);
+  } catch (err) {
+    console.error("Could not resolve image URL:", err);
+    return null;
+  }
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -32,6 +44,7 @@ export default function Prescriptions() {
   const [isDownloading,    setIsDownloading]    = useState(false);
   const [imageBase64,      setImageBase64]      = useState(null);
   const [imageLoading,     setImageLoading]     = useState(false);
+  const [resolvedImageUrl, setResolvedImageUrl] = useState(null); // ✅ signed URL
 
   // ── Pharmacist medicine list ──────────────────────────────────────────────
   const [pharmacistMeds,   setPharmacistMeds]   = useState([]);
@@ -80,24 +93,19 @@ export default function Prescriptions() {
     fetchPharmacistMeds();
   }, []);
 
-  // ── Select prescription and preload image as base64 ───────────────────────
-  const handleSelectRx = async (p) => {
-    setSelectedRx(p);
-    setMeds(p.medications || []);
-    setImageBase64(null);
+  // ── Select prescription and resolve signed image URL ─────────────────────
+// ── Select prescription — Cloudinary URLs work directly ──────────────────
+const handleSelectRx = async (p) => {
+  setSelectedRx(p);
+  setMeds(p.medications || []);
+  setImageBase64(null);
+  setResolvedImageUrl(null);
 
-    if (p.imageUrl) {
-      setImageLoading(true);
-      try {
-        const b64 = await fetchImageAsBase64(p.imageUrl);
-        setImageBase64(b64);
-      } catch (err) {
-        console.error("Could not load image:", err);
-      } finally {
-        setImageLoading(false);
-      }
-    }
-  };
+  if (p.imageUrl) {
+    // Cloudinary URL — use directly, no Firebase Storage needed
+    setResolvedImageUrl(p.imageUrl);
+  }
+};
 
   // ── Quick-add from pharmacist medicine list ───────────────────────────────
   const handleQuickAdd = (product) => {
@@ -141,7 +149,7 @@ export default function Prescriptions() {
       }
       await updateDoc(doc(db, "prescriptions", selectedRx.id), updateData);
       alert(`Prescription ${status.toLowerCase()} successfully!`);
-      if (status === "Approved") { setSelectedRx(null); setMeds([]); setImageBase64(null); }
+      if (status === "Approved") { setSelectedRx(null); setMeds([]); setImageBase64(null); setResolvedImageUrl(null); }
     } catch (err) {
       alert(`Failed to update: ${err.message}`);
     } finally {
@@ -194,7 +202,7 @@ export default function Prescriptions() {
           </div>
 
           <div class="section-title">Prescription Image</div>
-          ${selectedRx.imageUrl ? `<img src="${selectedRx.imageUrl}" onload="window.print()" onerror="window.print()" />` : '<p style="color:#94a3b8">No image attached.</p>'}
+          ${resolvedImageUrl ? `<img src="${resolvedImageUrl}" onload="window.print()" onerror="window.print()" />` : '<p style="color:#94a3b8">No image attached.</p>'}
 
           ${meds.length > 0 ? `
           <table>
@@ -227,7 +235,7 @@ export default function Prescriptions() {
 
           <div class="footer">This is a computer-generated document. MediCare Pharmacy. All rights reserved.</div>
 
-          ${!selectedRx.imageUrl ? '<script>window.print();</script>' : ''}
+          ${!resolvedImageUrl ? '<script>window.print();</script>' : ''}
         </body>
       </html>
     `);
@@ -343,30 +351,28 @@ export default function Prescriptions() {
                       <><Download size={12} /> PDF</>
                     )}
                   </button>
-                 {selectedRx.imageUrl && (
-  <a
-    href={selectedRx.imageUrl}
-    target="_blank"
-    rel="noreferrer"
-    className="text-blue-600 hover:underline text-xs font-semibold flex items-center gap-1"
-  >
-    <ExternalLink size={12} /> Open Full
-  </a>
-)}
+                  {resolvedImageUrl && (
+                    <a
+                      href={resolvedImageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline text-xs font-semibold flex items-center gap-1"
+                    >
+                      <ExternalLink size={12} /> Open Full
+                    </a>
+                  )}
                 </div>
               </div>
 
-              {/* Image viewer */}
+              {/* Image viewer — uses resolvedImageUrl (signed) */}
               <div className="flex-1 rounded-2xl border-2 border-slate-200 overflow-hidden bg-black flex items-center justify-center relative">
                 {imageLoading ? (
                   <div className="flex flex-col items-center gap-2 text-slate-400">
                     <span className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
                     <p className="text-xs">Loading image...</p>
                   </div>
-                ) : imageBase64 ? (
-                  <img src={imageBase64} alt="Prescription" className="max-w-full max-h-full object-contain" />
-                ) : selectedRx.imageUrl ? (
-                  <img src={selectedRx.imageUrl} alt="Prescription" className="max-w-full max-h-full object-contain" />
+                ) : resolvedImageUrl ? (
+                  <img src={resolvedImageUrl} alt="Prescription" className="max-w-full max-h-full object-contain" />
                 ) : (
                   <div className="text-slate-500 text-sm">No image available</div>
                 )}
