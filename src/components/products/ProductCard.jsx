@@ -19,18 +19,27 @@ function ProductImage({ imageUrl, name, height = 200, iconSize = 48 }) {
 }
 
 function AddToCartButton({ availableStock, onClick, size = 'sm' }) {
+  const [isClicked, setIsClicked] = useState(false);
   const isLarge = size === 'lg';
+  
+  const handleClick = (e) => {
+    setIsClicked(true);
+    onClick(e);
+    setTimeout(() => setIsClicked(false), 200);
+  };
+  
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={availableStock <= 0}
       className={`w-full rounded-xl font-semibold border-none flex items-center justify-center gap-2 transition-all duration-150 ${isLarge ? 'py-3 text-sm' : 'py-2.5 text-[13px]'}`}
       style={{
         fontFamily: FONT.body,
         cursor:     availableStock > 0 ? 'pointer' : 'not-allowed',
-        background: availableStock > 0 ? C.accent : '#e2e8f0',
+        background: isClicked && availableStock > 0 ? 'rgba(26,135,225,0.7)' : availableStock > 0 ? C.accent : '#e2e8f0',
         color:      availableStock > 0 ? '#ffffff' : C.textMuted,
-        boxShadow:  availableStock > 0 ? '0 4px 12px rgba(26,135,225,0.25)' : 'none',
+        boxShadow:  isClicked && availableStock > 0 ? '0 2px 8px rgba(26,135,225,0.35)' : availableStock > 0 ? '0 4px 12px rgba(26,135,225,0.25)' : 'none',
+        transform:  isClicked && availableStock > 0 ? 'scale(0.98)' : 'scale(1)',
       }}
     >
       <ShoppingCart size={isLarge ? 16 : 14} />
