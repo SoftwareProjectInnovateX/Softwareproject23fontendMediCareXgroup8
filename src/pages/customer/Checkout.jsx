@@ -138,12 +138,16 @@ const Checkout = () => {
                         totalAmount:  parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
                         orderStatus:  orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Pending-COD',
                         items:        items.map(item => ({
-                            id:       item.id,
-                            name:     item.name,
-                            price:    item.price,
-                            quantity: item.qty,
-                            imageUrl: item.imageUrl || '',
+                            id:        item.id,
+                            productId: item.productId || '',
+                            stockId:   item.stockId   || '',
+                            name:      item.name,
+                            price:     item.price,
+                            quantity:  item.qty,
+                            imageUrl:  item.imageUrl || '',
+                            category:  item.category || '',
                         })),
+                        categories: [...new Set(items.map(item => item.category || '').filter(Boolean))],
                     }),
                 });
 
@@ -201,6 +205,24 @@ const Checkout = () => {
                             confirmedAt: Timestamp.now(),
                             customerAddress: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`
                         });
+
+                        // Update pharmacistDispensed collection if payment is online
+                        if (orderData.paymentMethod === 'ONLINE') {
+                            try {
+                                const { query, collection, where, getDocs, serverTimestamp } = await import('firebase/firestore');
+                                const q = query(collection(db, 'pharmacistDispensed'), where('rxId', '==', rxId));
+                                const snap = await getDocs(q);
+                                if (!snap.empty) {
+                                    await updateDoc(snap.docs[0].ref, {
+                                        paymentStatus: 'paid',
+                                        status: 'completed',
+                                        paidAt: serverTimestamp(),
+                                    });
+                                }
+                            } catch (err) {
+                                console.error("Failed to update pharmacistDispensed collection:", err);
+                            }
+                        }
 
                         console.log("Prescription and Dispensing records synchronized for RX:", rxId);
                     }
