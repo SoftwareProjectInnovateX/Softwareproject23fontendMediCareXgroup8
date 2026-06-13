@@ -525,10 +525,10 @@ const PharmacistDashboard = () => {
 
             {/* Card - circles only inside */}
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
-              <div className="grid grid-cols-3 divide-x divide-slate-100">
+              <div className="w-full grid grid-cols-3 divide-x divide-slate-100">
 
               {/* (1) Online Prescriptions */}
-              <div className="flex flex-col items-center px-6 py-6">
+              <div className="flex-1 flex flex-col items-center px-6 py-6">
                 <div className="h-0.5 w-16 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400 mb-4" />
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-5 text-center">Online Prescriptions</h4>
                 <div className="flex items-center justify-center relative mb-5">
@@ -559,7 +559,7 @@ const PharmacistDashboard = () => {
               </div>
 
               {/* (2) Online Other Order - CENTER */}
-              <div className="flex flex-col items-center px-6 py-6">
+              <div className="flex-1 flex flex-col items-center px-6 py-6">
                 <div className="h-0.5 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-amber-400 mb-4" />
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-5 text-center">Online Other Order</h4>
                 <div className="flex items-center justify-center relative mb-5">
@@ -590,7 +590,7 @@ const PharmacistDashboard = () => {
               </div>
 
               {/* (3) Walk-in POS */}
-              <div className="flex flex-col items-center px-6 py-6">
+              <div className="flex-1 flex flex-col items-center px-6 py-6">
                 <div className="h-0.5 w-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-400 mb-4" />
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-purple-600 mb-5 text-center">Walk-in POS</h4>
                 <div className="flex items-center justify-center relative mb-5">
