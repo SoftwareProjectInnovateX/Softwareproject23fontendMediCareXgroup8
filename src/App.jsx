@@ -82,6 +82,7 @@ import PharmacistDispensedToday from "./pages/pharmacist/PharmacistDispensedToda
 import PharmacistExpiringInventory from "./pages/pharmacist/PharmacistExpiringInventory";
 import PharmacistNewPatients from "./pages/pharmacist/PharmacistNewPatients";
 import PharmacistLowStock from "./pages/pharmacist/PharmacistLowStock";
+import LoyaltyDashboard from "./pages/pharmacist/loyalty/LoyaltyDashboard";
 
 export default function App() {
   return (
@@ -194,6 +195,7 @@ export default function App() {
         <Route path="expiring-inventory" element={<PharmacistExpiringInventory />} />
         <Route path="new-patients" element={<PharmacistNewPatients />} />
         <Route path="low-stock" element={<PharmacistLowStock />} />
+        <Route path="loyalty" element={<LoyaltyDashboard />} />
       </Route>
 
       {/* 404 */}
