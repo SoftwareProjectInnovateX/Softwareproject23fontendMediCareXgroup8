@@ -54,6 +54,7 @@ export default function MessagesPage() {
   const [selectedId, setSelectedId] = useState(null); // ID of the currently open message
   const [reply, setReply]           = useState('');   // draft reply text
   const [sending, setSending]       = useState(false);
+  const [showToast, setShowToast]   = useState(false);
 
   // Real-time listener – messages ordered newest-first
   useEffect(() => {
@@ -91,7 +92,8 @@ export default function MessagesPage() {
         reply,
         status: 'replied',
       });
-      alert('Reply sent successfully.');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
     } catch (err) {
       alert(`Failed: ${err.message}`);
     } finally {
@@ -102,7 +104,12 @@ export default function MessagesPage() {
   const unreadCount = messages.filter((m) => m.status === 'unread').length;
 
   return (
-    <div className="flex overflow-hidden font-['DM_Sans',sans-serif] gap-0" style={{ height: "calc(100vh - 60px)" }}>
+    <div className="flex overflow-hidden font-['DM_Sans',sans-serif] gap-0" style={{ height: "calc(100vh - 60px)", position: 'relative' }}>
+      {showToast && (
+        <div className="fixed bottom-6 right-6 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm font-semibold z-50 animate-in fade-in slide-in-from-bottom-4">
+          ✓ Reply sent successfully
+        </div>
+      )}
 
       {/* ── Left panel: scrollable message list ── */}
       <div className="w-[300px] shrink-0 bg-white border-r border-[rgba(26,135,225,0.18)] flex flex-col rounded-[14px_0_0_14px] overflow-hidden shadow-[0_1px_4px_rgba(26,135,225,0.07)]">
