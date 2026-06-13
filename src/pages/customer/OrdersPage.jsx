@@ -199,15 +199,6 @@ export default function OrdersPage() {
     ...aiInsights,
   };
 
-  if (loading) return (
-    <div className="flex justify-center items-center min-h-[60vh]" style={{ background: C.bg }}>
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin" />
-        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Syncing your data…</span>
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen" style={{ background: '#f1f5f9', fontFamily: FONT.body }}>
 
@@ -321,8 +312,8 @@ export default function OrdersPage() {
           {/* Metric cards */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
             {[
-              { label: 'Total Spending',  value: `₹${summary.totalSpending.toLocaleString()}`, sub: 'Across all orders',  icon: TrendingUp, color: '#16a34a', bg: '#f0fdf4' },
-              { label: 'Avg Order',       value: `₹${summary.avgOrderValue}`,                  sub: 'Per order value',    icon: Zap,        color: '#d97706', bg: '#fffbeb' },
+              { label: 'Total Spending',  value: `Rs${summary.totalSpending.toLocaleString()}`, sub: 'Across all orders',  icon: TrendingUp, color: '#16a34a', bg: '#f0fdf4' },
+              { label: 'Avg Order',       value: `Rs${summary.avgOrderValue}`,                  sub: 'Per order value',    icon: Zap,        color: '#d97706', bg: '#fffbeb' },
               { label: 'Frequency',       value: summary.orderFrequency,                        sub: 'Order pattern',      icon: Clock,      color: '#2563eb', bg: '#eff6ff' },
               { label: 'Delivery ETA',    value: summary.deliveryPrediction,                    sub: 'For active orders',  icon: CheckCircle,color: '#16a34a', bg: '#f0fdf4' },
             ].map(({ label, value, sub, icon: Icon, color, bg }) => (
@@ -376,29 +367,13 @@ export default function OrdersPage() {
               {summary.savingsOpportunity > 0 && (
                 <div className="p-3 rounded-xl" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-green-700">💰 Save up to</p>
-                  <p className="text-xl font-black text-green-700 mt-1">₹{summary.savingsOpportunity}</p>
+                  <p className="text-xl font-black text-green-700 mt-1">Rs{summary.savingsOpportunity}</p>
                   <p className="text-xs text-green-600 mt-0.5">with bulk orders</p>
                 </div>
               )}
             </div>
 
-            {/* AI recommendations */}
-            <div className="rounded-xl p-5" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center">
-                  <AlertCircle size={13} className="text-blue-500" />
-                </div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Recommendations</p>
-              </div>
-              <ul className="space-y-2">
-                {summary.recommendations.slice(0, 3).map((rec, idx) => (
-                  <li key={idx} className="flex gap-2.5 text-sm text-slate-600 leading-5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0 mt-1.5" />
-                    {rec}
-                  </li>
-                ))}
-              </ul>
-            </div>
+
           </div>
         </div>
 
