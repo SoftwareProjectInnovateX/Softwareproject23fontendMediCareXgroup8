@@ -22,7 +22,8 @@ export default function NewArrivals() {
   useEffect(() => {
     const q = query(
       collection(db, "pharmacistProducts"),
-      where("tags", "array-contains", "newArrival")
+      where("tags", "array-contains", "newArrival"),
+      where("deleted", "==", false)
     );
 
     const unsub = onSnapshot(q, (snap) => {
