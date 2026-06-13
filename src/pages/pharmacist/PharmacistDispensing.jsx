@@ -57,11 +57,36 @@ function getBorderColor(rx) {
   }
 }
 
-function fmtTs(seconds) {
-  if (!seconds) return null;
-  return new Date(seconds * 1000).toLocaleString("en-GB", {
+// ── Universal timestamp helpers (handles ISO string, Firestore _seconds/seconds)
+function parseTs(val) {
+  if (!val) return null;
+  if (typeof val === "string") return new Date(val);
+  if (val._seconds)            return new Date(val._seconds * 1000);
+  if (val.seconds)             return new Date(val.seconds * 1000);
+  return null;
+}
+
+function fmtTs(val) {
+  const date = parseTs(val);
+  if (!date) return null;
+  return date.toLocaleString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function getOrderDay(val) {
+  const date = parseTs(val);
+  if (!date) return null;
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return days[date.getDay()];
+}
+
+function fmtOrderPlacedDate(val) {
+  const date = parseTs(val);
+  if (!date) return null;
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
   });
 }
 
@@ -117,8 +142,8 @@ function WeeklyChart({ items }) {
   const today = new Date().getDay();
   const counts = new Array(7).fill(0);
   items.forEach(rx => {
-    const ts = rx.processedAt?._seconds || rx.createdAt?._seconds || rx.dispensedAt?._seconds;
-    if (ts) counts[new Date(ts * 1000).getDay()]++;
+    const date = parseTs(rx.processedAt || rx.createdAt || rx.dispensedAt);
+    if (date) counts[date.getDay()]++;
   });
   const max = Math.max(...counts, 1);
   const reordered = Array.from({ length: 7 }, (_, i) => {
@@ -165,7 +190,8 @@ function PaymentChart({ items }) {
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, 80, 80);
     const segments = [
-      { value: codPaid, color: "#22c55e" }, { value: codPending, color: "#f59e0b" },
+      { value: codPaid,    color: "#22c55e" },
+      { value: codPending, color: "#f59e0b" },
       { value: onlinePaid, color: "#3b82f6" },
       { value: Math.max(0, total - codPaid - codPending - onlinePaid), color: "#e2e8f0" },
     ].filter(s => s.value > 0);
@@ -234,15 +260,15 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
   const status     = (rx.status || "pending").toLowerCase();
   const isTerminal = status === "completed" || status === "cancelled";
   const isPaid     = (rx.paymentStatus || "").toLowerCase() === "paid";
-  const meds       = rx.medications || [];
+  const meds       = rx.medications || rx.orderItems || [];
 
   const patientName = rx.patientName || rx.customerName || rx.userName || rx.name || "Patient";
   const phone       = rx.phone || rx.phoneNumber || rx.contactNumber;
   const address     = rx.address || rx.deliveryAddress || rx.location;
 
   // Best timestamp for the summary row
-  const mainTs  = rx.processedAt?._seconds || rx.createdAt?._seconds || rx.dispensedAt?._seconds;
-  const dateStr = fmtTs(mainTs) || "—";
+  const mainTsVal = rx.processedAt || rx.createdAt || rx.dispensedAt;
+  const dateStr   = fmtTs(mainTsVal) || "—";
 
   return (
     <div style={{
@@ -254,7 +280,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
       {isPaid && <div style={{ height: 2, background: "linear-gradient(90deg,#22c55e,#86efac)", width: "100%" }} />}
 
       {/* Summary row */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1.1fr 0.7fr 1fr 1fr 90px", gap: 12, padding: "13px 18px", alignItems: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1.1fr 0.85fr 0.85fr 0.7fr 1fr 1fr 90px", gap: 12, padding: "13px 18px", alignItems: "center" }}>
 
         {/* Patient */}
         <div>
@@ -285,6 +311,8 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
         </div>
 
         <div style={{ fontSize: 11, color: C.textSoft, fontFamily: FONT.body }}>{dateStr}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#2563eb", fontFamily: FONT.body }}>{getOrderDay(rx.createdAt)}</div>
+        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>{fmtOrderPlacedDate(rx.createdAt)}</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{meds.length} med{meds.length !== 1 ? "s" : ""}</div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -324,24 +352,23 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
             {/* Patient details */}
             <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body, paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>Patient details</div>
-              <InfoRow icon={User}    label="Patient name" value={patientName} />
-              <InfoRow icon={Phone}   label="Phone"        value={phone} />
-              <InfoRow icon={MapPin}  label="Address"      value={address} />
-              <InfoRow icon={User}    label="User ID"      value={rx.userId}  mono />
-              <InfoRow icon={Hash}    label="Rx ID"        value={rx.prescriptionId || rx.id} mono />
+              <InfoRow icon={User}   label="Patient name" value={patientName} />
+              <InfoRow icon={Phone}  label="Phone"        value={phone} />
+              <InfoRow icon={MapPin} label="Address"      value={address} />
+              <InfoRow icon={User}   label="User ID"      value={rx.userId}  mono />
+              <InfoRow icon={Hash}   label="Rx ID"        value={rx.prescriptionId || rx.rxId || rx.id} mono />
             </div>
 
             {/* Order details */}
             <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body, paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>Order details</div>
-              <InfoRow icon={Calendar}   label="Order placed"   value={fmtTs(rx.createdAt?._seconds)} />
-              <InfoRow icon={Calendar}   label="Processed at"   value={fmtTs(rx.processedAt?._seconds)} />
-              <InfoRow icon={Calendar}   label="Dispensed at"   value={fmtTs(rx.dispensedAt?._seconds)} />
-              <InfoRow icon={CreditCard} label="Payment method" value={rx.paymentMethod} />
-              {rx.totalAmount !== undefined && (
-                <InfoRow icon={DollarSign} label="Total amount" value={`Rs. ${rx.totalAmount}`} />
+              <InfoRow icon={Calendar}   label="Order placed"    value={fmtTs(rx.createdAt)} />
+              <InfoRow icon={Calendar}   label="Processed at"    value={fmtTs(rx.processedAt)} />
+              <InfoRow icon={Calendar}   label="Dispensed at"    value={fmtTs(rx.dispensedAt)} />
+              <InfoRow icon={CreditCard} label="Payment method"  value={rx.paymentMethod} />
+              {(rx.totalAmount !== undefined || rx.total !== undefined) && (
+                <InfoRow icon={DollarSign} label="Total amount" value={`Rs. ${rx.totalAmount ?? rx.total}`} />
               )}
-              <InfoRow icon={Tag} label="Row style" value={rx.rowStyle} />
             </div>
           </div>
 
@@ -369,6 +396,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
                         <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{med.name || med.medicineName || med.medicine || "—"}</div>
                         {med.dosage       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Dosage: {med.dosage}</div>}
                         {med.duration     && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Duration: {med.duration}</div>}
+                        {med.timing       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Timing: {med.timing}</div>}
                         {med.instructions && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Instructions: {med.instructions}</div>}
                       </div>
                     </div>
@@ -443,9 +471,9 @@ export default function Dispense() {
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       list.sort((a, b) => {
-        const aTs = a.processedAt?._seconds || a.createdAt?._seconds || a.dispensedAt?._seconds || 0;
-        const bTs = b.processedAt?._seconds || b.createdAt?._seconds || b.dispensedAt?._seconds || 0;
-        return bTs - aTs;
+        const aDate = parseTs(a.processedAt || a.createdAt || a.dispensedAt);
+        const bDate = parseTs(b.processedAt || b.createdAt || b.dispensedAt);
+        return (bDate?.getTime() || 0) - (aDate?.getTime() || 0);
       });
       setPrescriptions(list);
     } catch (err) {
@@ -523,16 +551,16 @@ export default function Dispense() {
 
     const q = search.toLowerCase();
     const matchSearch = !search ||
-      (rx.patientName   || "").toLowerCase().includes(q) ||
-      (rx.customerName  || "").toLowerCase().includes(q) ||
-      (rx.userName      || "").toLowerCase().includes(q) ||
-      (rx.phone         || "").toLowerCase().includes(q) ||
-      (rx.phoneNumber   || "").toLowerCase().includes(q) ||
-      (rx.address       || "").toLowerCase().includes(q) ||
+      (rx.patientName     || "").toLowerCase().includes(q) ||
+      (rx.customerName    || "").toLowerCase().includes(q) ||
+      (rx.userName        || "").toLowerCase().includes(q) ||
+      (rx.phone           || "").toLowerCase().includes(q) ||
+      (rx.phoneNumber     || "").toLowerCase().includes(q) ||
+      (rx.address         || "").toLowerCase().includes(q) ||
       (rx.deliveryAddress || "").toLowerCase().includes(q) ||
-      (rx.userId        || "").toLowerCase().includes(q) ||
-      (rx.id            || "").toLowerCase().includes(q) ||
-      (rx.medications   || []).some(m =>
+      (rx.userId          || "").toLowerCase().includes(q) ||
+      (rx.id              || "").toLowerCase().includes(q) ||
+      (rx.medications || rx.orderItems || []).some(m =>
         (m.name || m.medicineName || m.medicine || "").toLowerCase().includes(q)
       );
 
@@ -604,8 +632,8 @@ export default function Dispense() {
         </div>
 
         {/* Table header */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1.1fr 0.7fr 1fr 1fr 90px", gap: 12, padding: "10px 18px", background: "linear-gradient(135deg,#f0f9ff,#f8fafc)", border: `1px solid ${C.border}`, borderRadius: "12px 12px 0 0", borderBottom: "none" }}>
-          {["Patient", "Date", "Meds", "Payment", "Status", ""].map((h, i) => (
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1.1fr 0.85fr 0.85fr 0.7fr 1fr 1fr 90px", gap: 12, padding: "10px 18px", background: "linear-gradient(135deg,#f0f9ff,#f8fafc)", border: `1px solid ${C.border}`, borderRadius: "12px 12px 0 0", borderBottom: "none" }}>
+          {["Patient", "Date", "Day Placed", "Order Placed", "Meds", "Payment", "Status", ""].map((h, i) => (
             <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body }}>{h}</div>
           ))}
         </div>
