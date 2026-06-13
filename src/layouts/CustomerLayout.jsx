@@ -16,16 +16,10 @@ export default function CustomerLayout() {
         transition: 'background-color 0.3s ease, color 0.3s ease'
       }}
     >
-
-      {/* Top Navbar */}
       <CustomerNavbar />
-
-      {/* Page Content */}
       <main className="flex-1 p-5 w-full">
         <Outlet />
       </main>
-
-      {/* Footer */}
       <CustomerFooter />
       <FloatingChat />
     </div>
