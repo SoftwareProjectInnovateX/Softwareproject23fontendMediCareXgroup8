@@ -97,6 +97,7 @@ export default function ProductDetailPage() {
   const [commEmail,    setCommEmail]    = useState('');
   const [submitting,   setSubmitting]   = useState(false);
   const [commentError, setCommentError] = useState('');
+  const [isCartClicked, setIsCartClicked] = useState(false);
 
   const [currentUser,  setCurrentUser]  = useState(null);
   const [userProfile,  setUserProfile]  = useState(null);
@@ -179,6 +180,10 @@ export default function ProductDetailPage() {
 
   const handleAddToCart = async () => {
     if (availableStock < qty || !product) return;
+    
+    setIsCartClicked(true);
+    setTimeout(() => setIsCartClicked(false), 200);
+    
     addItem(product, qty);
     try {
       const stockId = product.stockId || product.productCode;
@@ -594,7 +599,9 @@ export default function ProductDetailPage() {
                   disabled={availableStock <= 0}
                   style={{
                     flex: 1, padding: '14px 24px',
-                    background: availableStock > 0
+                    background: isCartClicked && availableStock > 0
+                      ? 'linear-gradient(135deg, #1a3a70 0%, #2563eb 100%)'
+                      : availableStock > 0
                       ? 'linear-gradient(135deg, #1D4ED8 0%, #3B82F6 100%)'
                       : '#E2E8F0',
                     color: availableStock > 0 ? '#fff' : 'var(--text-dim)',
@@ -606,10 +613,15 @@ export default function ProductDetailPage() {
                     cursor: availableStock > 0 ? 'pointer' : 'not-allowed',
                     transition: 'all 0.25s',
                     fontFamily: "'Sora', sans-serif",
-                    boxShadow: availableStock > 0 ? '0 4px 16px rgba(37,99,235,0.35)' : 'none',
+                    boxShadow: isCartClicked && availableStock > 0 
+                      ? '0 2px 8px rgba(37,99,235,0.25)' 
+                      : availableStock > 0 
+                      ? '0 4px 16px rgba(37,99,235,0.35)' 
+                      : 'none',
+                    transform: isCartClicked && availableStock > 0 ? 'scale(0.98)' : 'scale(1)',
                   }}
-                  onMouseEnter={e => availableStock > 0 && (e.currentTarget.style.filter = 'brightness(1.1)')}
-                  onMouseLeave={e => availableStock > 0 && (e.currentTarget.style.filter = 'brightness(1)')}
+                  onMouseEnter={e => availableStock > 0 && !isCartClicked && (e.currentTarget.style.filter = 'brightness(1.1)')}
+                  onMouseLeave={e => availableStock > 0 && !isCartClicked && (e.currentTarget.style.filter = 'brightness(1)')}
                 >
                   <ShoppingCart size={16} />
                   {availableStock <= 0 ? 'Out of Stock' : `Add to Cart${qty > 1 ? ` (${qty})` : ''}`}
