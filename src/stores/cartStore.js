@@ -10,6 +10,10 @@ const getCustomerId = () => {
   return sessionStorage.getItem("userId") ?? null;
 };
 
+const normalizeProductId = (product) => {
+  return String(product.productId || product.productCode || product.id || '').trim();
+};
+
 export const useCartStore = create((set, get) => ({
   items: [],
 
@@ -29,8 +33,10 @@ export const useCartStore = create((set, get) => ({
     const customerId = getCustomerId();
     if (!customerId) return console.error("No customerId found");
 
-    const productId = product.productCode || product.productId || product.id;
-    const existing  = get().items.find((i) => i.productId === productId);
+    const productId = normalizeProductId(product);
+    if (!productId) return console.error("Invalid product identifier");
+
+    const existing = get().items.find((i) => String(i.productId) === productId);
 
     if (existing) {
       const newQty   = existing.qty + delta;
@@ -39,7 +45,9 @@ export const useCartStore = create((set, get) => ({
       set((state) => ({
         items: state.items
           .map((i) =>
-            i.productId === productId ? { ...i, qty: Math.max(0, newQty) } : i
+            String(i.productId) === productId
+              ? { ...i, qty: Math.max(0, newQty), category: i.category || product.category || '' }
+              : i
           )
           .filter((i) => i.qty > 0),
       }));
@@ -89,6 +97,7 @@ export const useCartStore = create((set, get) => ({
       name:     product.name,
       price:    product.retailPrice ?? product.price,
       imageUrl: product.imageUrl ?? "",
+      category: product.category || '',
       qty:      1,
     };
 
