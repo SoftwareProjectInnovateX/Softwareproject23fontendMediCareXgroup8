@@ -17,6 +17,7 @@ import {
   Tag,
   Layers,
   MessageSquare,
+  Trophy,
 } from 'lucide-react';
 
 const PharmacistSidebar = () => {
@@ -37,6 +38,7 @@ const PharmacistSidebar = () => {
     { path: '/pharmacist/lookup',        name: 'Drug Lookup',    icon: Search },
     { path: '/pharmacist/notifications', name: 'Notifications',  icon: Bell, dot: unreadAlerts > 0 },
     { path: '/pharmacist/reports',       name: 'Reports',        icon: BarChart2 },
+    { path: '/pharmacist/loyalty',       name: 'Loyalty',        icon: Trophy },
   ];
 
   const managementItems = [
@@ -86,14 +88,41 @@ const PharmacistSidebar = () => {
   return (
     <div className="w-64 bg-[#0b5ed7] text-white flex flex-col h-screen fixed left-0 top-0">
 
-      {/* Logo */}
-      <div className="h-[70px] flex items-center gap-3 px-5 bg-[#084298] border-b border-white/10 shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-          <Pill className="w-4 h-4 text-white" />
+      {/* Logo + Settings & Logout top-right */}
+      <div className="h-[70px] flex items-center justify-between px-5 bg-[#084298] border-b border-white/10 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+            <Pill className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-xl font-black tracking-wide text-white">
+            MediCareX
+          </span>
         </div>
-        <span className="text-xl font-black tracking-wide text-white">
-          MediCareX
-        </span>
+
+        {/* Settings & Logout — top right */}
+        <div className="flex items-center gap-1">
+          <NavLink
+            to="/pharmacist/settings"
+            className={({ isActive }) =>
+              `p-1.5 rounded-lg transition-all duration-200 ${
+                isActive
+                  ? 'bg-white/20 text-white'
+                  : 'text-blue-100 hover:bg-white/10 hover:text-white'
+              }`
+            }
+            title="Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </NavLink>
+
+          <button
+            onClick={handleLogout}
+            className="p-1.5 rounded-lg text-blue-100 hover:bg-red-500/80 hover:text-white transition-all duration-200"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Scrollable nav */}
@@ -127,40 +156,7 @@ const PharmacistSidebar = () => {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="shrink-0 border-t border-white/10 p-3 space-y-0.5">
-        <NavLink
-          to="/pharmacist/settings"
-          className={({ isActive }) =>
-            `group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
-              isActive
-                ? 'bg-[#06357a] text-white font-medium'
-                : 'text-blue-100 hover:bg-[#084298] hover:text-white'
-            }`
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <div className={`p-1.5 rounded-md transition-colors duration-200 ${
-                isActive ? 'bg-white/15' : 'bg-transparent group-hover:bg-white/10'
-              }`}>
-                <Settings className="w-4 h-4" />
-              </div>
-              <span className="text-sm tracking-wide">Settings</span>
-            </>
-          )}
-        </NavLink>
-
-        <button
-          onClick={handleLogout}
-          className="group flex items-center gap-3 w-full px-3 py-2.5 text-blue-100 rounded-lg hover:bg-red-500/80 hover:text-white transition-all duration-200"
-        >
-          <div className="p-1.5 rounded-md bg-transparent group-hover:bg-white/10 transition-colors duration-200">
-            <LogOut className="w-4 h-4" />
-          </div>
-          <span className="text-sm tracking-wide">Logout</span>
-        </button>
-      </div>
+      {/* Footer removed — Settings & Logout moved to top */}
     </div>
   );
 };
