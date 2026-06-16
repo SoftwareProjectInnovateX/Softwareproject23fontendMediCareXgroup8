@@ -17,7 +17,7 @@ export default function SearchAnalytics() {
       const token = auth.currentUser
         ? await auth.currentUser.getIdToken()
         : null;
-      const response = await fetch(`${API_BASE_URL}/search/analytics`, {
+      const response = await fetch(`${API_BASE_URL}/admin/search/analytics`, {
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
         },

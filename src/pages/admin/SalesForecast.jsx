@@ -348,7 +348,7 @@ export default function SalesForecast() {
     setAiInsightError(null);
 
     try {
-      const res = await fetch(`/api/forecast/insight/${selected.productId}`);
+      const res = await fetch(`http://localhost:5000/api/forecast/insight/${selected.productId}`);
 
       if (!res.ok) throw new Error(`Server error: HTTP ${res.status}`);
 
