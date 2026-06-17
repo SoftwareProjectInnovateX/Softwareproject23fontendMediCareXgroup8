@@ -5,6 +5,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import { getStorage } from "firebase/storage";          // ← added
 
 // Firebase configuration (shared)
 const firebaseConfig = {
@@ -25,6 +26,9 @@ export const db = getFirestore(app);
 
 // Authentication (for login later)
 export const auth = getAuth(app);
+
+// Storage                                               // ← added
+export const storage = getStorage(app);                 // ← added
 
 //  Analytics (safe for localhost & Vite)
 let analytics;
