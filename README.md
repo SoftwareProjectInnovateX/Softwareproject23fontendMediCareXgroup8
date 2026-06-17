@@ -1,16 +1,107 @@
-# React + Vite
+# Frontend Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This project is the React-based frontend for a multi-role pharmacy and supply-chain management platform. It provides dedicated experiences for customers, suppliers, admins, and pharmacists.
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+The frontend includes:
+- Authentication and role-based access
+- Product browsing, cart, checkout, and order tracking
+- Supplier dashboards for inventory and payments
+- Admin analytics and user management
+- Pharmacist workflows for prescriptions, dispensing, and reporting
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React 19
+- Vite
+- React Router DOM
+- Tailwind CSS
+- Firebase Authentication, Firestore, and Storage
+- Recharts for dashboard analytics
+- Zustand for global state management
+- ESLint for code quality
 
-## Expanding the ESLint configuration
+## Project Structure
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```text
+src/
+├── components/      # Reusable UI components
+├── config/          # App configuration (API base URL)
+├── context/         # Auth and theme context providers
+├── hooks/           # Custom hooks
+├── layouts/         # Route layout wrappers
+├── pages/           # Page-level screens by role
+├── services/        # API and Firebase service helpers
+├── stores/          # Global state stores
+└── assets/          # Static resources
+```
+
+## Prerequisites
+
+Before running the app, make sure you have:
+- Node.js (18 or higher)
+- npm or yarn
+- A running backend API
+- The required environment variables configured
+
+## Environment Setup
+
+Create or update a `.env` file in the `frontend` folder with the following variables:
+
+```env
+VITE_API_URL=http://localhost:5000
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_MEASUREMENT_ID=
+```
+
+> The frontend uses `VITE_API_URL` to connect to the backend API and Firebase config values to initialize authentication and storage services.
+
+## Installation
+
+```bash
+npm install
+```
+
+## Available Scripts
+
+```bash
+npm run dev        # start development server
+npm run build      # production build
+npm run vite-build # Vite production build
+npm run preview    # preview production build locally
+npm run test       # run tests
+npm run lint       # run ESLint
+```
+
+## Development Notes
+
+- The main app entry is defined in `src/main.jsx`
+- Route handling is configured in `src/App.jsx`
+- Most API calls are handled through the services and config folders
+- Tailwind styles are enabled via the global stylesheet in `src/index.css`
+
+## Running the App
+
+1. Start the backend server
+2. Set up your `.env` values
+3. Run:
+
+```bash
+npm run dev
+```
+
+4. Open the local development URL shown by Vite (typically `http://localhost:5173`)
+
+## Notes for Contributors
+
+- Keep components reusable and role-specific logic separated
+- Follow the existing folder structure for pages and features
+- Prefer environment-based configuration for API and Firebase settings
+- Ensure any new routes are added consistently with role-based access patterns
+
