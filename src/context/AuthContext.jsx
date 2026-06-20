@@ -4,7 +4,10 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut
+  signOut,
+  sendPasswordResetEmail,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from "firebase/auth";
 import { 
   doc, 
@@ -223,6 +226,88 @@ export function AuthProvider({ children }) {
       throw new Error(message);
     }
   };
+    // Login with Google
+  const loginWithGoogle = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      let userData = null;
+      let actualRole = null;
+
+      const roleCollections = {
+        'supplier': 'suppliers',
+        'customer': 'users',
+        'pharmacist': 'pharmacists',
+        'admin': 'admins',
+      };
+
+      // 1. Check if user already exists in any collection
+      for (const [, collectionName] of Object.entries(roleCollections)) {
+        const userDoc = await getDoc(doc(db, collectionName, user.uid));
+        if (userDoc.exists()) {
+          userData = userDoc.data();
+          actualRole = userData.role;
+          break;
+        }
+      }
+
+      // 2. If user doesn't exist, create as Customer by default
+      if (!userData) {
+        const snapshot = await getDocs(collection(db, 'users'));
+        let maxNum = 0;
+        snapshot.forEach(d => {
+          const data = d.data();
+          if (data.customerId) {
+            const num = parseInt(data.customerId.replace('C', ''));
+            if (num > maxNum) maxNum = num;
+          }
+        });
+        const customerId = `C${String(maxNum + 1).padStart(3, '0')}`;
+
+        actualRole = 'customer';
+        userData = {
+          customerId,
+          userId: user.uid,
+          fullName: user.displayName || 'New Customer',
+          email: user.email,
+          phone: user.phoneNumber || '',
+          role: 'customer',
+          status: 'active',
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        };
+        await setDoc(doc(db, 'users', user.uid), userData);
+      }
+
+      // 3. Check account is active
+      if (userData.status && userData.status !== 'active') {
+        await signOut(auth);
+        throw new Error('Your account is suspended. Please contact the administrator.');
+      }
+
+      // 4. Setup session
+      sessionStorage.setItem('userId', user.uid);
+      sessionStorage.setItem('userRole', actualRole);
+      sessionStorage.setItem('userName', userData.fullName || userData.name);
+      sessionStorage.setItem('userEmail', userData.email);
+      setUserRole(actualRole);
+
+      return {
+        success: true,
+        user: {
+          uid: user.uid,
+          email: user.email,
+          role: actualRole,
+          ...userData,
+        },
+      };
+    } catch (error) {
+      console.error('Google login error:', error);
+      throw error;
+    }
+  };
 
   // Logout user
   const logout = async () => {
@@ -370,6 +455,7 @@ export function AuthProvider({ children }) {
     loading,
     register,
     login,
+    loginWithGoogle,
     logout,
     getCurrentUserData,
     getSupplierProfile
