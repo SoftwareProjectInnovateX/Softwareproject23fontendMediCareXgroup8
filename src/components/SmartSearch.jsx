@@ -34,7 +34,7 @@ export default function SmartSearch({ onResults, onLoading }) {
       try {
         const token = await getFirebaseToken();
         const response = await fetch(
-          `${API_BASE_URL}/search?q=${encodeURIComponent(searchQuery)}`,
+          `${API_BASE_URL}/admin/search?q=${encodeURIComponent(searchQuery)}`,
           {
             headers: {
               "Content-Type": "application/json",
