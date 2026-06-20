@@ -6,18 +6,34 @@ export default function SearchAnalytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchAnalytics();
+    useEffect(() => {
+    let unsubscribe;
+    const initAuth = async () => {
+      const { auth } = await import("../../services/firebase");
+      unsubscribe = auth.onAuthStateChanged((user) => {
+        if (user) {
+          fetchAnalytics();
+        } else {
+          setLoading(false);
+        }
+      });
+    };
+    initAuth();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
+      setError(null);
       const { auth } = await import("../../services/firebase");
       const token = auth.currentUser
         ? await auth.currentUser.getIdToken()
         : null;
       const response = await fetch(`${API_BASE_URL}/admin/search/analytics`, {
+        cache: "no-store",
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
         },
@@ -60,10 +76,16 @@ export default function SearchAnalytics() {
 
   if (error) {
     return (
-      <div className="p-8 bg-slate-50 min-h-screen">
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl shadow-sm px-6 py-5 text-red-600 text-sm font-medium">
+      <div className="p-8 bg-slate-50 min-h-screen flex flex-col items-center justify-center">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl shadow-sm px-6 py-5 text-red-600 text-sm font-medium mb-4 max-w-md text-center">
           {error}
         </div>
+        <button
+          onClick={fetchAnalytics}
+          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-all duration-200"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
