@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import API_BASE_URL from "../config/api";
 import { auth } from "../services/firebase";
+import { useAuth } from "../context/AuthContext";
 
 export default function ChatBot({ onClose }) {
+  const { currentUser } = useAuth();
+  const storageKey = currentUser?.uid ? `chatMessages_${currentUser.uid}` : "chatMessages_guest";
+  
   const [messages, setMessages] = useState(() => {
     try {
       const saved = localStorage.getItem("chatMessages");
@@ -33,7 +37,7 @@ export default function ChatBot({ onClose }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem("chatMessages", JSON.stringify(messages));
+           localStorage.setItem(storageKey, JSON.stringify(messages));
     } catch {
       // localStorage full or unavailable — fail silently
     }
@@ -127,7 +131,7 @@ export default function ChatBot({ onClose }) {
           {/* Clear chat button */}
           <button
             onClick={() => {
-              localStorage.removeItem("chatMessages");
+                   localStorage.removeItem(storageKey);
               setMessages([
                 {
                   role: "bot",
