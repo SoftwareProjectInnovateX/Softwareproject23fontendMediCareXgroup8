@@ -70,7 +70,7 @@ export default function ChatBot({ onClose }) {
 
       const token = await getFirebaseToken();
 
-      const response = await fetch(`${API_BASE_URL}/chat`, {
+      const response = await fetch(`${API_BASE_URL}/admin/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
