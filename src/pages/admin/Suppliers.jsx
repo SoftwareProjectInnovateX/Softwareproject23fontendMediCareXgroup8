@@ -3,6 +3,7 @@ import { db } from "../../services/firebase";
 import { collection, getDocs, doc, updateDoc, query, where, orderBy } from "firebase/firestore";
 import { SupplierCard } from "../../components/admin/SupplierCard";
 import { SupplierDetail } from "../../components/admin/SupplierDetail";
+import PageLayout from "../../components/PageLayout";
 
 export default function Suppliers() {
   const [suppliers, setSuppliers]               = useState([]);
@@ -104,45 +105,45 @@ export default function Suppliers() {
 
   // Default list view — searchable supplier grid
   return (
-    <div className="p-8 bg-slate-50 min-h-screen max-w-[1400px] mx-auto">
-
-      {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-1">Supplier Management</h1>
-        <p className="text-slate-500 text-[15px]">Manage and view all registered suppliers</p>
-      </div>
-
-      {/* Search bar and live result count */}
-      <div className="flex justify-between items-center mb-8 gap-4 flex-wrap">
-        <input
-          type="text"
-          placeholder="Search suppliers by name or email..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[300px] px-4 py-3 border-2 border-slate-200 rounded-xl text-[15px] transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-        />
-        {/* Count updates live as the search term changes */}
+    <PageLayout
+      title="Supplier Management"
+      subtitle="Manage and view all registered suppliers"
+      actions={
         <div className="bg-indigo-500 text-white px-5 py-3 rounded-xl font-semibold text-sm">
           {filteredSuppliers.length} Suppliers
         </div>
-      </div>
+      }
+    >
+      <div className="max-w-[1400px] mx-auto">
 
-      {/* Supplier grid — empty state shown when no suppliers match the search */}
-      {filteredSuppliers.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl shadow-sm">
-          <p className="text-lg text-slate-500">No suppliers found</p>
+        {/* Search bar */}
+        <div className="flex justify-between items-center mb-8 gap-4 flex-wrap">
+          <input
+            type="text"
+            placeholder="Search suppliers by name or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-[300px] px-4 py-3 border-2 border-slate-200 rounded-xl text-[15px] transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+          />
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredSuppliers.map((supplier) => (
-            <SupplierCard
-              key={supplier.id}
-              supplier={supplier}
-              onView={() => setSelectedSupplier(supplier)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+
+        {/* Supplier grid — empty state shown when no suppliers match the search */}
+        {filteredSuppliers.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-2xl shadow-sm">
+            <p className="text-lg text-slate-500">No suppliers found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredSuppliers.map((supplier) => (
+              <SupplierCard
+                key={supplier.id}
+                supplier={supplier}
+                onView={() => setSelectedSupplier(supplier)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </PageLayout>
   );
 }

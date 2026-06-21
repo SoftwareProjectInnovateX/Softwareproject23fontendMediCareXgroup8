@@ -5,36 +5,27 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import Card from '../../components/Card';
+import PageLayout from '../../components/PageLayout';
+import ResponsiveTable from '../../components/ResponsiveTable';
 
 /* ── Message Card System ── */
 const MessageCard = ({ messages, removeMessage }) => (
   <div className="fixed top-5 right-5 z-[2000] flex flex-col gap-2 pointer-events-none">
     {messages.map((m) => {
       const styles = {
-        success: 'bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800 shadow-emerald-100',
-        error:   'bg-red-50 border-l-4 border-red-500 text-red-800 shadow-red-100',
-        warning: 'bg-amber-50 border-l-4 border-amber-500 text-amber-800 shadow-amber-100',
-        info:    'bg-blue-50 border-l-4 border-blue-500 text-blue-800 shadow-blue-100',
+        success: 'bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800',
+        error:   'bg-red-50 border-l-4 border-red-500 text-red-800',
+        warning: 'bg-amber-50 border-l-4 border-amber-500 text-amber-800',
+        info:    'bg-blue-50 border-l-4 border-blue-500 text-blue-800',
       };
-      const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
-      const iconBg = {
-        success: 'bg-emerald-500', error: 'bg-red-500',
-        warning: 'bg-amber-500',  info:  'bg-blue-500',
-      };
+      const icons  = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+      const iconBg = { success: 'bg-emerald-500', error: 'bg-red-500', warning: 'bg-amber-500', info: 'bg-blue-500' };
       return (
-        <div
-          key={m.id}
-          className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg min-w-[300px] max-w-[400px] pointer-events-auto ${styles[m.type]}`}
-          style={{ animation: 'slideInRight 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}
-        >
-          <span className={`w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-bold flex-shrink-0 mt-0.5 ${iconBg[m.type]}`}>
-            {icons[m.type]}
-          </span>
+        <div key={m.id} className={`flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg w-[90vw] max-w-[400px] pointer-events-auto ${styles[m.type]}`}
+          style={{ animation: 'slideInRight 0.35s cubic-bezier(0.34,1.56,0.64,1)' }}>
+          <span className={`w-6 h-6 flex items-center justify-center rounded-full text-white text-xs font-bold flex-shrink-0 mt-0.5 ${iconBg[m.type]}`}>{icons[m.type]}</span>
           <p className="text-sm font-medium m-0 flex-1 leading-snug">{m.message}</p>
-          <button
-            onClick={() => removeMessage(m.id)}
-            className="bg-transparent border-none cursor-pointer p-0 opacity-40 hover:opacity-80 transition-opacity text-lg leading-none flex-shrink-0"
-          >×</button>
+          <button onClick={() => removeMessage(m.id)} className="bg-transparent border-none cursor-pointer p-0 opacity-40 hover:opacity-80 text-lg leading-none flex-shrink-0">×</button>
         </div>
       );
     })}
@@ -48,17 +39,14 @@ const AdminPayments = () => {
   const [searchTerm, setSearchTerm]           = useState('');
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [messages, setMessages]               = useState([]);
-
-  // Receipt state
-  const [receiptFile, setReceiptFile]     = useState(null);
-  const [receiptPreview, setReceiptPreview] = useState(null); // base64 img src or 'pdf'
-  const [receiptBase64, setReceiptBase64] = useState(null);   // full data URL
-  const [uploading, setUploading]         = useState(false);
-  const fileInputRef                      = useRef(null);
+  const [receiptFile, setReceiptFile]         = useState(null);
+  const [receiptPreview, setReceiptPreview]   = useState(null);
+  const [receiptBase64, setReceiptBase64]     = useState(null);
+  const [uploading, setUploading]             = useState(false);
+  const fileInputRef                          = useRef(null);
 
   const statusOptions = ['All', 'PENDING', 'PAID', 'OVERDUE'];
 
-  /* ── Message helpers ── */
   const showMessage = (message, type = 'info') => {
     const id = Date.now() + Math.random();
     setMessages(prev => [...prev, { id, type, message }]);
@@ -66,27 +54,16 @@ const AdminPayments = () => {
   };
   const removeMessage = (id) => setMessages(prev => prev.filter(m => m.id !== id));
 
-  /* ── Receipt handler — reads file as base64 ── */
   const handleReceiptChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const allowed = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-    if (!allowed.includes(file.type)) {
-      showMessage('Please select a JPG, PNG or PDF file.', 'error');
-      return;
-    }
-    // Firestore doc limit is 1MB; keep base64 overhead in mind (~33% larger)
-    if (file.size > 900 * 1024) {
-      showMessage('File must be under 900KB. Please compress the PDF/image first.', 'error');
-      return;
-    }
-
+    if (!allowed.includes(file.type)) { showMessage('Please select a JPG, PNG or PDF file.', 'error'); return; }
+    if (file.size > 900 * 1024) { showMessage('File must be under 900KB.', 'error'); return; }
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64 = reader.result; // "data:application/pdf;base64,..." or image equivalent
-      setReceiptBase64(base64);
-      setReceiptFile(file);
+      const base64 = reader.result;
+      setReceiptBase64(base64); setReceiptFile(file);
       setReceiptPreview(file.type === 'application/pdf' ? 'pdf' : base64);
     };
     reader.onerror = () => showMessage('Failed to read file.', 'error');
@@ -94,24 +71,18 @@ const AdminPayments = () => {
   };
 
   const clearReceipt = () => {
-    setReceiptFile(null);
-    setReceiptPreview(null);
-    setReceiptBase64(null);
+    setReceiptFile(null); setReceiptPreview(null); setReceiptBase64(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  /* ── Download helper ── */
   const downloadReceipt = (payment) => {
     if (!payment.receiptBase64) return;
     const link = document.createElement('a');
     link.href = payment.receiptBase64;
     link.download = payment.receiptName || 'receipt';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    document.body.appendChild(link); link.click(); link.remove();
   };
 
-  /* ── Fetch payments ── */
   const fetchPayments = async () => {
     try {
       setLoading(true);
@@ -120,16 +91,12 @@ const AdminPayments = () => {
         const data = { id: d.id, ...d.data() };
         if (data.status === 'PENDING' && data.dueDate) {
           const dueDate = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate);
-          if (dueDate < new Date()) {
-            updateDoc(doc(db, 'payments', d.id), { status: 'OVERDUE' });
-            data.status = 'OVERDUE';
-          }
+          if (dueDate < new Date()) { updateDoc(doc(db, 'payments', d.id), { status: 'OVERDUE' }); data.status = 'OVERDUE'; }
         }
         return data;
       });
       setPayments(paymentsData);
     } catch (error) {
-      console.error('Error fetching payments:', error);
       showMessage('Failed to load payments: ' + error.message, 'error');
     } finally {
       setLoading(false);
@@ -157,178 +124,51 @@ const AdminPayments = () => {
     totalPending: payments.filter(p => p.status === 'PENDING' || p.status === 'OVERDUE').reduce((sum, p) => sum + (p.amount || 0), 0),
   };
 
-  /* ── Find & update matching invoice ── */
   const findAndUpdateInvoice = async (payment, invoiceType, extraFields = {}) => {
     const tryQuery = async (...constraints) => {
-      try {
-        const snap = await getDocs(query(collection(db, 'invoices'), ...constraints));
-        return snap.docs;
-      } catch (e) {
-        console.warn('[findAndUpdateInvoice] query failed:', e.message);
-        return [];
-      }
+      try { const snap = await getDocs(query(collection(db, 'invoices'), ...constraints)); return snap.docs; } catch { return []; }
     };
-
     let docs = [];
-
-    if (payment.purchaseOrderId) {
-      docs = await tryQuery(
-        where('purchaseOrderId', '==', payment.purchaseOrderId),
-        where('invoiceType', '==', invoiceType)
-      );
-    }
-    if (!docs.length && payment.orderId) {
-      docs = await tryQuery(
-        where('orderId', '==', payment.orderId),
-        where('invoiceType', '==', invoiceType)
-      );
-    }
-    if (!docs.length && payment.orderId) {
-      docs = await tryQuery(
-        where('poId', '==', payment.orderId),
-        where('invoiceType', '==', invoiceType)
-      );
-    }
-    if (!docs.length && payment.purchaseOrderId) {
-      const allDocs = await tryQuery(where('purchaseOrderId', '==', payment.purchaseOrderId));
-      docs = allDocs.filter(d => {
-        const t = (d.data().invoiceType || d.data().type || '').toUpperCase();
-        return t === invoiceType.toUpperCase();
-      });
-    }
-    if (!docs.length && payment.supplierId) {
-      const allDocs = await tryQuery(
-        where('supplierId', '==', payment.supplierId),
-        where('invoiceType', '==', invoiceType),
-        where('paymentStatus', '!=', 'Paid')
-      );
-      docs = allDocs.filter(d => {
-        const data = d.data();
-        return (
-          data.orderId === payment.orderId ||
-          data.purchaseOrderId === payment.purchaseOrderId ||
-          data.poId === payment.orderId
-        );
-      });
-    }
-
+    if (payment.purchaseOrderId) docs = await tryQuery(where('purchaseOrderId', '==', payment.purchaseOrderId), where('invoiceType', '==', invoiceType));
+    if (!docs.length && payment.orderId) docs = await tryQuery(where('orderId', '==', payment.orderId), where('invoiceType', '==', invoiceType));
+    if (!docs.length && payment.orderId) docs = await tryQuery(where('poId', '==', payment.orderId), where('invoiceType', '==', invoiceType));
     if (docs.length > 0) {
-      await updateDoc(doc(db, 'invoices', docs[0].id), {
-        paymentStatus: 'Paid',
-        paidAmount:    payment.amount,
-        paidDate:      Timestamp.now(),
-        paymentMethod: 'Bank Transfer',
-        updatedAt:     Timestamp.now(),
-        ...extraFields,
-      });
+      await updateDoc(doc(db, 'invoices', docs[0].id), { paymentStatus: 'Paid', paidAmount: payment.amount, paidDate: Timestamp.now(), paymentMethod: 'Bank Transfer', updatedAt: Timestamp.now(), ...extraFields });
       return true;
     }
-    console.warn('[findAndUpdateInvoice] No invoice found after all attempts.');
     return false;
   };
 
-  /* ── Mark as Paid ── */
   const markAsPaid = async (paymentId) => {
     const payment = payments.find(p => p.id === paymentId);
     if (!payment) return;
-
-    if (!receiptBase64) {
-      showMessage('Please upload a bank receipt (PDF or image) before marking as paid.', 'warning');
-      return;
-    }
-
+    if (!receiptBase64) { showMessage('Please upload a bank receipt before marking as paid.', 'warning'); return; }
     try {
       setUploading(true);
-
-      // Receipt fields saved to both payment + invoice documents
-      const receiptFields = {
-        receiptBase64,
-        receiptName: receiptFile.name,
-        receiptType: receiptFile.type,
-        receiptSize: receiptFile.size,
-      };
-
-      // 1. Update payment record
-      await updateDoc(doc(db, 'payments', paymentId), {
-        status:    'PAID',
-        paidDate:  Timestamp.now(),
-        updatedAt: Timestamp.now(),
-        ...receiptFields,
-      });
-
-      // 2. Update invoice — pass receipt so supplier can download it too
-      const invoiceType = payment.paymentType === 'INITIAL' ? 'INITIAL' : 'FINAL';
-      const invoiceUpdated = await findAndUpdateInvoice(payment, invoiceType, receiptFields);
-      if (!invoiceUpdated) {
-        console.warn('[markAsPaid] Invoice update failed — supplier invoice view may lag');
-      }
-
-      // 3. Update purchase order + send notification
+      const receiptFields = { receiptBase64, receiptName: receiptFile.name, receiptType: receiptFile.type, receiptSize: receiptFile.size };
+      await updateDoc(doc(db, 'payments', paymentId), { status: 'PAID', paidDate: Timestamp.now(), updatedAt: Timestamp.now(), ...receiptFields });
+      await findAndUpdateInvoice(payment, payment.paymentType === 'INITIAL' ? 'INITIAL' : 'FINAL', receiptFields);
       if (payment.paymentType === 'INITIAL') {
-        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
-          initialPaymentStatus: 'PAID',
-          initialPaymentDate:   Timestamp.now(),
-          updatedAt:            Timestamp.now(),
-        });
-        await addDoc(collection(db, 'notifications'), {
-          type:            'INITIAL_PAYMENT_PAID',
-          recipientId:     payment.supplierId,
-          recipientType:   'supplier',
-          purchaseOrderId: payment.purchaseOrderId,
-          poId:            payment.orderId,
-          supplierId:      payment.supplierId,
-          supplierName:    payment.supplierName,
-          productName:     payment.productName,
-          message:         `Initial payment of 50% has been made for order ${payment.orderId}. Please proceed with delivery.`,
-          read:            false,
-          createdAt:       Timestamp.now(),
-        });
+        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), { initialPaymentStatus: 'PAID', initialPaymentDate: Timestamp.now(), updatedAt: Timestamp.now() });
+        await addDoc(collection(db, 'notifications'), { type: 'INITIAL_PAYMENT_PAID', recipientId: payment.supplierId, recipientType: 'supplier', purchaseOrderId: payment.purchaseOrderId, poId: payment.orderId, supplierId: payment.supplierId, supplierName: payment.supplierName, productName: payment.productName, message: `Initial payment of 50% has been made for order ${payment.orderId}. Please proceed with delivery.`, read: false, createdAt: Timestamp.now() });
       }
-
       if (payment.paymentType === 'FINAL') {
-        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
-          finalPaymentStatus: 'PAID',
-          finalPaymentDate:   Timestamp.now(),
-          paymentStatus:      'COMPLETED',
-          orderStatus:        'COMPLETED',
-          updatedAt:          Timestamp.now(),
-        });
-        await addDoc(collection(db, 'notifications'), {
-          type:            'FINAL_PAYMENT_PAID',
-          recipientId:     payment.supplierId,
-          recipientType:   'supplier',
-          purchaseOrderId: payment.purchaseOrderId,
-          poId:            payment.orderId,
-          supplierId:      payment.supplierId,
-          supplierName:    payment.supplierName,
-          productName:     payment.productName,
-          message:         `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`,
-          read:            false,
-          createdAt:       Timestamp.now(),
-        });
+        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), { finalPaymentStatus: 'PAID', finalPaymentDate: Timestamp.now(), paymentStatus: 'COMPLETED', orderStatus: 'COMPLETED', updatedAt: Timestamp.now() });
+        await addDoc(collection(db, 'notifications'), { type: 'FINAL_PAYMENT_PAID', recipientId: payment.supplierId, recipientType: 'supplier', purchaseOrderId: payment.purchaseOrderId, poId: payment.orderId, supplierId: payment.supplierId, supplierName: payment.supplierName, productName: payment.productName, message: `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`, read: false, createdAt: Timestamp.now() });
       }
-
-      showMessage(
-        payment.paymentType === 'INITIAL'
-          ? 'Initial payment marked as paid! Supplier notified to proceed with delivery.'
-          : 'Final payment marked as paid! All payments for this order are now complete.',
-        'success'
-      );
-      clearReceipt();
-      fetchPayments();
-      setSelectedPayment(null);
+      showMessage(payment.paymentType === 'INITIAL' ? 'Initial payment marked as paid! Supplier notified.' : 'Final payment marked as paid! Order complete.', 'success');
+      clearReceipt(); fetchPayments(); setSelectedPayment(null);
     } catch (error) {
-      console.error('Error marking payment as paid:', error);
       showMessage('Failed to update payment: ' + error.message, 'error');
     } finally {
       setUploading(false);
     }
   };
 
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  const formatDate = (ts) => {
+    if (!ts) return 'N/A';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
   const getDaysUntilDue = (dueDate) => {
@@ -349,6 +189,54 @@ const AdminPayments = () => {
   }[type] || 'bg-gray-100 text-gray-600');
 
   const isPDF = (p) => p?.receiptType === 'application/pdf' || p?.receiptName?.toLowerCase().endsWith('.pdf');
+  const handleCloseModal = () => { setSelectedPayment(null); clearReceipt(); };
+
+  // ── Table columns for ResponsiveTable ──
+  const columns = [
+    {
+      key: 'orderId', label: 'PO ID',
+      render: (val) => <span className="font-mono font-semibold text-blue-600 text-sm">{val}</span>,
+    },
+    { key: 'supplierName', label: 'Supplier' },
+    { key: 'productName',  label: 'Product'  },
+    {
+      key: 'paymentType', label: 'Payment Type',
+      render: (val, row) => (
+        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${getPaymentTypeStyle(val)}`}>
+          {row.paymentLabel || val || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'quantity', label: 'Quantity',
+      render: (val) => `${val} units`,
+    },
+    {
+      key: 'amount', label: 'Amount',
+      render: (val) => <span className="font-semibold text-emerald-600">Rs. {Number(val).toFixed(2)}</span>,
+    },
+    {
+      key: 'dueDate', label: 'Due Date',
+      render: (val) => formatDate(val),
+    },
+    {
+      key: 'dueDate', label: 'Days Until Due',
+      render: (val) => {
+        const days = getDaysUntilDue(val);
+        return (
+          <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${days < 0 ? 'bg-red-100 text-red-800' : days <= 7 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}`}>
+            {days < 0 ? `${Math.abs(days)}d overdue` : `${days} days`}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'status', label: 'Status',
+      render: (val) => (
+        <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(val)}`}>{val}</span>
+      ),
+    },
+  ];
 
   const statCards = [
     { label: 'Total Payments', value: stats.total },
@@ -360,148 +248,94 @@ const AdminPayments = () => {
     { label: 'Total Pending',  value: `Rs. ${stats.totalPending.toFixed(2)}` },
   ];
 
-  const handleCloseModal = () => { setSelectedPayment(null); clearReceipt(); };
-
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
-
+    <PageLayout title="Payments Management" subtitle="Track and manage supplier payments">
       <MessageCard messages={messages} removeMessage={removeMessage} />
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Payments Management</h1>
-        <p className="text-slate-500 text-[15px]">Track and manage supplier payments</p>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
         {statCards.map((card) => (
           <Card key={card.label} title={card.label} value={card.value} />
         ))}
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-sm mb-6">
+      {/* Search & Filter */}
+      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm mb-4 md:mb-6">
         <input
           type="text"
           placeholder="Search by PO ID, Supplier, or Product..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg text-[15px] mb-4 transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+          className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg text-sm mb-4 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
         />
-        <div className="flex gap-2.5 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           {statusOptions.map(status => (
-            <button
-              key={status}
-              onClick={() => setStatusFilter(status)}
-              className={`px-4 py-2 rounded-full border-2 text-sm font-medium cursor-pointer transition-all duration-200
-                ${statusFilter === status
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}
-            >
+            <button key={status} onClick={() => setStatusFilter(status)}
+              className={`px-3 md:px-4 py-1.5 md:py-2 rounded-full border-2 text-xs md:text-sm font-medium cursor-pointer transition-all
+                ${statusFilter === status ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>
               {status}
             </button>
           ))}
         </div>
       </div>
 
+      {/* Payments Table — ResponsiveTable handles desktop/mobile automatically */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
-        {loading ? (
-          <div className="py-20 text-center text-slate-500 text-lg">Loading payments...</div>
-        ) : filteredPayments.length === 0 ? (
-          <div className="py-20 text-center text-slate-500 text-lg">No payments found</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[1000px]">
-              <thead className="bg-slate-50">
-                <tr>
-                  {['PO ID', 'Supplier', 'Product', 'Payment Type', 'Quantity', 'Amount', 'Due Date', 'Days Until Due', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-4 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.map(payment => {
-                  const days = getDaysUntilDue(payment.dueDate);
-                  return (
-                    <tr key={payment.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
-                      <td className="px-4 py-4 font-mono font-semibold text-blue-600 text-sm">{payment.orderId}</td>
-                      <td className="px-4 py-4 text-sm text-slate-800">{payment.supplierName}</td>
-                      <td className="px-4 py-4 text-sm text-slate-800">{payment.productName}</td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${getPaymentTypeStyle(payment.paymentType)}`}>
-                          {payment.paymentLabel || payment.paymentType || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-800">{payment.quantity} units</td>
-                      <td className="px-4 py-4 text-sm font-semibold text-emerald-600">Rs. {Number(payment.amount).toFixed(2)}</td>
-                      <td className="px-4 py-4 text-sm text-slate-800">{formatDate(payment.dueDate)}</td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold
-                          ${days < 0 ? 'bg-red-100 text-red-800' : days <= 7 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}`}>
-                          {days < 0 ? `${Math.abs(days)} days overdue` : `${days} days`}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(payment.status)}`}>
-                          {payment.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => { setSelectedPayment(payment); clearReceipt(); }}
-                            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
-                          >View</button>
-                          {payment.status !== 'PAID' && (
-                            <button
-                              onClick={() => { setSelectedPayment(payment); clearReceipt(); }}
-                              className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[13px] font-medium rounded-lg border-none cursor-pointer transition-all duration-200 hover:-translate-y-px hover:shadow-md"
-                            >Pay</button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <ResponsiveTable
+          columns={columns}
+          data={filteredPayments}
+          keyField="id"
+          cardTitle="orderId"
+          cardBadge="status"
+          loading={loading}
+          emptyMessage="No payments found"
+          actions={(row) => (
+            <div className="flex gap-2">
+              <button onClick={() => { setSelectedPayment(row); clearReceipt(); }}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg border-none cursor-pointer">
+                View
+              </button>
+              {row.status !== 'PAID' && (
+                <button onClick={() => { setSelectedPayment(row); clearReceipt(); }}
+                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium rounded-lg border-none cursor-pointer">
+                  Pay
+                </button>
+              )}
+            </div>
+          )}
+        />
       </div>
 
-      {/* ── Payment Detail Modal ── */}
+      {/* Payment Detail Modal */}
       {selectedPayment && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[1000] p-5"
-          style={{ animation: 'fadeIn 0.2s ease-out' }}
-          onClick={handleCloseModal}
-        >
-          <div
-            className="bg-white rounded-2xl w-full max-w-[750px] max-h-[92vh] overflow-y-auto shadow-2xl"
-            style={{ animation: 'slideUp 0.3s ease-out' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center px-7 py-6 border-b-2 border-slate-100">
-              <h2 className="text-2xl font-bold text-slate-800 m-0">Payment Details</h2>
-              <button onClick={handleCloseModal} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100 hover:text-slate-600 transition-all duration-200">×</button>
+        <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-[1000] p-0 md:p-5"
+          style={{ animation: 'fadeIn 0.2s ease-out' }} onClick={handleCloseModal}>
+          <div className="bg-white w-full md:rounded-2xl md:max-w-[750px] max-h-[95vh] overflow-y-auto shadow-2xl rounded-t-2xl"
+            style={{ animation: 'slideUp 0.3s ease-out' }} onClick={(e) => e.stopPropagation()}>
+
+            <div className="flex justify-between items-center px-5 md:px-7 py-4 md:py-6 border-b-2 border-slate-100">
+              <h2 className="text-xl md:text-2xl font-bold text-slate-800 m-0">Payment Details</h2>
+              <button onClick={handleCloseModal} className="w-8 h-8 flex items-center justify-center text-3xl text-slate-400 bg-transparent border-none cursor-pointer rounded-lg hover:bg-slate-100">×</button>
             </div>
 
-            <div className="p-7">
+            <div className="p-5 md:p-7">
               {/* Order ID + badges */}
-              <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-slate-100">
-                <h3 className="text-xl font-bold text-blue-600 font-mono m-0">{selectedPayment.orderId}</h3>
-                <div className="flex gap-2 items-center">
+              <div className="flex flex-wrap justify-between items-center gap-2 mb-5 pb-4 border-b-2 border-slate-100">
+                <h3 className="text-lg md:text-xl font-bold text-blue-600 font-mono m-0">{selectedPayment.orderId}</h3>
+                <div className="flex gap-2 flex-wrap">
                   {selectedPayment.paymentType && (
-                    <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold ${getPaymentTypeStyle(selectedPayment.paymentType)}`}>
+                    <span className={`px-3 py-1.5 rounded-xl text-xs font-semibold ${getPaymentTypeStyle(selectedPayment.paymentType)}`}>
                       {selectedPayment.paymentLabel || selectedPayment.paymentType}
                     </span>
                   )}
-                  <span className={`inline-block px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(selectedPayment.status)}`}>
+                  <span className={`px-3 py-1.5 rounded-xl text-xs font-semibold uppercase ${getStatusStyle(selectedPayment.status)}`}>
                     {selectedPayment.status}
                   </span>
                 </div>
               </div>
 
               {/* Details grid */}
-              <div className="grid grid-cols-2 gap-5 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 mb-6">
                 {[
                   { label: 'Supplier',           value: selectedPayment.supplierName },
                   { label: 'Product',            value: selectedPayment.productName },
@@ -521,107 +355,69 @@ const AdminPayments = () => {
                   },
                 ].map((item) => (
                   <div key={item.label} className="flex flex-col">
-                    <label className="text-[13px] text-slate-500 font-medium mb-1.5">{item.label}</label>
+                    <label className="text-[13px] text-slate-500 font-medium mb-1">{item.label}</label>
                     <p className={`m-0 text-[15px] text-slate-800 font-medium ${item.highlight || ''}`}>{item.value}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Show existing receipt if already paid */}
+              {/* Existing receipt */}
               {selectedPayment.status === 'PAID' && selectedPayment.receiptBase64 && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 mb-5">
-                  <p className="text-sm font-semibold text-emerald-800 mb-3 flex items-center gap-2">
-                    <span>✓</span> Bank Receipt Attached
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <span className="text-2xl">{isPDF(selectedPayment) ? '📄' : '🖼️'}</span>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-5">
+                  <p className="text-sm font-semibold text-emerald-800 mb-3 flex items-center gap-2"><span>✓</span> Bank Receipt Attached</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <span className="text-xl">{isPDF(selectedPayment) ? '📄' : '🖼️'}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-emerald-800 m-0 truncate">{selectedPayment.receiptName || 'Receipt'}</p>
-                      <p className="text-xs text-emerald-600 m-0 mt-0.5">
-                        {isPDF(selectedPayment) ? 'PDF Document' : 'Image'} · {((selectedPayment.receiptSize || 0) / 1024).toFixed(0)} KB
-                      </p>
+                      <p className="text-xs text-emerald-600 m-0 mt-0.5">{isPDF(selectedPayment) ? 'PDF' : 'Image'} · {((selectedPayment.receiptSize || 0) / 1024).toFixed(0)} KB</p>
                     </div>
-                    <button
-                      onClick={() => downloadReceipt(selectedPayment)}
-                      className="flex-shrink-0 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer transition-colors"
-                    >
-                      ⬇ Download
-                    </button>
+                    <button onClick={() => downloadReceipt(selectedPayment)} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg border-none cursor-pointer flex-shrink-0">⬇ Download</button>
                   </div>
                   {!isPDF(selectedPayment) && (
-                    <img
-                      src={selectedPayment.receiptBase64}
-                      alt="Receipt"
-                      className="mt-4 w-full max-h-[250px] object-contain rounded-lg border border-emerald-200"
-                    />
+                    <img src={selectedPayment.receiptBase64} alt="Receipt" className="mt-4 w-full max-h-[200px] object-contain rounded-lg border border-emerald-200" />
                   )}
                 </div>
               )}
 
-              {/* Payment type hints */}
+              {/* Hints */}
               {selectedPayment.paymentType === 'INITIAL' && selectedPayment.status !== 'PAID' && (
                 <div className="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-5">
-                  <p className="text-[13px] text-violet-800 font-medium m-0">
-                    This is the initial 50% payment. Once paid, the supplier will be notified to proceed with delivery.
-                  </p>
+                  <p className="text-[13px] text-violet-800 font-medium m-0">This is the initial 50% payment. Once paid, the supplier will be notified to proceed with delivery.</p>
                 </div>
               )}
               {selectedPayment.paymentType === 'FINAL' && selectedPayment.status !== 'PAID' && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5">
-                  <p className="text-[13px] text-blue-800 font-medium m-0">
-                    This is the final 50% payment due after order receipt. Once paid, all transactions for this order will be complete.
-                  </p>
+                  <p className="text-[13px] text-blue-800 font-medium m-0">This is the final 50% payment. Once paid, all transactions for this order will be complete.</p>
                 </div>
               )}
 
-              {/* ── Upload Receipt Section ── */}
+              {/* Upload Receipt */}
               {selectedPayment.status !== 'PAID' && (
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-5 mb-5">
-                  <p className="text-sm font-semibold text-slate-700 mb-1">
-                    Upload Bank Receipt (Payment Slip) <span className="text-red-500">*</span>
-                  </p>
-                  <p className="text-[13px] text-slate-500 mb-4">
-                    Upload as <strong>PDF</strong>, JPG or PNG · Max <strong>900KB</strong>. The supplier will be able to download this slip.
-                  </p>
-
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 mb-5">
+                  <p className="text-sm font-semibold text-slate-700 mb-1">Upload Bank Receipt <span className="text-red-500">*</span></p>
+                  <p className="text-[13px] text-slate-500 mb-4">PDF, JPG or PNG · Max 900KB</p>
                   {!receiptPreview ? (
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex flex-col items-center justify-center gap-3 py-10 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
-                    >
-                      <span className="text-5xl">📎</span>
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-slate-700 mb-0.5">Click to upload payment slip</p>
-                        <p className="text-xs text-slate-400">PDF, JPG or PNG · Max 900KB</p>
-                      </div>
-                      <span className="mt-1 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg">Browse Files</span>
+                    <div onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center justify-center gap-3 py-8 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all">
+                      <span className="text-4xl">📎</span>
+                      <p className="text-sm font-medium text-slate-700">Click to upload payment slip</p>
+                      <span className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg">Browse Files</span>
                     </div>
                   ) : receiptPreview === 'pdf' ? (
-                    <div className="flex items-center gap-4 bg-blue-50 rounded-xl p-4 border border-blue-200">
-                      <div className="w-14 h-14 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <span className="text-3xl">📄</span>
-                      </div>
+                    <div className="flex items-center gap-3 bg-blue-50 rounded-xl p-3 border border-blue-200">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0"><span className="text-2xl">📄</span></div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-blue-800 m-0 truncate">{receiptFile?.name}</p>
-                        <p className="text-xs text-blue-600 m-0 mt-1">
-                          PDF · {((receiptFile?.size || 0) / 1024).toFixed(0)} KB · Ready to submit
-                        </p>
+                        <p className="text-xs text-blue-600 m-0 mt-1">PDF · {((receiptFile?.size || 0) / 1024).toFixed(0)} KB · Ready</p>
                       </div>
-                      <button
-                        onClick={clearReceipt}
-                        className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 hover:bg-red-200 text-red-600 border-none cursor-pointer text-base transition-colors flex-shrink-0"
-                      >×</button>
+                      <button onClick={clearReceipt} className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 text-red-600 border-none cursor-pointer flex-shrink-0">×</button>
                     </div>
                   ) : (
                     <div>
                       <div className="relative">
-                        <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-[220px] object-contain rounded-xl border-2 border-slate-200" />
-                        <button
-                          onClick={clearReceipt}
-                          className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-red-500 hover:bg-red-600 text-white border-none cursor-pointer text-sm font-bold transition-colors shadow-md"
-                        >×</button>
+                        <img src={receiptPreview} alt="Receipt preview" className="w-full max-h-[200px] object-contain rounded-xl border-2 border-slate-200" />
+                        <button onClick={clearReceipt} className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-red-500 text-white border-none cursor-pointer text-sm font-bold shadow-md">×</button>
                       </div>
                       <div className="mt-2 px-3 py-2 bg-slate-50 rounded-lg flex items-center gap-2">
                         <span>🖼️</span>
@@ -629,41 +425,23 @@ const AdminPayments = () => {
                       </div>
                     </div>
                   )}
-
                   {receiptPreview && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mt-3 w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-lg border-none cursor-pointer transition-colors"
-                    >Replace file</button>
+                    <button onClick={() => fileInputRef.current?.click()} className="mt-3 w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-lg border-none cursor-pointer">Replace file</button>
                   )}
-
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/jpg,application/pdf"
-                    onChange={handleReceiptChange}
-                    className="hidden"
-                  />
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/jpg,application/pdf" onChange={handleReceiptChange} className="hidden" />
                 </div>
               )}
 
-              {/* ── Mark as Paid button ── */}
+              {/* Mark as Paid */}
               {selectedPayment.status !== 'PAID' && (
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 text-center">
-                  <button
-                    onClick={() => markAsPaid(selectedPayment.id)}
-                    disabled={uploading || !receiptBase64}
-                    className={`w-full py-3.5 px-6 text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all duration-200 mb-2
-                      ${uploading || !receiptBase64
-                        ? 'bg-slate-300 cursor-not-allowed'
-                        : 'bg-emerald-500 hover:bg-emerald-600 hover:-translate-y-0.5 hover:shadow-lg'}`}
-                  >
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 text-center">
+                  <button onClick={() => markAsPaid(selectedPayment.id)} disabled={uploading || !receiptBase64}
+                    className={`w-full py-3.5 px-6 text-white border-none rounded-lg text-base font-semibold cursor-pointer transition-all mb-2
+                      ${uploading || !receiptBase64 ? 'bg-slate-300 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 hover:-translate-y-0.5 hover:shadow-lg'}`}>
                     {uploading ? '⏳ Saving...' : '✓ Mark as Paid'}
                   </button>
                   <p className="m-0 text-[13px] text-blue-700">
-                    {receiptBase64
-                      ? 'Receipt ready — click to complete payment'
-                      : 'Upload a bank receipt to enable payment confirmation'}
+                    {receiptBase64 ? 'Receipt ready — click to complete payment' : 'Upload a bank receipt to enable payment confirmation'}
                   </p>
                 </div>
               )}
@@ -677,7 +455,7 @@ const AdminPayments = () => {
         @keyframes slideUp      { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes slideInRight { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
-    </div>
+    </PageLayout>
   );
 };
 

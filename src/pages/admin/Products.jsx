@@ -13,6 +13,8 @@ import {
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { CATEGORIES } from "../../data/categories";
+import PageLayout from "../../components/PageLayout";
+import ResponsiveTable from "../../components/ResponsiveTable";
 
 // Normalize: lowercase, strip spaces AND underscores/hyphens
 const normalize = (v = "") => v.toLowerCase().replace(/[\s_-]+/g, "");
@@ -277,15 +279,108 @@ export default function Products() {
   });
   // ─────────────────────────────────────────────────────────────────────────────
 
-  return (
-    <div className="p-6 bg-slate-50 min-h-screen">
-      <Toast toasts={toasts} removeToast={removeToast} />
+  // ── ResponsiveTable column definitions (mirrors original <table> cells) ──
+  const columns = [
+    {
+      key: "productCode",
+      label: "ID",
+      render: (_v, p) => <span className="text-[12px] font-mono text-slate-500">{p.productCode}</span>,
+    },
+    {
+      key: "productName",
+      label: "Product",
+      render: (_v, p) => (
+        <div className="max-w-[180px]">
+          <p className="font-semibold text-slate-800 text-[13px] m-0 truncate">{p.productName}</p>
+          {p.manufacturer && (
+            <p className="text-[11px] text-slate-400 mt-0.5 m-0 truncate">{p.manufacturer}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "category",
+      label: "Category",
+      render: (_v, p) => {
+        const catObj = CATEGORIES.find((c) => normalize(c.name) === normalize(p.category));
+        return (
+          <span className="text-[12px] text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md font-medium">
+            {catObj ? catObj.name : p.category}
+          </span>
+        );
+      },
+    },
+    {
+      key: "supplierName",
+      label: "Supplier",
+      render: (_v, p) => (
+        <span className="inline-block bg-sky-50 text-sky-700 border border-sky-100 px-2.5 py-1 rounded-md text-[12px] font-medium">
+          {p.supplierName || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "stock",
+      label: "Stock",
+      render: (_v, p) => (
+        <>
+          <span className={`text-[13px] font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
+            {p.stock}
+          </span>
+          {p.stock <= 100 && (
+            <span className="ml-1.5 inline-block bg-red-50 text-red-500 border border-red-100 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+              LOW
+            </span>
+          )}
+        </>
+      ),
+    },
+    {
+      key: "reorder",
+      label: "Reorder",
+      render: () => <span className="text-[13px] text-slate-600">100</span>,
+    },
+    {
+      key: "wholesalePrice",
+      label: "Wholesale",
+      render: (_v, p) => (
+        <span className="text-[13px] text-slate-700">
+          Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : "0.00"}
+        </span>
+      ),
+    },
+    {
+      key: "retailPrice",
+      label: "Retail",
+      render: (_v, p) => (
+        <span className="text-[13px] text-slate-700">
+          Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
+        </span>
+      ),
+    },
+    {
+      key: "orderStatus",
+      label: "Order Status",
+      render: (_v, p) => getOrderStatus(p.id) || <span className="text-slate-300 text-sm italic">—</span>,
+    },
+  ];
 
-      {/* Header */}
-      <div className="mb-7">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Inventory Management</h1>
-        <p className="text-slate-500 text-[15px]">Admin Dashboard — Consolidated Inventory</p>
-      </div>
+  const renderActions = (p) =>
+    p.stock <= 100 ? (
+      <button
+        onClick={() => openOrderForm(p)}
+        disabled={pendingOrders[p.id]?.status === "PENDING"}
+        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-[12px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-150"
+      >
+        {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
+      </button>
+    ) : (
+      <span className="text-slate-300 text-sm">—</span>
+    );
+
+  return (
+    <PageLayout title="Inventory Management" subtitle="Admin Dashboard — Consolidated Inventory">
+      <Toast toasts={toasts} removeToast={removeToast} />
 
       {/* Category filter pills */}
       <div className="flex gap-2 flex-wrap mb-4">
@@ -324,103 +419,17 @@ export default function Products() {
 
       {/* Table */}
       <div className="bg-white rounded-xl overflow-hidden border border-slate-200">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse min-w-[900px]">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                {["ID", "Product", "Category", "Supplier", "Stock", "Reorder", "Wholesale", "Retail", "Order Status", "Action"].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p, idx) => {
-                const catObj = CATEGORIES.find((c) => normalize(c.name) === normalize(p.category));
-                return (
-                  <tr
-                    key={p.id}
-                    className={`border-b border-slate-100 hover:bg-slate-50/70 transition-colors duration-100 ${
-                      idx === filtered.length - 1 ? "border-b-0" : ""
-                    }`}
-                  >
-                    <td className="px-4 py-4 text-[12px] font-mono text-slate-500">{p.productCode}</td>
-
-                    <td className="px-4 py-4 max-w-[180px]">
-                      <p className="font-semibold text-slate-800 text-[13px] m-0 truncate">{p.productName}</p>
-                      {p.manufacturer && (
-                        <p className="text-[11px] text-slate-400 mt-0.5 m-0 truncate">{p.manufacturer}</p>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <span className="text-[12px] text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md font-medium">
-                        {catObj ? catObj.name : p.category}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <span className="inline-block bg-sky-50 text-sky-700 border border-sky-100 px-2.5 py-1 rounded-md text-[12px] font-medium">
-                        {p.supplierName || "—"}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-4">
-                      <span className={`text-[13px] font-semibold ${p.stock <= 100 ? "text-red-600" : "text-slate-800"}`}>
-                        {p.stock}
-                      </span>
-                      {p.stock <= 100 && (
-                        <span className="ml-1.5 inline-block bg-red-50 text-red-500 border border-red-100 text-[10px] font-semibold px-2 py-0.5 rounded-md">
-                          LOW
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4 text-[13px] text-slate-600">100</td>
-
-                    <td className="px-4 py-4 text-[13px] text-slate-700">
-                      Rs. {p.wholesalePrice ? Number(p.wholesalePrice).toFixed(2) : "0.00"}
-                    </td>
-
-                    <td className="px-4 py-4 text-[13px] text-slate-700">
-                      Rs. {p.retailPrice ? Number(p.retailPrice).toFixed(2) : "0.00"}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {getOrderStatus(p.id) || (
-                        <span className="text-slate-300 text-sm italic">—</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {p.stock <= 100 && (
-                        <button
-                          onClick={() => openOrderForm(p)}
-                          disabled={pendingOrders[p.id]?.status === "PENDING"}
-                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-[12px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-150"
-                        >
-                          {pendingOrders[p.id]?.status === "PENDING" ? "Order Sent" : "Order Now"}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable
+          columns={columns}
+          data={filtered}
+          keyField="id"
+          loading={false}
+          emptyMessage="No products found"
+          cardTitle="productName"
+          cardBadge="stock"
+          actions={renderActions}
+        />
       </div>
-
-      {/* Empty state */}
-      {filtered.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-xl mt-4 border border-slate-200">
-          <p className="text-[15px] text-slate-400">No products found</p>
-        </div>
-      )}
 
       {/* Restock order modal */}
       {showOrderForm && selectedProduct && (
@@ -524,6 +533,6 @@ export default function Products() {
         @keyframes slideUp     { from { transform: translateY(16px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
         @keyframes slideInRight { from { transform: translateX(20px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
       `}</style>
-    </div>
+    </PageLayout>
   );
 }

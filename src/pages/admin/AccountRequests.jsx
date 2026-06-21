@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
-import {
-  collection, getDocs, query, orderBy
-} from "firebase/firestore";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db, getAuthHeaders } from "../../services/firebase";
-import {
-  MdVisibility,
-  MdCardGiftcard,
-  MdBlock,
-} from "react-icons/md";
-import { FaStar } from "react-icons/fa";
+import PageLayout from "../../components/PageLayout";
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+// ── Info field ──────────────────────────────────────────────────────────────
+const Info = ({ label, value, span }) => (
+  <div className={span ? 'col-span-2' : ''}>
+    <span className="text-[11px] text-slate-400 font-semibold uppercase">{label}</span>
+    <p className="text-sm font-medium text-slate-800 mt-0.5 break-words">{value || '—'}</p>
+  </div>
+);
 
 export default function AccountRequests() {
   const [requests, setRequests]         = useState([]);
@@ -33,39 +34,18 @@ export default function AccountRequests() {
     }
   };
 
-
   const handleApprove = async (request) => {
     if (!request?.id) return;
     if (!window.confirm(`Approve ${request.type} account for ${request.companyName || request.fullName}?`)) return;
-
     setActionLoading(request.id);
     try {
       const authHeaders = await getAuthHeaders();
-      const res = await fetch(`${API_BASE}/account-requests/${request.id}/approve`, {
-        method: 'POST',
-        headers: {
-          ...authHeaders
-        }
-      });
+      const res  = await fetch(`${API_BASE}/account-requests/${request.id}/approve`, { method: 'POST', headers: { ...authHeaders } });
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Approval failed');
-      }
-
-      // Refresh list
+      if (!res.ok) throw new Error(data.message || 'Approval failed');
       await fetchRequests();
-
-      // Show admin the temp password returned from backend
-      alert(
-        `✓ Account approved!\n\n` +
-        `Email: ${request.email}\n` +
-        `Temporary Password: ${data.tempPassword}\n\n` +
-        `The user has been notified via email with these credentials.`
-      );
-
+      alert(`✓ Account approved!\n\nEmail: ${request.email}\nTemporary Password: ${data.tempPassword}\n\nThe user has been notified via email.`);
     } catch (err) {
-      console.error(err);
       alert('Failed to approve: ' + err.message);
     } finally {
       setActionLoading(null);
@@ -78,23 +58,13 @@ export default function AccountRequests() {
     setActionLoading(request.id);
     try {
       const authHeaders = await getAuthHeaders();
-      const res = await fetch(`${API_BASE}/account-requests/${request.id}/reject`, {
-        method: 'POST',
-        headers: {
-          ...authHeaders
-        }
-      });
+      const res  = await fetch(`${API_BASE}/account-requests/${request.id}/reject`, { method: 'POST', headers: { ...authHeaders } });
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Rejection failed');
-      }
-
+      if (!res.ok) throw new Error(data.message || 'Rejection failed');
       await fetchRequests();
       alert('Request rejected. User has been notified.');
     } catch (err) {
-      console.error(err);
-      alert('Failed to reject request: ' + err.message);
+      alert('Failed to reject: ' + err.message);
     } finally {
       setActionLoading(null);
     }
@@ -104,33 +74,28 @@ export default function AccountRequests() {
   const pending   = filtered.filter(r => r.status === 'pending');
   const processed = filtered.filter(r => r.status !== 'pending');
 
+  // ── Request Card ──────────────────────────────────────────────────────────
   const RequestCard = ({ request }) => {
-    // Guard: if request is null/undefined, render nothing
     if (!request?.id) return null;
-
     const isSupplier   = request.type === 'supplier';
     const isPending    = request.status === 'pending';
     const isApproved   = request.status === 'approved';
     const isProcessing = actionLoading === request.id;
 
     return (
-      <div className={`bg-white rounded-xl border-2 p-5 transition-all
+      <div className={`bg-white rounded-xl border-2 p-4 md:p-5 transition-all
         ${isSupplier ? 'border-blue-200' : 'border-emerald-200'}
         ${!isPending ? 'opacity-70' : ''}`}>
 
         {/* Card Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase
-              ${isSupplier
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-emerald-100 text-emerald-700'}`}>
+        <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase
+              ${isSupplier ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
               {isSupplier ? 'Supplier' : 'Pharmacist'}
             </span>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase
-              ${isPending  ? 'bg-amber-100 text-amber-700'
-              : isApproved ? 'bg-green-100 text-green-700'
-              :              'bg-red-100 text-red-700'}`}>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold uppercase
+              ${isPending ? 'bg-amber-100 text-amber-700' : isApproved ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
               {request.status}
             </span>
           </div>
@@ -139,8 +104,8 @@ export default function AccountRequests() {
           </span>
         </div>
 
-        {/* Info Grid */}
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2 mb-4">
+        {/* Info Grid — 1 col on mobile, 2 col on sm+ */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mb-4">
           {isSupplier ? (
             <>
               <Info label="Company"  value={request.companyName} />
@@ -151,7 +116,7 @@ export default function AccountRequests() {
               <Info label="Bank"     value={request.bankName} />
               <Info label="Address"  value={request.businessAddress} span />
               {request.categories?.length > 0 && (
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <span className="text-[11px] text-slate-400 font-semibold uppercase">Categories</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {request.categories.map(c => (
@@ -177,11 +142,8 @@ export default function AccountRequests() {
         {/* Actions */}
         {isPending && (
           <div className="flex gap-3 pt-4 border-t border-slate-100">
-            <button
-              onClick={() => handleApprove(request)}
-              disabled={isProcessing}
-              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-900 to-blue-500 text-white text-sm font-bold hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
+            <button onClick={() => handleApprove(request)} disabled={isProcessing}
+              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-900 to-blue-500 text-white text-sm font-bold hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
               {isProcessing ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -189,11 +151,8 @@ export default function AccountRequests() {
                 </span>
               ) : '✓ Approve'}
             </button>
-            <button
-              onClick={() => handleReject(request)}
-              disabled={isProcessing}
-              className="flex-1 py-2.5 rounded-xl bg-red-50 border-2 border-red-200 text-red-600 text-sm font-bold hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button onClick={() => handleReject(request)} disabled={isProcessing}
+              className="flex-1 py-2.5 rounded-xl bg-red-50 border-2 border-red-200 text-red-600 text-sm font-bold hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               ✕ Reject
             </button>
           </div>
@@ -202,44 +161,34 @@ export default function AccountRequests() {
     );
   };
 
-  const Info = ({ label, value, span }) => (
-    <div className={span ? 'col-span-2' : ''}>
-      <span className="text-[11px] text-slate-400 font-semibold uppercase">{label}</span>
-      <p className="text-sm font-medium text-slate-800 mt-0.5">{value || '—'}</p>
-    </div>
-  );
-
   return (
-    <div className="p-8 bg-[#f5f9ff] min-h-screen">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-800 mb-1">Account Requests</h1>
-        <p className="text-slate-500 text-[15px]">Review and approve supplier and pharmacist registrations</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+    <PageLayout
+      title="Account Requests"
+      subtitle="Review and approve supplier and pharmacist registrations"
+    >
+      {/* Stats — 3 col always, compact on mobile */}
+      <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6 md:mb-8">
         {[
           { label: 'Pending',  value: requests.filter(r => r.status === 'pending').length,  color: 'bg-amber-50 border-amber-200 text-amber-700'  },
           { label: 'Approved', value: requests.filter(r => r.status === 'approved').length, color: 'bg-green-50 border-green-200 text-green-700'  },
-          { label: 'Rejected', value: requests.filter(r => r.status === 'rejected').length, color: 'bg-red-50   border-red-200   text-red-700'    },
+          { label: 'Rejected', value: requests.filter(r => r.status === 'rejected').length, color: 'bg-red-50 border-red-200 text-red-700'        },
         ].map(s => (
-          <div key={s.label} className={`rounded-xl border-2 p-4 text-center ${s.color}`}>
-            <p className="text-3xl font-extrabold">{s.value}</p>
-            <p className="text-sm font-semibold mt-1">{s.label}</p>
+          <div key={s.label} className={`rounded-xl border-2 p-3 md:p-4 text-center ${s.color}`}>
+            <p className="text-2xl md:text-3xl font-extrabold">{s.value}</p>
+            <p className="text-xs md:text-sm font-semibold mt-1">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-3 mb-6">
+      {/* Filter tabs — scrollable on mobile */}
+      <div className="flex gap-2 md:gap-3 mb-5 md:mb-6 overflow-x-auto pb-1">
         {[
           { key: 'all',        label: 'All Requests' },
-          { key: 'supplier',   label: 'Suppliers' },
-          { key: 'pharmacist', label: 'Pharmacists' },
+          { key: 'supplier',   label: 'Suppliers'    },
+          { key: 'pharmacist', label: 'Pharmacists'  },
         ].map(f => (
           <button key={f.key} onClick={() => setFilter(f.key)}
-            className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all border-2
+            className={`px-4 md:px-5 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all border-2 whitespace-nowrap flex-shrink-0
               ${filter === f.key
                 ? 'bg-gradient-to-r from-blue-900 to-blue-500 text-white border-blue-500 shadow-md'
                 : 'bg-white text-slate-500 border-slate-200 hover:bg-blue-50'}`}>
@@ -249,16 +198,16 @@ export default function AccountRequests() {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-slate-400 text-lg">Loading requests...</div>
+        <div className="text-center py-20 text-slate-400">Loading requests...</div>
       ) : (
         <>
           {pending.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+            <div className="mb-6 md:mb-8">
+              <h2 className="text-base md:text-lg font-bold text-slate-700 mb-3 md:mb-4 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
                 Pending Requests ({pending.length})
               </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
                 {pending.map(r => r?.id ? <RequestCard key={r.id} request={r} /> : null)}
               </div>
             </div>
@@ -266,11 +215,11 @@ export default function AccountRequests() {
 
           {processed.length > 0 && (
             <div>
-              <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <h2 className="text-base md:text-lg font-bold text-slate-700 mb-3 md:mb-4 flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-slate-400 inline-block" />
                 Processed Requests ({processed.length})
               </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
                 {processed.map(r => r?.id ? <RequestCard key={r.id} request={r} /> : null)}
               </div>
             </div>
@@ -284,6 +233,6 @@ export default function AccountRequests() {
           )}
         </>
       )}
-    </div>
+    </PageLayout>
   );
 }

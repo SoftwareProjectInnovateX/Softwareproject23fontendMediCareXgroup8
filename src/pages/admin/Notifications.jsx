@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Card from '../../components/Card';
+import PageLayout from '../../components/PageLayout';
 import { useNotifications } from '../../components/admin/useNotifications';
 import { FilterBar } from '../../components/admin/FilterBar';
 import { NotificationCard } from '../../components/admin/NotificationCard';
@@ -35,23 +36,20 @@ const Notifications = () => {
   ];
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
-
-      {/* Header — "Mark All as Read" button only appears when unread notifications exist */}
-      <div className="flex justify-between items-start mb-7 flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Notifications</h1>
-          <p className="text-slate-500 text-[15px]">Stay updated with supplier responses and stock alerts</p>
-        </div>
-        {unreadCount > 0 && (
+    <PageLayout
+      title="Notifications"
+      subtitle="Stay updated with supplier responses and stock alerts"
+      actions={
+        unreadCount > 0 && (
           <button
             onClick={markAllAsRead}
             className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg border-none cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             Mark All as Read ({unreadCount})
           </button>
-        )}
-      </div>
+        )
+      }
+    >
 
       {/* Summary stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-7">
@@ -96,7 +94,7 @@ const Notifications = () => {
         @keyframes fadeIn  { from { opacity: 0 }              to { opacity: 1 } }
         @keyframes slideUp { from { transform: translateY(30px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
       `}</style>
-    </div>
+    </PageLayout>
   );
 };
 

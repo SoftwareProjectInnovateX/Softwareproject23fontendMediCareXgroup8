@@ -4,7 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../../services/firebase';
 import {
   MdAutoAwesome, MdTrendingUp, MdWarning, MdInventory2,
-  MdPayment, MdRefresh, MdInfo, MdCheckCircle, MdError,
+  MdPayment, MdRefresh, MdInfo, MdCheckCircle, MdError, MdDownload,
 } from 'react-icons/md';
 import Card from '../../components/Card';
 
@@ -153,6 +153,7 @@ const AiAnalyticsDashboard = () => {
   const [restockData, setRestockData] = useState([]);
 
   const [loadingAI, setLoadingAI] = useState(false);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [lastRun, setLastRun]     = useState(null);
   const [activeTab, setActiveTab] = useState('supply');
   const [analysisRan, setAnalysisRan] = useState(false);
@@ -250,6 +251,51 @@ const AiAnalyticsDashboard = () => {
     }
   };
 
+  /* Download Summary PDF — backend-generated, same pattern as InvoicePayments' generatePDF */
+  const downloadSummaryPDF = async () => {
+    if (!analysisRan) { showToast('Run AI analysis first to generate a summary.', 'warning'); return; }
+    try {
+      setDownloadingPDF(true);
+      showToast('Generating summary PDF...', 'info');
+
+      const response = await fetch(`${API_BASE}/ai/generate-summary-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplierId,
+          generatedAt: new Date().toISOString(),
+          invoiceCount: invoices.length,
+          supplyRecommendations: supplyRecs,
+          demandForecast: demandData,
+          paymentRisk: paymentRisk,
+          restockSuggestions: restockData,
+        }),
+      });
+
+      if (!response.ok) {
+        let errMsg = `Server error ${response.status}`;
+        try { const j = await response.json(); errMsg = j.message || errMsg; } catch (_) {}
+        throw new Error(errMsg);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `AI-Analytics-Summary-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('Summary PDF downloaded successfully!', 'success');
+    } catch (error) {
+      console.error('Error generating summary PDF:', error);
+      showToast('Failed to generate summary PDF: ' + error.message, 'error');
+    } finally {
+      setDownloadingPDF(false);
+    }
+  };
+
   /* ── Summary counts ── */
   const urgentCount   = supplyRecs.filter(r => r.urgency === 'urgent').length;
   const highRiskCount = paymentRisk.filter(r => r.riskLevel === 'High').length;
@@ -286,7 +332,7 @@ const AiAnalyticsDashboard = () => {
           </p>
         </div>
 
-        {/* Right: last-run time + button stacked */}
+        {/* Right: last-run time + buttons stacked */}
         <div className="flex flex-col items-end gap-2 shrink-0">
           {lastRun ? (
             <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-400 font-medium bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
@@ -299,14 +345,25 @@ const AiAnalyticsDashboard = () => {
               Not yet analysed
             </span>
           )}
-          <button
-            onClick={runAIAnalysis}
-            disabled={loadingAI || !invoices.length}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13.5px] font-semibold rounded-xl border-none cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-200"
-          >
-            <MdRefresh size={16} className={loadingAI ? 'animate-spin' : ''} />
-            {loadingAI ? 'Analysing…' : 'Run AI Analysis'}
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={downloadSummaryPDF}
+              disabled={downloadingPDF || !analysisRan}
+              title={!analysisRan ? 'Run AI analysis first' : 'Download Summary PDF'}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-[13.5px] font-semibold rounded-xl border border-slate-200 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <MdDownload size={16} className={downloadingPDF ? 'animate-bounce' : ''} />
+              {downloadingPDF ? 'Generating…' : 'Download Summary PDF'}
+            </button>
+            <button
+              onClick={runAIAnalysis}
+              disabled={loadingAI || !invoices.length}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13.5px] font-semibold rounded-xl border-none cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-200"
+            >
+              <MdRefresh size={16} className={loadingAI ? 'animate-spin' : ''} />
+              {loadingAI ? 'Analysing…' : 'Run AI Analysis'}
+            </button>
+          </div>
         </div>
       </div>
 
