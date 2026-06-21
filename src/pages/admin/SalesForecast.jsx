@@ -1,10 +1,4 @@
 // ─── FILE PATH: src/pages/admin/SalesForecast.jsx ────────────────────────────
-//
-// Styled with Tailwind CSS — blue professional theme
-// Reads from Firestore: adminProducts + CustomerOrders (real sales data)
-// AI Insight: calls backend /forecast/insight/:productId (Gemini via NestJS)
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { useState, useEffect } from "react";
 import {
   BarChart, Bar, LineChart, Line,
@@ -13,6 +7,7 @@ import {
 } from "recharts";
 import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import PageLayout from "../../components/PageLayout";
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -33,14 +28,9 @@ function deriveRisk(stock, forecast7d) {
   return "Low";
 }
 
-/**
- * Build forecast data using REAL sales from CustomerOrders.
- * salesMap: { [productId]: totalQtySoldLast30Days }
- */
 function buildForecastData(product, salesMap) {
   const totalSold30 = salesMap[product.productId] ?? 0;
 
-  // Use real sales if available, otherwise fall back to stock/30 estimate
   const dailyAvg = totalSold30 > 0
     ? Math.max(1, Math.round(totalSold30 / 30))
     : Math.max(1, Math.round((product.stock ?? 0) / 30));
@@ -51,7 +41,6 @@ function buildForecastData(product, salesMap) {
     ? Math.floor((product.stock ?? 0) / dailyAvg)
     : null;
 
-  // Build daily sales chart data spread from real 30d total with slight variance
   const avgPerDay  = totalSold30 > 0 ? totalSold30 / 30 : dailyAvg;
   const dailySales = DAY_LABELS.map(() =>
     Math.max(0, Math.round(avgPerDay * (0.7 + Math.random() * 0.6)))
@@ -60,7 +49,6 @@ function buildForecastData(product, salesMap) {
   return { dailyAvg, forecast7d, forecast30d, daysUntilStockout, dailySales, totalSold30 };
 }
 
-/** Map a raw Firestore adminProducts doc → internal shape used by the UI */
 function mapProduct(doc, salesMap) {
   const d    = doc.data();
   const base = {
@@ -269,16 +257,13 @@ export default function SalesForecast() {
   const [chartMode, setChartMode]           = useState("bar");
   const [search, setSearch]                 = useState("");
 
-  // ── fetch adminProducts + CustomerOrders in parallel ──────────────────────
   useEffect(() => {
     (async () => {
       try {
-        // 1️⃣  30-day boundary timestamp
         const thirtyDaysAgo = Timestamp.fromDate(
           new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
         );
 
-        // 2️⃣  Fetch both collections in parallel
         const [productsSnap, ordersSnap] = await Promise.all([
           getDocs(collection(db, "adminProducts")),
           getDocs(
@@ -289,9 +274,6 @@ export default function SalesForecast() {
           ),
         ]);
 
-        // 3️⃣  Build salesMap: { productId → total qty sold in last 30 days }
-        //     CustomerOrders.items = [{ id, name, price, quantity }, ...]
-        //     item.id matches the adminProducts document ID (productId)
         const salesMap = {};
         ordersSnap.docs.forEach((orderDoc) => {
           const items = orderDoc.data().items ?? [];
@@ -302,7 +284,6 @@ export default function SalesForecast() {
           });
         });
 
-        // 4️⃣  Map products with real sales injected
         const mapped = productsSnap.docs.map((doc) => mapProduct(doc, salesMap));
         setData(mapped);
         setSelected(mapped[0] ?? null);
@@ -314,7 +295,6 @@ export default function SalesForecast() {
     })();
   }, []);
 
-  // ── derived values ─────────────────────────────────────────────────────────
   const categories = ["All", ...new Set(data.map((d) => d.category).filter(Boolean))];
 
   const filtered = data.filter((d) => {
@@ -339,7 +319,6 @@ export default function SalesForecast() {
       }))
     : [];
 
-  // ── AI insight via NestJS backend → Gemini ────────────────────────────────
   async function fetchAiInsight() {
     if (!selected) return;
 
@@ -365,7 +344,6 @@ export default function SalesForecast() {
     }
   }
 
-  // ── loading / error states ─────────────────────────────────────────────────
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="flex flex-col items-center gap-3">
@@ -386,29 +364,18 @@ export default function SalesForecast() {
     </div>
   );
 
-  // ── render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50/70 p-6 font-sans">
-      <div className="max-w-[1200px] mx-auto space-y-6">
-
-        {/* ── page header ── */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              
-              <h1 className="text-3xl font-bold text-slate-800 mb-2">
-                AI Sales Forecast
-              </h1>
-            </div>
-            <p className="text-slate-500 text-[15px]">
-              Demand prediction · 7-day &amp; 30-day outlook · Real sales data + AI Insight
-            </p>
-          </div>
-          <div className="flex items-center gap-2 bg-blue-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-sm">
-            <IconLive />
-            Live Data
-          </div>
+    <PageLayout
+      title="AI Sales Forecast"
+      subtitle="Demand prediction · 7-day & 30-day outlook · Real sales data + AI Insight"
+      actions={
+        <div className="flex items-center gap-2 bg-blue-600 text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-sm">
+          <IconLive />
+          Live Data
         </div>
+      }
+    >
+      <div className="max-w-[1200px] mx-auto space-y-6">
 
         {/* ── summary cards ── */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -529,7 +496,6 @@ export default function SalesForecast() {
                           : "hover:bg-slate-50/80"
                       }`}
                   >
-                    {/* row 1: name + badges */}
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="min-w-0">
                         <p className={`text-sm font-semibold truncate ${isActive ? "text-blue-700" : "text-slate-800"}`}>
@@ -547,7 +513,6 @@ export default function SalesForecast() {
                       </div>
                     </div>
 
-                    {/* row 2: metrics */}
                     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-slate-500 mb-2">
                       <span>Stock: <span className="font-semibold text-slate-700">{item.stock}</span></span>
                       <span>Sold 30d: <span className="font-semibold text-slate-700">{item.totalSold30}</span></span>
@@ -560,10 +525,8 @@ export default function SalesForecast() {
                       </span>
                     </div>
 
-                    {/* row 3: stock bar */}
                     <StockBar stock={item.stock} forecast7d={item.forecast7d} />
 
-                    {/* row 4: category tag */}
                     {item.category && (
                       <span className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 font-medium">
                         {item.category}
@@ -578,7 +541,6 @@ export default function SalesForecast() {
           {/* ── right panel ── */}
           <div className="flex flex-col gap-4">
 
-            {/* ── chart card ── */}
             {selected && (
               <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
                 <div className="flex items-start justify-between mb-4">
@@ -635,7 +597,6 @@ export default function SalesForecast() {
                   )}
                 </ResponsiveContainer>
 
-                {/* key metrics */}
                 <div className="grid grid-cols-4 gap-2 mt-4">
                   <MetricTile label="Daily Avg"       value={`${selected.dailyAvg} units`} />
                   <MetricTile label="7-Day Forecast"  value={`${selected.forecast7d} units`} />
@@ -761,6 +722,6 @@ export default function SalesForecast() {
           </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

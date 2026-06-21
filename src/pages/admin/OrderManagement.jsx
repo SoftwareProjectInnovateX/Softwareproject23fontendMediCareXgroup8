@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, query, orderBy, updateDoc, doc, Timestamp, getDoc, addDoc, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import Card from '../../components/Card';
+import PageLayout from '../../components/PageLayout';
 import { OrderFilters } from '../../components/admin/OrderFilters';
 import { OrderTable } from '../../components/admin/OrderTable';
 import { OrderModal } from '../../components/admin/OrderModal';
@@ -267,26 +268,19 @@ const OrderManagement = () => {
   const deliveredCount = orders.filter((o) => o.status === 'DELIVERED').length;
 
   return (
-    <div className="min-h-screen bg-slate-50/70 p-6 lg:p-10">
-
-      {/* ── Page Header ── */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">Purchase Orders</h1>
-            <p className="text-slate-500 text-[15px]">Track, manage and verify all supplier orders</p>
-          </div>
-
-          {/* Live badge */}
-          <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-sm">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-            </span>
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Live</span>
-          </div>
+    <PageLayout
+      title="Purchase Orders"
+      subtitle="Track, manage and verify all supplier orders"
+      actions={
+        <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full shadow-sm">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Live</span>
         </div>
-      </div>
+      }
+    >
 
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -387,7 +381,7 @@ const OrderManagement = () => {
         }
         .animate-slideUp { animation: slideUp 0.22s cubic-bezier(.22,1,.36,1) both; }
       `}</style>
-    </div>
+    </PageLayout>
   );
 };
 

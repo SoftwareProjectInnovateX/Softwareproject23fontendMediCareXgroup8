@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import Card from "../../components/Card";
+import PageLayout from "../../components/PageLayout";
+import ResponsiveTable from "../../components/ResponsiveTable";
 import {
   AreaChart,
   Area,
@@ -57,14 +59,6 @@ const CustomTooltip = ({ active, payload, label, prefix = "Rs. " }) => {
     </div>
   );
 };
-
-const TableRow = ({ cells, highlight }) => (
-  <tr className={`border-b border-slate-100 hover:bg-blue-50/40 transition-colors duration-150 ${highlight ? "bg-blue-50" : ""}`}>
-    {cells.map((c, i) => (
-      <td key={i} className={`px-4 py-3 text-sm ${c.cls || "text-slate-700"}`}>{c.v}</td>
-    ))}
-  </tr>
-);
 
 /* ─── main component ─────────────────────────────────────────── */
 export default function SalesAnalytics() {
@@ -215,6 +209,147 @@ export default function SalesAnalytics() {
     return [...ys].sort((a, b) => b - a);
   }, [customerOrders, payments]);
 
+  /* ── ResponsiveTable column defs ── */
+  const categoryColumns = [
+    {
+      key: "rank",
+      label: "#",
+      render: (_v, row) => {
+        const i = categoryData.indexOf(row);
+        return (
+          <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">
+            {i + 1}
+          </span>
+        );
+      },
+    },
+    {
+      key: "category",
+      label: "Category",
+      render: (_v, row) => <span className="font-semibold text-slate-800">{row.category}</span>,
+    },
+    {
+      key: "revenue",
+      label: "Total Revenue",
+      render: (_v, row) => <span className="font-semibold text-blue-600">{fmtRs(row.revenue)}</span>,
+    },
+    {
+      key: "orders",
+      label: "Orders",
+      render: (_v, row) => <span className="text-slate-700">{row.orders}</span>,
+    },
+    {
+      key: "avgOrder",
+      label: "Avg. Order",
+      render: (_v, row) => <span className="text-slate-600">{fmtRs(row.orders ? row.revenue / row.orders : 0)}</span>,
+    },
+    {
+      key: "share",
+      label: "Share %",
+      render: (_v, row) => {
+        const pct = totalRevenue ? ((row.revenue / totalRevenue) * 100).toFixed(1) : 0;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden" style={{ width: 60 }}>
+              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs text-slate-600 font-medium">{pct}%</span>
+          </div>
+        );
+      },
+    },
+  ];
+
+  const productColumns = [
+    {
+      key: "rank",
+      label: "Rank",
+      render: (_v, row) => {
+        const i = topProducts.indexOf(row);
+        return (
+          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? "bg-blue-600 text-white" : i === 1 ? "bg-blue-200 text-blue-800" : i === 2 ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"}`}>
+            {i + 1}
+          </span>
+        );
+      },
+    },
+    {
+      key: "name",
+      label: "Product",
+      render: (_v, row) => <span className="font-semibold text-slate-800 max-w-[200px] truncate inline-block">{row.name}</span>,
+    },
+    {
+      key: "orders",
+      label: "Orders",
+      render: (_v, row) => <span className="text-slate-700">{row.orders}</span>,
+    },
+    {
+      key: "qty",
+      label: "Qty Sold",
+      render: (_v, row) => <span className="text-slate-700">{row.qty.toLocaleString()} units</span>,
+    },
+    {
+      key: "revenue",
+      label: "Revenue",
+      render: (_v, row) => <span className="font-semibold text-blue-600">{fmtRs(row.revenue)}</span>,
+    },
+    {
+      key: "avgPerOrder",
+      label: "Avg / Order",
+      render: (_v, row) => <span className="text-slate-600">{fmtRs(row.orders ? row.revenue / row.orders : 0)}</span>,
+    },
+  ];
+
+  const supplierColumns = [
+    {
+      key: "rank",
+      label: "Rank",
+      render: (_v, row) => {
+        const i = supplierData.indexOf(row);
+        return (
+          <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+            {i + 1}
+          </span>
+        );
+      },
+    },
+    {
+      key: "name",
+      label: "Supplier",
+      render: (_v, row) => <span className="font-semibold text-slate-800">{row.name}</span>,
+    },
+    {
+      key: "orders",
+      label: "Payments",
+      render: (_v, row) => <span className="text-slate-700">{row.orders}</span>,
+    },
+    {
+      key: "spend",
+      label: "Total Spend",
+      render: (_v, row) => <span className="font-semibold text-blue-600">{fmtRs(row.spend)}</span>,
+    },
+    {
+      key: "avgPayment",
+      label: "Avg. Payment",
+      render: (_v, row) => <span className="text-slate-600">{fmtRs(row.orders ? row.spend / row.orders : 0)}</span>,
+    },
+    {
+      key: "spendShare",
+      label: "Spend Share",
+      render: (_v, row) => {
+        const pct = totalCost ? ((row.spend / totalCost) * 100).toFixed(1) : 0;
+        return (
+          <div className="flex items-center gap-2">
+            <div className="h-2 bg-slate-100 rounded-full overflow-hidden" style={{ width: 60 }}>
+              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs text-slate-600 font-medium">{pct}%</span>
+          </div>
+        );
+      },
+    },
+  ];
+
   /* ─── loading ─── */
   if (loading) {
     return (
@@ -235,16 +370,10 @@ export default function SalesAnalytics() {
   ];
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
-
-      {/* ── Page Header ── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Sales Analytics</h1>
-          <p className="text-slate-500 text-[15px]">Track revenue, orders, and business performance</p>
-        </div>
-
-        {/* Year selector */}
+    <PageLayout
+      title="Sales Analytics"
+      subtitle="Track revenue, orders, and business performance"
+      actions={
         <div className="flex items-center gap-2 bg-white border-2 border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
           <span className="text-sm text-slate-500 font-medium">Year:</span>
           <select
@@ -256,7 +385,8 @@ export default function SalesAnalytics() {
               : <option value={CURRENT_YEAR}>{CURRENT_YEAR}</option>}
           </select>
         </div>
-      </div>
+      }
+    >
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
@@ -361,43 +491,15 @@ export default function SalesAnalytics() {
 
           {/* Category table */}
           <SectionCard title="Revenue by Category">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {["#", "Category", "Total Revenue", "Orders", "Avg. Order", "Share %"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {categoryData.map((c, i) => (
-                    <TableRow
-                      key={c.category}
-                      highlight={i === 0}
-                      cells={[
-                        { v: <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center">{i + 1}</span>, cls: "" },
-                        { v: c.category, cls: "font-semibold text-slate-800" },
-                        { v: fmtRs(c.revenue), cls: "font-semibold text-blue-600" },
-                        { v: c.orders, cls: "text-slate-700" },
-                        { v: fmtRs(c.orders ? c.revenue / c.orders : 0), cls: "text-slate-600" },
-                        { v: (
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden" style={{ width: 60 }}>
-                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${totalRevenue ? ((c.revenue / totalRevenue) * 100).toFixed(1) : 0}%` }} />
-                            </div>
-                            <span className="text-xs text-slate-600 font-medium">{totalRevenue ? ((c.revenue / totalRevenue) * 100).toFixed(1) : 0}%</span>
-                          </div>
-                        )},
-                      ]}
-                    />
-                  ))}
-                  {categoryData.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-10 text-slate-400">No category data available</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              columns={categoryColumns}
+              data={categoryData}
+              keyField="category"
+              loading={false}
+              emptyMessage="No category data available"
+              cardTitle="category"
+              cardBadge="revenue"
+            />
           </SectionCard>
         </>
       )}
@@ -420,36 +522,15 @@ export default function SalesAnalytics() {
 
           {/* Top products table */}
           <SectionCard title="Product Performance Table">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {["Rank", "Product", "Orders", "Qty Sold", "Revenue", "Avg / Order"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {topProducts.map((p, i) => (
-                    <TableRow
-                      key={p.name}
-                      highlight={i === 0}
-                      cells={[
-                        { v: <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? "bg-blue-600 text-white" : i === 1 ? "bg-blue-200 text-blue-800" : i === 2 ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"}`}>{i + 1}</span> },
-                        { v: p.name, cls: "font-semibold text-slate-800 max-w-[200px] truncate" },
-                        { v: p.orders, cls: "text-slate-700" },
-                        { v: `${p.qty.toLocaleString()} units`, cls: "text-slate-700" },
-                        { v: fmtRs(p.revenue), cls: "font-semibold text-blue-600" },
-                        { v: fmtRs(p.orders ? p.revenue / p.orders : 0), cls: "text-slate-600" },
-                      ]}
-                    />
-                  ))}
-                  {topProducts.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-10 text-slate-400">No product data available</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              columns={productColumns}
+              data={topProducts}
+              keyField="name"
+              loading={false}
+              emptyMessage="No product data available"
+              cardTitle="name"
+              cardBadge="revenue"
+            />
           </SectionCard>
         </>
       )}
@@ -472,47 +553,19 @@ export default function SalesAnalytics() {
 
           {/* Supplier table */}
           <SectionCard title="Supplier Purchase Summary">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {["Rank", "Supplier", "Payments", "Total Spend", "Avg. Payment", "Spend Share"].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-[13px] font-semibold text-slate-500 uppercase tracking-wide border-b-2 border-slate-200">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {supplierData.map((s, i) => (
-                    <TableRow
-                      key={s.name}
-                      highlight={i === 0}
-                      cells={[
-                        { v: <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>{i + 1}</span> },
-                        { v: s.name, cls: "font-semibold text-slate-800" },
-                        { v: s.orders, cls: "text-slate-700" },
-                        { v: fmtRs(s.spend), cls: "font-semibold text-blue-600" },
-                        { v: fmtRs(s.orders ? s.spend / s.orders : 0), cls: "text-slate-600" },
-                        { v: (
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden" style={{ width: 60 }}>
-                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${totalCost ? ((s.spend / totalCost) * 100).toFixed(1) : 0}%` }} />
-                            </div>
-                            <span className="text-xs text-slate-600 font-medium">{totalCost ? ((s.spend / totalCost) * 100).toFixed(1) : 0}%</span>
-                          </div>
-                        )},
-                      ]}
-                    />
-                  ))}
-                  {supplierData.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-10 text-slate-400">No supplier data available</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <ResponsiveTable
+              columns={supplierColumns}
+              data={supplierData}
+              keyField="name"
+              loading={false}
+              emptyMessage="No supplier data available"
+              cardTitle="name"
+              cardBadge="spend"
+            />
           </SectionCard>
         </>
       )}
 
-    </div>
+    </PageLayout>
   );
 }

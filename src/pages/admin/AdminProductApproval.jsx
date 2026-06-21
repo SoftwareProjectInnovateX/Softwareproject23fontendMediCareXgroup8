@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/Card';
+import PageLayout from '../../components/PageLayout';
+import ResponsiveTable from '../../components/ResponsiveTable';
 import { auth } from '../../services/firebase';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -167,15 +169,133 @@ export default function AdminProductApproval() {
     slate:   'bg-slate-600 text-white border-slate-600',
   };
 
-  return (
-    <div className="p-6 bg-slate-50 min-h-screen">
-      <Toast toasts={toasts} removeToast={removeToast} />
+  // Column definitions for ResponsiveTable
+  const columns = [
+    {
+      key: 'productName',
+      label: 'Product',
+      render: (_val, product) => (
+        <div className="max-w-[200px]">
+          <p className="font-semibold text-slate-800 text-[13px] truncate">{product.productName}</p>
+          {product.manufacturer && (
+            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.manufacturer}</p>
+          )}
+          {product.description && (
+            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.description}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      render: (_val, product) => (
+        <span className="text-[12px] text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md font-medium">
+          {product.category}
+        </span>
+      ),
+    },
+    {
+      key: 'supplierName',
+      label: 'Supplier',
+      render: (_val, product) => (
+        <span className="inline-block bg-sky-50 text-sky-700 border border-sky-100 px-2.5 py-1 rounded-md text-[12px] font-medium">
+          {product.supplierName || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'wholesalePrice',
+      label: 'Wholesale Price',
+      render: (_val, product) => (
+        <div>
+          <p className="text-[13px] font-semibold text-slate-800">
+            Rs.{Number(product.wholesalePrice).toFixed(2)}
+          </p>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Retail: Rs.{(Number(product.wholesalePrice) * 1.2).toFixed(2)}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'stock',
+      label: 'Stock',
+      render: (_val, product) => (
+        <div>
+          <p className="text-[13px] text-slate-700">{product.stock} units</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Min: {product.minStock}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'createdAt',
+      label: 'Submitted',
+      render: (_val, product) => (
+        <span className="text-[12px] text-slate-400 whitespace-nowrap">
+          {formatDate(product.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (_val, product) => {
+        const badge = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
+        return (
+          <div>
+            <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold ${badge.cls}`}>
+              {badge.label}
+            </span>
+            {product.status === 'approved' && product.productCode && (
+              <p className="text-[11px] text-emerald-600 font-mono mt-1.5">{product.productCode}</p>
+            )}
+            {product.status === 'rejected' && product.rejectionReason && (
+              <p className="text-[11px] text-red-400 mt-1.5 max-w-[120px] leading-tight">
+                {product.rejectionReason}
+              </p>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
 
-      {/* Header */}
-      <div className="mb-7">
-        <h1 className="text-3xl font-bold text-slate-800 mb-2">Product Approval</h1>
-        <p className="text-slate-500 text-[15px]">Review and approve supplier product submissions</p>
+  // Row actions for ResponsiveTable
+  const renderActions = (product) => {
+    const isActioning = actionLoading === product.id;
+    const isPending   = product.status === 'pending';
+
+    if (!isPending) {
+      return <span className="text-slate-300 text-sm">—</span>;
+    }
+
+    return (
+      <div className="flex gap-2">
+        <button
+          onClick={() => handleApprove(product)}
+          disabled={isActioning}
+          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-[12px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-150"
+        >
+          {isActioning ? '…' : 'Approve'}
+        </button>
+        <button
+          onClick={() => openRejectModal(product)}
+          disabled={isActioning}
+          className="px-3 py-1.5 bg-white hover:bg-red-50 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed text-red-600 text-[12px] font-semibold rounded-lg cursor-pointer transition-all duration-150"
+        >
+          Reject
+        </button>
       </div>
+    );
+  };
+
+  return (
+    <PageLayout
+      title="Product Approval"
+      subtitle="Review and approve supplier product submissions"
+    >
+      <Toast toasts={toasts} removeToast={removeToast} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -217,119 +337,16 @@ export default function AdminProductApproval() {
 
       {/* Table */}
       <div className="bg-white rounded-xl overflow-hidden border border-slate-200">
-        {loading ? (
-          <div className="py-20 text-center text-slate-400 text-[15px]">
-            <span className="inline-block animate-pulse">Loading submissions…</span>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="py-20 text-center">
-            <p className="text-[15px] text-slate-400">No products match this filter</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[900px]">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  {['Product', 'Category', 'Supplier', 'Wholesale Price', 'Stock', 'Submitted', 'Status', 'Actions'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-widest">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((product, idx) => {
-                  const badge       = STATUS_BADGE[product.status] || STATUS_BADGE.pending;
-                  const isActioning = actionLoading === product.id;
-                  const isPending   = product.status === 'pending';
-                  return (
-                    <tr
-                      key={product.id}
-                      className={`border-b border-slate-100 transition-colors duration-100 hover:bg-slate-50/70 ${
-                        idx === filtered.length - 1 ? 'border-b-0' : ''
-                      }`}
-                    >
-                      <td className="px-4 py-4 max-w-[200px]">
-                        <p className="font-semibold text-slate-800 text-[13px] truncate">{product.productName}</p>
-                        {product.manufacturer && (
-                          <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.manufacturer}</p>
-                        )}
-                        {product.description && (
-                          <p className="text-[11px] text-slate-400 mt-0.5 truncate">{product.description}</p>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <span className="text-[12px] text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md font-medium">
-                          {product.category}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <span className="inline-block bg-sky-50 text-sky-700 border border-sky-100 px-2.5 py-1 rounded-md text-[12px] font-medium">
-                          {product.supplierName || '—'}
-                        </span>
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <p className="text-[13px] font-semibold text-slate-800">
-                          Rs.{Number(product.wholesalePrice).toFixed(2)}
-                        </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Retail: Rs.{(Number(product.wholesalePrice) * 1.2).toFixed(2)}
-                        </p>
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <p className="text-[13px] text-slate-700">{product.stock} units</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Min: {product.minStock}</p>
-                      </td>
-
-                      <td className="px-4 py-4 text-[12px] text-slate-400 whitespace-nowrap">
-                        {formatDate(product.createdAt)}
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <span className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-semibold ${badge.cls}`}>
-                          {badge.label}
-                        </span>
-                        {product.status === 'approved' && product.productCode && (
-                          <p className="text-[11px] text-emerald-600 font-mono mt-1.5">{product.productCode}</p>
-                        )}
-                        {product.status === 'rejected' && product.rejectionReason && (
-                          <p className="text-[11px] text-red-400 mt-1.5 max-w-[120px] leading-tight">
-                            {product.rejectionReason}
-                          </p>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-4">
-                        {isPending ? (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleApprove(product)}
-                              disabled={isActioning}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-[12px] font-semibold rounded-lg border-none cursor-pointer transition-all duration-150"
-                            >
-                              {isActioning ? '…' : 'Approve'}
-                            </button>
-                            <button
-                              onClick={() => openRejectModal(product)}
-                              disabled={isActioning}
-                              className="px-3 py-1.5 bg-white hover:bg-red-50 border border-red-200 disabled:opacity-40 disabled:cursor-not-allowed text-red-600 text-[12px] font-semibold rounded-lg cursor-pointer transition-all duration-150"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 text-sm">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <ResponsiveTable
+          columns={columns}
+          data={filtered}
+          keyField="id"
+          loading={loading}
+          emptyMessage="No products match this filter"
+          cardTitle="productName"
+          cardBadge="status"
+          actions={renderActions}
+        />
       </div>
 
       {/* Reject modal */}
@@ -404,6 +421,6 @@ export default function AdminProductApproval() {
         @keyframes slideUp { from { transform: translateY(16px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
         @keyframes slideInRight { from { transform: translateX(20px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
       `}</style>
-    </div>
+    </PageLayout>
   );
 }
