@@ -6,13 +6,18 @@ export default function SearchAnalytics() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-    useEffect(() => {
+  useEffect(() => {
     let unsubscribe;
     const initAuth = async () => {
       const { auth } = await import("../../services/firebase");
+      if (auth.currentUser) {
+        fetchAnalytics();
+        return;
+      }
       unsubscribe = auth.onAuthStateChanged((user) => {
         if (user) {
           fetchAnalytics();
+          if (unsubscribe) unsubscribe();
         } else {
           setLoading(false);
         }

@@ -9,7 +9,7 @@ export default function ChatBot({ onClose }) {
   
   const [messages, setMessages] = useState(() => {
     try {
-      const saved = localStorage.getItem("chatMessages");
+      const saved = localStorage.getItem(storageKey);
       return saved
         ? JSON.parse(saved)
         : [
