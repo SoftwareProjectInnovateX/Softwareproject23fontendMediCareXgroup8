@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { ShoppingCart, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../stores/cartStore';
+import { useAuth } from '../../context/AuthContext';
+import { auth } from '../../services/firebase';
 import { C, FONT } from './categoryConfig';
 
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
@@ -52,6 +54,7 @@ export default function ProductCard({ product }) {
   const navigate       = useNavigate();
   const addItem        = useCartStore((s) => s.addItem);
   const cartItems      = useCartStore((s) => s.items);
+  const { currentUser } = useAuth();
 
   // ── FIXED: String() comparison handles id being number or string ──
   const productKey    = product.productCode || product.productId || product.id;
@@ -62,18 +65,28 @@ export default function ProductCard({ product }) {
 
   const handleAddToCart = async (e) => {
     e?.stopPropagation();
+    
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+
     if (availableStock <= 0) return;
 
     addItem(product, 1);
 
     try {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       const stockId = product.stockId || product.productCode;
       if (stockId) {
         const res = await fetch(
           `${API_BASE}/products/${encodeURIComponent(stockId)}/decrement-stock`,
           {
             method:  'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
             body:    JSON.stringify({ quantity: 1 }),
           }
         );

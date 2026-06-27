@@ -1,6 +1,6 @@
 // src/components/ProtectedRoute.jsx
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -26,7 +26,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   if (!currentUser) {
     // Not logged in, redirect to auth page
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(userRole)) {
@@ -46,7 +46,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
             You don't have permission to access this page.
           </p>
           <button
-            onClick={() => window.location.href = '/auth'}
+            onClick={() => window.location.href = '/login'}
             style={{
               padding: '12px 24px',
               background: '#667eea',
@@ -66,7 +66,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   // Authorized
-  return children;
+  return children ? children : <Outlet />;
 };
 
 export default ProtectedRoute;

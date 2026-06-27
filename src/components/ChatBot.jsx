@@ -9,7 +9,9 @@ export default function ChatBot({ onClose }) {
   
   const [messages, setMessages] = useState(() => {
     try {
-      const saved = localStorage.getItem(storageKey);
+      const saved = currentUser?.uid 
+        ? localStorage.getItem(storageKey)
+        : sessionStorage.getItem(storageKey);
       return saved
         ? JSON.parse(saved)
         : [
@@ -37,11 +39,15 @@ export default function ChatBot({ onClose }) {
 
   useEffect(() => {
     try {
-           localStorage.setItem(storageKey, JSON.stringify(messages));
+      if (currentUser?.uid) {
+        localStorage.setItem(storageKey, JSON.stringify(messages));
+      } else {
+        sessionStorage.setItem(storageKey, JSON.stringify(messages));
+      }
     } catch {
       // localStorage full or unavailable — fail silently
     }
-  }, [messages]);
+  }, [messages, currentUser, storageKey]);
 
   const getFirebaseToken = async () => {
     try {
@@ -131,7 +137,11 @@ export default function ChatBot({ onClose }) {
           {/* Clear chat button */}
           <button
             onClick={() => {
-                   localStorage.removeItem(storageKey);
+              if (currentUser?.uid) {
+                localStorage.removeItem(storageKey);
+              } else {
+                sessionStorage.removeItem(storageKey);
+              }
               setMessages([
                 {
                   role: "bot",

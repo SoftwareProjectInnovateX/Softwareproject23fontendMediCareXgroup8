@@ -18,7 +18,7 @@ export default function CustomerNavbar() {
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, currentUser } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
 
   const items     = useCartStore((state) => state.items || []);
@@ -199,23 +199,48 @@ export default function CustomerNavbar() {
                 )}
               </Link>
 
-              {/* Profile */}
-              <button onClick={() => navigate("/customer/profile")}
-                style={{ ...iconBtnBase, background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)", boxShadow: "0 4px 14px rgba(26,135,225,0.28)" }}
-                onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(26,135,225,0.38)"; }}
-                onMouseLeave={e => { e.currentTarget.style.opacity = "1";    e.currentTarget.style.boxShadow = "0 4px 14px rgba(26,135,225,0.28)"; }}
-              >
-                <User size={20} color="#ffffff" strokeWidth={1.8} />
-              </button>
+              {/* Profile & Auth */}
+              {currentUser ? (
+                <>
+                  <button onClick={() => navigate("/customer/profile")}
+                    style={{ ...iconBtnBase, background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)", boxShadow: "0 4px 14px rgba(26,135,225,0.28)" }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(26,135,225,0.38)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.opacity = "1";    e.currentTarget.style.boxShadow = "0 4px 14px rgba(26,135,225,0.28)"; }}
+                  >
+                    <User size={20} color="#ffffff" strokeWidth={1.8} />
+                  </button>
 
-              {/* Logout */}
-              <button onClick={handleLogout}
-                style={{ ...iconBtnBase, background: "rgba(220,38,38,0.06)", border: "1.5px solid rgba(220,38,38,0.22)" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(220,38,38,0.12)"; e.currentTarget.style.borderColor = "rgba(220,38,38,0.45)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(220,38,38,0.18)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(220,38,38,0.06)"; e.currentTarget.style.borderColor = "rgba(220,38,38,0.22)"; e.currentTarget.style.boxShadow = "none"; }}
-              >
-                <LogOut size={20} color="#dc2626" strokeWidth={1.8} />
-              </button>
+                  <button onClick={handleLogout}
+                    style={{ ...iconBtnBase, background: "rgba(220,38,38,0.06)", border: "1.5px solid rgba(220,38,38,0.22)" }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "rgba(220,38,38,0.12)"; e.currentTarget.style.borderColor = "rgba(220,38,38,0.45)"; e.currentTarget.style.boxShadow = "0 4px 14px rgba(220,38,38,0.18)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "rgba(220,38,38,0.06)"; e.currentTarget.style.borderColor = "rgba(220,38,38,0.22)"; e.currentTarget.style.boxShadow = "none"; }}
+                  >
+                    <LogOut size={20} color="#dc2626" strokeWidth={1.8} />
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => navigate("/login")}
+                  style={{ 
+                    padding: "0 24px", 
+                    height: 44,
+                    borderRadius: 12, 
+                    background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)", 
+                    color: "#ffffff",
+                    border: "none",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 14px rgba(26,135,225,0.28)",
+                    fontFamily: FONT.body,
+                    display: "flex",
+                    alignItems: "center"
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = "0.88"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(26,135,225,0.38)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = "1";    e.currentTarget.style.boxShadow = "0 4px 14px rgba(26,135,225,0.28)"; }}
+                >
+                  Login / Register
+                </button>
+              )}
 
             </div>
           </div>

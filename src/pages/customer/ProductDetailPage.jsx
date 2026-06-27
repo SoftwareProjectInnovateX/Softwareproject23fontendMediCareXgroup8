@@ -179,6 +179,11 @@ export default function ProductDetailPage() {
   const availableStock = displayStock;
 
   const handleAddToCart = async () => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+
     if (availableStock < qty || !product) return;
     
     setIsCartClicked(true);
@@ -186,11 +191,19 @@ export default function ProductDetailPage() {
     
     addItem(product, qty);
     try {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       const stockId = product.stockId || product.productCode;
       if (stockId) {
         const res = await fetch(
           `${API_BASE}/products/${encodeURIComponent(stockId)}/decrement-stock`,
-          { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quantity: qty }) }
+          { 
+            method: 'PUT', 
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }, 
+            body: JSON.stringify({ quantity: qty }) 
+          }
         );
         if (!res.ok) {
           console.error('Stock decrement failed.');

@@ -93,7 +93,7 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register-success" element={<RegisterSuccess />} />
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/customer" replace />} />
 
       {/* SUPPLIER */}
       <Route
@@ -141,27 +141,28 @@ export default function App() {
       {/* CUSTOMER */}
       <Route
         path="/customer"
-        element={
-          <ProtectedRoute allowedRoles={["customer"]}>
-            <CustomerLayout />
-          </ProtectedRoute>
-        }
+        element={<CustomerLayout />}
       >
+        {/* Public Routes */}
         <Route index element={<HomePage />} />
         <Route path="products" element={<ProductsPage />} />
-        <Route path="cart" element={<CartPage />} />
-        <Route path="checkout" element={<CheckoutPage />} />
-        <Route path="checkout/success" element={<Success />} />
-        <Route path="checkout/cancel" element={<Cancel />} />
-        <Route path="orders" element={<OrdersPage />} />
-        <Route path="/customer/about" element={<About />} />
+        <Route path="products/:id" element={<ProductDetailPage />} />
         <Route path="brands" element={<BrandsPage />} />
+        <Route path="about" element={<About />} />
         <Route path="contact" element={<ContactPage />} />
-        <Route path="prescription" element={<PrescriptionPage />} />
-        <Route path="returns" element={<ReturnPage />} />
-        <Route path="/customer/profile" element={<CustomerProfilePage />} />
-        <Route path="/customer/settings" element={<CustomerSettings />} />
-       <Route path="products/:id" element={<ProductDetailPage />} />
+
+        {/* Protected Routes */}
+        <Route element={<ProtectedRoute allowedRoles={["customer"]} />}>
+          <Route path="cart" element={<CartPage />} />
+          <Route path="checkout" element={<CheckoutPage />} />
+          <Route path="checkout/success" element={<Success />} />
+          <Route path="checkout/cancel" element={<Cancel />} />
+          <Route path="orders" element={<OrdersPage />} />
+          <Route path="prescription" element={<PrescriptionPage />} />
+          <Route path="returns" element={<ReturnPage />} />
+          <Route path="profile" element={<CustomerProfilePage />} />
+          <Route path="settings" element={<CustomerSettings />} />
+        </Route>
       </Route>
 
       {/* PHARMACIST */}
