@@ -236,7 +236,7 @@ const PharmacistSettings = () => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 py-2 mb-6 border-b border-slate-100 pb-6">
         <div>
            <h1 className="text-3xl font-black text-slate-800">Account Settings</h1>
-           <p className="text-slate-500 font-medium text-sm mt-1">Manage your pharmacist profile, professional goals, and security.</p>
+           <p className="text-slate-500 font-medium mt-1">Manage your pharmacist profile, professional goals, and security.</p>
         </div>
       </div>
 
