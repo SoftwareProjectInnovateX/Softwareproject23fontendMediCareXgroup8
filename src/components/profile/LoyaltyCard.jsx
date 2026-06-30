@@ -41,7 +41,7 @@ export default function LoyaltyCard({ user }) {
 
   const level     = user.level || "Silver";
   const lvl       = LEVELS[level] || LEVELS.Silver;
-  const points    = user.loyaltyPoints ?? 0;
+  const points    = user.totalPoints ?? user.loyaltyPoints ?? 0;
   const progress  = lvl.next
     ? Math.min(100, Math.max(0, ((points - lvl.min) / (lvl.max - lvl.min)) * 100))
     : 100;
