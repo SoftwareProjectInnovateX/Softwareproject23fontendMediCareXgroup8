@@ -247,8 +247,8 @@ const PharmacistPatients = () => {
         <div className="p-6 border-b border-slate-200 flex-shrink-0">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Patients</h1>
-              <p className="text-xs text-slate-500 mt-1">{processedPatients.length} total</p>
+              <h1 className="text-3xl font-black text-slate-800">Patients</h1>
+              <p className="text-slate-500 font-medium mt-1">{processedPatients.length} total</p>
             </div>
             <button 
               onClick={() => setIsAddingPatient(true)}
