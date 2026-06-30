@@ -164,10 +164,10 @@ export default function Inventory() {
     <div className="font-['DM_Sans',sans-serif]">
 
       <div className="mb-6">
-        <h1 className="font-['Playfair_Display',serif] text-[26px] text-[#1e293b] font-semibold">
+        <h1 className="text-3xl font-black text-slate-800">
           Inventory
         </h1>
-        <p className="text-[13px] text-[#64748b] mt-[5px]">
+        <p className="text-slate-500 font-medium mt-1">
           Real-time stock levels, expiry tracking, and alerts.
         </p>
       </div>
