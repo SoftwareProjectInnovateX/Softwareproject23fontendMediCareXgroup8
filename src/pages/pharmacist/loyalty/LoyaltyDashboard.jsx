@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth } from '../../../services/firebase';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
-import { Sparkles, Lightbulb, Target, TrendingUp } from 'lucide-react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
+import { Sparkles, Lightbulb, Target } from 'lucide-react';
 
 const LoyaltyDashboard = () => {
   const [customers, setCustomers] = useState([]);
@@ -11,69 +12,82 @@ const LoyaltyDashboard = () => {
   const [campaignIdeas, setCampaignIdeas] = useState([]);
   const [personalizedOffers, setPersonalizedOffers] = useState([]);
   const [loadingAI, setLoadingAI] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const fetchedRef = useRef(false);
 
+  // Always get a fresh token
   const getToken = async () => {
-    const user = auth.currentUser;
-    if (!user) return null;
-    return await user.getIdToken();
+    return new Promise((resolve) => {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        unsubscribe();
+        if (!user) { resolve(null); return; }
+        try {
+          const token = await user.getIdToken(true); // force refresh
+          resolve(token);
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+  };
+
+  const apiFetch = async (path) => {
+    const token = await getToken();
+    if (!token) throw new Error('Not authenticated');
+    const res = await fetch(path, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text || 'empty response'}`);
+    }
+    return res.json();
   };
 
   useEffect(() => {
-    fetchAnalytics();
-    fetchTopCustomers();
-    fetchCampaignIdeas();
+    if (fetchedRef.current) return;
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+      if (fetchedRef.current) return;
+      fetchedRef.current = true;
+
+      try {
+        setLoading(true);
+        const [analyticsData, customersData, campaignData] = await Promise.allSettled([
+          apiFetch('/api/loyalty/analytics'),
+          apiFetch('/api/loyalty/top-customers'),
+          apiFetch('/api/loyalty/campaign-ideas'),
+        ]);
+
+        if (analyticsData.status === 'fulfilled') setAnalytics(analyticsData.value);
+        else console.error('Analytics failed:', analyticsData.reason);
+
+        if (customersData.status === 'fulfilled') setCustomers(Array.isArray(customersData.value) ? customersData.value : []);
+        else console.error('Customers failed:', customersData.reason);
+
+        if (campaignData.status === 'fulfilled') setCampaignIdeas(campaignData.value?.ideas || []);
+        else console.error('Campaign ideas failed:', campaignData.reason);
+
+      } catch (err) {
+        setError(err.message);
+        console.error('Dashboard load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
-
-  const fetchAnalytics = async () => {
-    try {
-      const token = await getToken();
-      const response = await fetch('/api/loyalty/analytics', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await response.json();
-      setAnalytics(data);
-    } catch (error) {
-      console.error('Error fetching analytics:', error);
-    }
-  };
-
-  const fetchTopCustomers = async () => {
-    try {
-      const token = await getToken();
-      const response = await fetch('/api/loyalty/top-customers', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await response.json();
-      setCustomers(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    }
-  };
-
-  const fetchCampaignIdeas = async () => {
-    try {
-      const token = await getToken();
-      const response = await fetch('/api/loyalty/campaign-ideas', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await response.json();
-      setCampaignIdeas(data.ideas || []);
-    } catch (error) {
-      console.error('Error fetching campaign ideas:', error);
-    }
-  };
 
   const generatePersonalizedOffers = async (customerUid) => {
     setLoadingAI(true);
     try {
-      const token = await getToken();
-      const response = await fetch(`/api/loyalty/customer/${customerUid}/offers`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await response.json();
+      const data = await apiFetch(`/api/loyalty/customer/${customerUid}/offers`);
       setPersonalizedOffers(data.offers || []);
     } catch (error) {
-      console.error('Error generating personalized offers:', error);
+      console.error('Error generating offers:', error);
     } finally {
       setLoadingAI(false);
     }
@@ -82,11 +96,7 @@ const LoyaltyDashboard = () => {
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
     try {
-      const token = await getToken();
-      const response = await fetch(`/api/loyalty/customer/${searchTerm}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const customer = await response.json();
+      const customer = await apiFetch(`/api/loyalty/customer/${searchTerm}`);
       setSelectedCustomer(customer);
     } catch (error) {
       console.error('Error searching customer:', error);
@@ -99,23 +109,43 @@ const LoyaltyDashboard = () => {
     Platinum: 'bg-purple-500 text-white',
   };
 
+  const levelDistribution = analytics.levelDistribution || { Silver: 0, Gold: 0, Platinum: 0 };
   const chartData = [
-    { name: 'Silver', value: analytics.levelDistribution?.Silver || 0, color: '#6B7280' },
-    { name: 'Gold', value: analytics.levelDistribution?.Gold || 0, color: '#F59E0B' },
-    { name: 'Platinum', value: analytics.levelDistribution?.Platinum || 0, color: '#8B5CF6' },
+    { name: 'Silver', value: Number(levelDistribution.Silver || 0), color: '#6B7280' },
+    { name: 'Gold', value: Number(levelDistribution.Gold || 0), color: '#F59E0B' },
+    { name: 'Platinum', value: Number(levelDistribution.Platinum || 0), color: '#8B5CF6' },
   ];
+  const totalMembers = chartData.reduce((sum, entry) => sum + entry.value, 0);
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <div className="text-gray-500 text-lg">Loading Loyalty Dashboard...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          <strong>Error loading dashboard:</strong> {error}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Loyalty Program Dashboard</h1>
+      <h1 className="text-3xl font-black text-slate-800">Loyalty Program Dashboard</h1>
 
       {/* Analytics Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Total Customers', value: analytics.totalCustomers || 0 },
-          { label: 'Total Revenue', value: `$${analytics.totalRevenue?.toFixed(2) || '0.00'}` },
+          { label: 'Total Revenue', value: `$${(analytics.totalRevenue || 0).toFixed(2)}` },
           { label: 'Total Points Issued', value: analytics.totalPoints || 0 },
-          { label: 'Avg Order Value', value: `$${analytics.averageOrderValue?.toFixed(2) || '0.00'}` },
+          { label: 'Avg Order Value', value: `$${(analytics.averageOrderValue || 0).toFixed(2)}` },
         ].map((stat) => (
           <div key={stat.label} className="bg-white rounded-lg shadow p-4 border">
             <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
@@ -136,13 +166,17 @@ const LoyaltyDashboard = () => {
                 cy="50%"
                 outerRadius={80}
                 dataKey="value"
+                nameKey="name"
                 label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                labelLine={false}
+                isAnimationActive={false}
               >
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip />
+              <Tooltip formatter={(value) => [`${value}`, 'Members']} />
+              <Legend verticalAlign="bottom" align="center" iconSize={10} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -171,50 +205,35 @@ const LoyaltyDashboard = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
           />
-          <button
-            onClick={handleSearch}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-          >
+          <button onClick={handleSearch}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
             Search
           </button>
         </div>
         {selectedCustomer && (
           <div className="mt-4 p-4 border rounded bg-gray-50">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg">{selectedCustomer.name}</h3>
-              <button
-                onClick={() => generatePersonalizedOffers(selectedCustomer.uid)}
+              <h3 className="font-bold text-lg">{selectedCustomer.name || 'Unknown'}</h3>
+              <button onClick={() => generatePersonalizedOffers(selectedCustomer.uid)}
                 disabled={loadingAI}
-                className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-              >
+                className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
                 {loadingAI ? 'Generating...' : 'AI Offers'}
               </button>
             </div>
             <p>Email: {selectedCustomer.email}</p>
-            <p>Level: <span className={`px-2 py-0.5 rounded text-sm font-medium ${levelColors[selectedCustomer.level]}`}>{selectedCustomer.level}</span></p>
-            <p>Total Spent: ${selectedCustomer.totalSpent?.toFixed(2)}</p>
+            <p>Level: <span className={`px-2 py-0.5 rounded text-sm font-medium ${levelColors[selectedCustomer.level] || ''}`}>{selectedCustomer.level}</span></p>
+            <p>Total Spent: ${(selectedCustomer.totalSpent || 0).toFixed(2)}</p>
             <p>Points: {selectedCustomer.totalPoints}</p>
             <p>Purchase Count: {selectedCustomer.purchaseCount}</p>
             <p>Churn Risk: {selectedCustomer.predictedChurnRisk}%</p>
-            <div className="mt-2">
-              <strong>Recommended Offers:</strong>
-              <ul className="list-disc list-inside">
-                {selectedCustomer.recommendedOffers?.map((offer, index) => (
-                  <li key={index}>{offer}</li>
-                ))}
-              </ul>
-            </div>
             {personalizedOffers.length > 0 && (
               <div className="mt-4 p-3 bg-purple-50 border border-purple-200 rounded">
                 <h4 className="font-semibold text-purple-800 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4" />
-                  AI-Generated Personalized Offers
+                  <Sparkles className="w-4 h-4" /> AI-Generated Personalized Offers
                 </h4>
                 <ul className="list-disc list-inside mt-2 text-purple-700">
-                  {personalizedOffers.map((offer, index) => (
-                    <li key={index}>{offer}</li>
-                  ))}
+                  {personalizedOffers.map((offer, index) => <li key={index}>{offer}</li>)}
                 </ul>
               </div>
             )}
@@ -239,16 +258,18 @@ const LoyaltyDashboard = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {customers.map((customer) => (
+              {customers.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-6 text-center text-gray-400">No customers found</td></tr>
+              ) : customers.map((customer) => (
                 <tr key={customer.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">{customer.name}</td>
-                  <td className="px-4 py-3">{customer.email}</td>
+                  <td className="px-4 py-3">{customer.name || '—'}</td>
+                  <td className="px-4 py-3">{customer.email || '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${levelColors[customer.level]}`}>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${levelColors[customer.level] || ''}`}>
                       {customer.level}
                     </span>
                   </td>
-                  <td className="px-4 py-3">${customer.totalSpent?.toFixed(2)}</td>
+                  <td className="px-4 py-3">${(customer.totalSpent || 0).toFixed(2)}</td>
                   <td className="px-4 py-3">{customer.totalPoints}</td>
                   <td className="px-4 py-3">{customer.purchaseCount}</td>
                   <td className="px-4 py-3">{customer.predictedChurnRisk}%</td>
@@ -279,8 +300,7 @@ const LoyaltyDashboard = () => {
         ) : (
           <div className="text-center py-8 text-gray-500">
             <Sparkles className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-            <p>AI campaign ideas will appear here</p>
-            <p className="text-sm">Configure OpenAI API key for enhanced features</p>
+            <p>No campaign ideas available</p>
           </div>
         )}
       </div>
