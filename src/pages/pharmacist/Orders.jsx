@@ -672,14 +672,10 @@ export default function Orders() {
       <div style={{ maxWidth: 1160, margin: "0 auto", padding: "28px 24px" }}>
 
         {/* ── Header ── */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
-            <h1 style={{ fontSize: 26, fontWeight: 700, color: C.textPrimary, fontFamily: FONT.display, margin: 0, lineHeight: 1.2 }}>
-              Orders
-            </h1>
-            <p style={{ fontSize: 13, color: C.textMuted, marginTop: 5, fontFamily: FONT.body }}>
-              Manage orders, approve delivery, and handle payments
-            </p>
+            <h1 className="text-3xl font-black text-slate-800">Orders</h1>
+            <p className="text-slate-500 font-medium mt-1">Manage orders, approve delivery, and handle payments</p>
           </div>
           {updating && (
             <div style={{
