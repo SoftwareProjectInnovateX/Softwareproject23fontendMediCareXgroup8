@@ -351,8 +351,8 @@ const PharmacistDashboard = () => {
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Pharmacist Dashboard Overview</h1>
-          <p className="text-slate-500 mt-1">Welcome back, here's what's happening today.</p>
+          <h1 className="text-3xl font-black text-slate-800">Pharmacist Dashboard Overview</h1>
+          <p className="text-slate-500 font-medium mt-1">Welcome back, here's what's happening today.</p>
         </div>
         <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 shadow-sm">
           <Calendar className="w-4 h-4" />
