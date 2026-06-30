@@ -691,8 +691,8 @@ export default function PharmacistProductsPage() {
         {/* Header */}
         <div className="pmp-header">
           <div>
-            <h1 className="pmp-title">Product <span>Management</span></h1>
-            <p className="pmp-subtitle">Control customer vs pharmacist-only visibility across your store</p>
+            <h1 className="text-3xl font-black text-slate-800">Product <span>Management</span></h1>
+            <p className="text-slate-500 font-medium mt-1">Control customer vs pharmacist-only visibility across your store</p>
           </div>
           <button className="pmp-refresh-btn" onClick={fetchProducts}>
             ↻ Refresh
