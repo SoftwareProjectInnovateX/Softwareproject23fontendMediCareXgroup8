@@ -316,10 +316,10 @@ export default function Returns() {
   return (
     <div style={{ fontFamily: FONT.body }}>
       <div className="mb-6">
-        <h1 className="text-[26px] font-semibold" style={{ fontFamily: FONT.display, color: C.textPrimary }}>
+        <h1 className="text-3xl font-black text-slate-800">
           Returns &amp; Adjustments
         </h1>
-        <p className="text-[13px] mt-[5px]" style={{ color: C.textMuted }}>
+        <p className="text-slate-500 font-medium mt-1">
           Process customer returns, refunds, and stock adjustments.
         </p>
       </div>
