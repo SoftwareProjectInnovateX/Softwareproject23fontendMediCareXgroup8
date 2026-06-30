@@ -571,8 +571,8 @@ const PharmacistNewRxEntry = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 ">Walk-in POS & Billing</h1>
-            <p className="text-slate-500 mt-1">Manual entry for prescriptions and in-store purchases</p>
+            <h1 className="text-3xl font-black text-slate-800">Walk-in POS & Billing</h1>
+            <p className="text-slate-500 font-medium mt-1">Manual entry for prescriptions and in-store purchases</p>
           </div>
         </div>
         
