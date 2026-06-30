@@ -63,11 +63,11 @@ const PharmacistNewPatients = () => {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <h1 className="text-3xl font-black text-slate-800 flex items-center gap-2">
             <UserPlus className="w-6 h-6 text-blue-600" />
             Registered Customers
           </h1>
-          <p className="text-slate-500 mt-1">
+          <p className="text-slate-500 font-medium mt-1">
             {isLoading ? 'Loading…' : `Showing ${filtered.length} of ${customers.length} registered app customers`}
           </p>
         </div>
