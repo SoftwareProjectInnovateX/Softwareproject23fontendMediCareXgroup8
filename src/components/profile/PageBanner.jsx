@@ -14,8 +14,9 @@ export default function PageBanner({ title, subtitle, children, paddingBottom = 
     >
       {/* Page title */}
       <h1
-        className="text-[38px] font-bold text-white mb-3"
-      >
+  className="text-[38px] font-bold text-white mb-3"
+  style={{ fontFamily: FONT.body }}
+>
         {title}
       </h1>
 
@@ -23,7 +24,7 @@ export default function PageBanner({ title, subtitle, children, paddingBottom = 
       {subtitle && (
         <p
           className="text-[15px] max-w-[520px] mx-auto mb-7"
-          style={{ color: C.bannerSubtitle }}
+        style={{ color: C.bannerSubtitle, fontFamily: FONT.body }}
         >
           {subtitle}
         </p>
