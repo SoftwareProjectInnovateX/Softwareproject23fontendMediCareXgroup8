@@ -143,8 +143,8 @@ const PharmacistDispensedToday = () => {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-slate-800">Dispensed Today</h1>
-          <p className="text-slate-500 mt-0.5 text-sm">
+          <h1 className="text-3xl font-black text-slate-800">Dispensed Today</h1>
+          <p className="text-slate-500 font-medium mt-1">
             {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
