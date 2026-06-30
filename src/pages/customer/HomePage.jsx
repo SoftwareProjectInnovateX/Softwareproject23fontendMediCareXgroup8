@@ -21,7 +21,7 @@ export default function HomePage() {
       <section className="py-16 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4" style={{ color: C.textPrimary, fontFamily: FONT.display }}>
+            <h2 className="text-3xl font-bold mb-4" style={{ color: C.textPrimary, fontFamily: FONT.body }}>
               Why Choose MediCareX?
             </h2>
             <p className="text-lg" style={{ color: C.textSecondary }}>
