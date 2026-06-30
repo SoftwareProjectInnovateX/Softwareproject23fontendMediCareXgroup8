@@ -42,9 +42,9 @@ export default function ProductsPage() {
 
       <div
         className="px-6 pt-14 pb-12 text-center"
-        style={{ background: `linear-gradient(135deg, ${C.accentDark} 0%, ${C.accent} 100%)` }}
+       style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}
       >
-        <h1 className="text-3xl font-bold text-white mb-3" style={{ fontFamily: FONT.display }}>
+        <h1 className="text-4xl font-bold text-white mb-3" style={{ fontFamily: FONT.body }}>
           Our Products
         </h1>
         <p className="text-[15px] text-white/75 max-w-[520px] mx-auto">
