@@ -113,11 +113,11 @@ const PharmacistExpiringInventory = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <h1 className="text-3xl font-black text-slate-800 flex items-center gap-2">
               <AlertTriangle className="w-6 h-6 text-red-500" />
               Expiring Within 7 Days
             </h1>
-            <p className="text-slate-500 mt-1">
+            <p className="text-slate-500 font-medium mt-1">
               Medicines expiring <span className="font-bold text-red-500">within this week</span> or already expired.
             </p>
           </div>
