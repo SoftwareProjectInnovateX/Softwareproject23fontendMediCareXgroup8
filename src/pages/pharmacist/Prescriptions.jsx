@@ -261,7 +261,7 @@ const handleSelectRx = async (p) => {
 
         <div className="sticky top-0 bg-[#f8fafc] z-10 pb-2">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <h1 className="text-3xl font-black text-slate-800 flex items-center gap-2">
               <ClipboardList className="text-blue-600" />
               Prescriptions
             </h1>
