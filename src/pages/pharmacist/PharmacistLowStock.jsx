@@ -121,11 +121,11 @@ const PharmacistLowStock = () => {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+          <h1 className="text-3xl font-black text-slate-800 flex items-center gap-2">
             <AlertCircle className="w-6 h-6 text-orange-500" />
             Low Stock Inventory
           </h1>
-          <p className="text-slate-500 mt-1">Review items below capacity and restock from here.</p>
+          <p className="text-slate-500 font-medium mt-1">Review items below capacity and restock from here.</p>
         </div>
         <button
           onClick={() => { setIsLoading(true); loadInventory(); }}
