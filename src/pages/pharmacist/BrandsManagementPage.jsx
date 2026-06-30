@@ -46,10 +46,10 @@ export default function BrandsManagementPage() {
       {/* ── Page header with Add / Cancel toggle button ── */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="font-['Playfair_Display',serif] text-[26px] font-semibold text-[#1e293b]">
+          <h1 className="text-3xl font-black text-slate-800">
             Brands
           </h1>
-          <p className="text-[13px] text-[#64748b] mt-[5px]">
+          <p className="text-slate-500 font-medium mt-1">
             Manage brands shown on the customer page.
           </p>
         </div>
