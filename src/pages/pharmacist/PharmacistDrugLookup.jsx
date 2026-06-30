@@ -306,7 +306,7 @@ const PharmacistDrugLookup = () => {
                        )}
                     </div>
 
-                    <h1 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight leading-tight mb-2">
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight leading-tight mb-2">
                        {activeDrug.isWikipediaFallback 
                            ? activeDrug.brand_name 
                            : (getField(activeDrug, 'openfda.brand_name') || (activeDrug._sriLankanTerm ? activeDrug._sriLankanTerm.toUpperCase() : getField(activeDrug, 'openfda.generic_name')) || 'Unnamed Medication')}
