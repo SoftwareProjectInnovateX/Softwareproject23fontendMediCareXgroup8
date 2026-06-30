@@ -329,9 +329,9 @@ const PharmacistVerification = () => {
           <ArrowLeft className="w-4 h-4" /> Back to Queue
         </button>
 
-        <p className="text-sm font-bold text-slate-500 tracking-wider">PRESCRIPTION / VERIFICATION WORKSPACE</p>
+        <p className="text-slate-500 font-medium mt-1 tracking-wider">PRESCRIPTION / VERIFICATION WORKSPACE</p>
         <h1 className="text-3xl font-black text-slate-800 mt-1">RX-{activePrescription?.id || location.pathname.split('/').pop()}</h1>
-        <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 font-medium">
+        <p className="text-slate-500 font-medium mt-1 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-amber-500"></span> In Progress
         </p>
       </div>
