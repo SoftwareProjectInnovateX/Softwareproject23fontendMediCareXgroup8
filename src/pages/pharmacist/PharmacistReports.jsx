@@ -235,7 +235,7 @@ const PharmacistReports = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2 border-b border-slate-100 pb-6 print:hidden">
         <div>
           <h1 className="text-3xl font-black text-slate-800">Operational Analytics</h1>
-          <p className="text-slate-500 font-medium text-sm mt-1 flex items-center gap-1.5">
+          <p className="text-slate-500 font-medium mt-1 flex items-center gap-1.5">
             <Activity className="w-4 h-4 text-[#0b5ed7]" /> Live Pharmacist Reporting Dashboard
           </p>
         </div>
