@@ -1,3 +1,5 @@
+import { getAuthHeaders } from './firebase';
+
 const API_BASE_URL = 'http://localhost:5000/api/pharmacist';
 
 const handleResponse = async (response) => {
@@ -103,17 +105,19 @@ export const getDispensedHistory = async () => {
 };
 
 export const addDispensedRecord = async (data) => {
+  const authHeaders = await getAuthHeaders();
   return handleResponse(await fetch(`${API_BASE_URL}/dispensed`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...authHeaders },
     body: JSON.stringify(data),
   }));
 };
 
 export const updateDispensedRecord = async (id, data) => {
+  const authHeaders = await getAuthHeaders();
   return handleResponse(await fetch(`${API_BASE_URL}/dispensed/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...authHeaders },
     body: JSON.stringify(data),
   }));
 };
