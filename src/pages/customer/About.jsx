@@ -10,7 +10,7 @@ export default function About() {
       {/* 🔷 HERO */}
       <section style={{
         background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)",
-        padding: "120px 20px",
+        padding: "40px 20px",
         textAlign: "center",
         color: "#fff",
         position: "relative",
@@ -21,8 +21,8 @@ export default function About() {
         
         <div style={{ position: "relative", zIndex: 1 }}>
           <h1 style={{
-            fontFamily: FONT.display,
-            fontSize: 56,
+           fontFamily: FONT.body,
+            fontSize: 40,
             fontWeight: 700,
             marginBottom: 16,
             letterSpacing: "-1px"
@@ -68,21 +68,17 @@ export default function About() {
           gap: 25
         }}>
 
-          <div style={card}>
-            <h3>🎯 Our Mission</h3>
-            <p>
-              To provide safe, affordable, and fast access to medicines with a focus
-              on customer trust and satisfaction.
-            </p>
-          </div>
+          <MissionCard
+            icon={<Target size={28} />}
+            title="Our Mission"
+            desc="To provide safe, affordable, and fast access to medicines with a focus on customer trust and satisfaction."
+          />
 
-          <div style={card}>
-            <h3>👁️ Our Vision</h3>
-            <p>
-              To become Sri Lanka’s most trusted online pharmacy delivering healthcare
-              solutions to every doorstep.
-            </p>
-          </div>
+          <MissionCard
+            icon={<Eye size={28} />}
+            title="Our Vision"
+            desc="To become Sri Lanka’s most trusted online pharmacy delivering healthcare solutions to every doorstep."
+          />
 
         </div>
       </section>
@@ -126,10 +122,10 @@ export default function About() {
             gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
             gap: 20
           }}>
-            <ServiceCard text="💊 Online Medicine Ordering" />
-            <ServiceCard text="🚚 Fast Home Delivery" />
-            <ServiceCard text="🧾 Prescription Upload" />
-            <ServiceCard text="🩺 Healthcare Essentials" />
+          <ServiceCard icon={<HeartPulse size={24} />} text="Online Medicine Ordering" />
+          <ServiceCard icon={<Truck size={24} />} text="Fast Home Delivery" />
+          <ServiceCard icon={<ShieldCheck size={24} />} text="Prescription Upload" />
+          <ServiceCard icon={<Users size={24} />} text="Healthcare Essentials" />
           </div>
         </div>
       </section>
@@ -147,7 +143,7 @@ export default function About() {
         <div style={{ position: "absolute", bottom: -60, left: -60, width: 200, height: 200, background: "rgba(255,255,255,0.03)", borderRadius: "50%" }} />
         
         <div style={{ position: "relative", zIndex: 1 }}>
-          <h2 style={{ fontSize: 42, fontWeight: 700, marginBottom: 16, letterSpacing: "-0.5px" }}>Your Health, Our Priority 💙</h2>
+          <h2 style={{ fontSize: 42, fontWeight: 700, marginBottom: 16, letterSpacing: "-0.5px" }}>Your Health, Our Priority</h2>
           <p style={{ color: "rgba(255,255,255,0.9)", marginTop: 12, fontSize: 18, maxWidth: 600, margin: "12px auto 0" }}>
             Experience smart pharmacy services with MediCareX today.
           </p>
@@ -231,7 +227,7 @@ function Feature({ icon, text, desc }) {
   );
 }
 
-function ServiceCard({ text }) {
+function ServiceCard({ icon, text }) {
   return (
     <div style={{
       background: "#fff",
@@ -248,6 +244,7 @@ function ServiceCard({ text }) {
     }}
     onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(26,135,225,0.12)"; e.currentTarget.style.borderColor = "#1a87e1"; e.currentTarget.style.background = "#f5f9ff"; }}
     onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.05)"; e.currentTarget.style.borderColor = "#e0eeff"; e.currentTarget.style.background = "#fff"; }}>
+      <div style={{ marginBottom: 12, color: "#1a87e1" }}>{icon}</div>
       {text}
     </div>
   );
