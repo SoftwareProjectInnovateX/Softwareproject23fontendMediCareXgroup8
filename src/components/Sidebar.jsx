@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import {
   MdDashboard,
   MdPeople,
@@ -62,8 +63,20 @@ export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const closeMobile = () => setIsMobileOpen(false);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      navigate('/login');
+      closeMobile();
+    }
+  };
 
   const SidebarContent = ({ mobile = false }) => (
     <div
@@ -236,7 +249,7 @@ export default function Sidebar() {
       {/* ── Footer ── */}
       <div className="flex-shrink-0 border-t border-white/10 px-2 py-2">
         <button
-          onClick={() => { navigate("/login"); closeMobile(); }}
+          onClick={handleLogout}
           className={`
             group relative flex items-center gap-2.5 w-full
             rounded-xl px-3 py-2.5
