@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { AlertContext } from '../layouts/PharmacistLayout';
+import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -23,9 +24,16 @@ import {
 const PharmacistSidebar = () => {
   const navigate = useNavigate();
   const { unreadAlerts, pendingRxCount } = useContext(AlertContext);
+  const { logout } = useAuth();
 
-  const handleLogout = () => {
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      navigate('/login');
+    }
   };
 
   const navItems = [
