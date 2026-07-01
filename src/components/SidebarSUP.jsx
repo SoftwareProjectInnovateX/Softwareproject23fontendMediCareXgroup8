@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import {
   MdDashboard, MdNotifications, MdShoppingCart, MdInventory,
   MdLocalShipping, MdReceiptLong, MdSettings, MdLogout,
@@ -9,6 +10,17 @@ import {
 export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      navigate('/login');
+    }
+  };
 
   const menuItems = [
     { id: 1, icon: <MdDashboard size={20} />,     text: "Dashboard",          path: "/supplier" },
@@ -118,7 +130,7 @@ export default function Sidebar() {
       {/* Logout */}
       <div className="px-2 py-3 border-t border-blue-600/60 shrink-0">
         <button
-          onClick={() => navigate("/login")}
+          onClick={handleLogout}
           title={isCollapsed ? "Logout" : undefined}
           className={`group relative flex items-center gap-3 w-full px-3 py-2.5 rounded-xl
             text-blue-200 bg-transparent border-none cursor-pointer font-medium
