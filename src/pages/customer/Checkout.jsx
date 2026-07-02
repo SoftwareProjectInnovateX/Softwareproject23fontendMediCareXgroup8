@@ -1,31 +1,153 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import CryptoJS from 'crypto-js';
 import { useCartStore } from '../../stores/cartStore';
+import { useAuth } from '../../context/AuthContext';
 import BillingDetails from '../../components/checkout/BillingDetails';
 import OrderSummary from '../../components/checkout/OrderSummary';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { getAuthHeaders } from '../../services/firebase';
-import { useAuth } from '../../context/AuthContext';
-import { updateDispensedRecord, getDispensedHistory } from '../../services/pharmacistService';
 
 const Checkout = () => {
+    const { currentUser, getCurrentUserData } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
-    const { getTotal, clearCart, items } = useCartStore();
-    const { currentUser } = useAuth();
+    const { getTotal, clearCart, restoreCart, items } = useCartStore();
     const navigate = useNavigate();
     const location = useLocation();
     const queryParams = new URLSearchParams(location.search);
-    const rxId = queryParams.get('rxId');
+    const rxIdParam = queryParams.get('rxId');
+    const rxId = (rxIdParam && rxIdParam !== 'null') ? rxIdParam : null;
     const rxAmount = parseFloat(queryParams.get('amount') || '0');
+    const [rxData, setRxData] = useState(null);
+    const [paymentError, setPaymentError] = useState(null);
+    const [paymentStep, setPaymentStep] = useState('IDLE'); // IDLE, PAYING, COMPLETED
+    const [originalProfileAddress, setOriginalProfileAddress] = useState(null);
+    const [formErrors, setFormErrors] = useState({});
+
+
+    // Handle PayHere Redirect Return
+    useEffect(() => {
+        const paymentStatus = queryParams.get('payment_status');
+        const returnedOrderId = queryParams.get('order_id');
+
+        if (paymentStatus === 'success' && returnedOrderId) {
+            // Restore state
+            const savedData = sessionStorage.getItem('pendingOrderData');
+            const savedRxId = sessionStorage.getItem('pendingRxId');
+            const savedRxAmount = sessionStorage.getItem('pendingRxAmount');
+
+            let parsedData = orderData;
+            if (savedData) {
+                parsedData = JSON.parse(savedData);
+                setOrderData(parsedData);
+                sessionStorage.removeItem('pendingOrderData');
+            }
+
+            let restoredRxId = null;
+            if (savedRxId && savedRxId !== 'null') {
+                restoredRxId = savedRxId;
+                sessionStorage.removeItem('pendingRxId');
+            }
+            if (savedRxAmount) {
+                sessionStorage.removeItem('pendingRxAmount');
+            }
+
+            setPaymentStep('COMPLETED');
+            setIsLoading(true);
+            
+            // Just finalize navigation for online success, backend webhook handles DB
+            finalizeMediCareXOrder(returnedOrderId, true, true, parsedData, restoredRxId);
+
+            // Clean the URL, but restore rxId if needed so UI doesn't break
+            let newSearch = `?`;
+            if (restoredRxId) newSearch += `rxId=${restoredRxId}&amount=${savedRxAmount || 0}`;
+            const newUrl = window.location.pathname + (newSearch === '?' ? '' : newSearch);
+            window.history.replaceState({}, document.title, newUrl);
+
+        } else if (paymentStatus === 'cancel') {
+            const savedData = sessionStorage.getItem('pendingOrderData');
+            const savedRxId = sessionStorage.getItem('pendingRxId');
+            const savedRxAmount = sessionStorage.getItem('pendingRxAmount');
+            
+            const savedCartItems = sessionStorage.getItem('pendingCartItems');
+            
+            if (savedData) {
+                setOrderData(JSON.parse(savedData));
+                sessionStorage.removeItem('pendingOrderData');
+            }
+            if (savedCartItems) {
+                restoreCart(JSON.parse(savedCartItems));
+                sessionStorage.removeItem('pendingCartItems');
+            }
+            let restoredRxId = null;
+            if (savedRxId && savedRxId !== 'null') {
+                restoredRxId = savedRxId;
+                sessionStorage.removeItem('pendingRxId');
+            }
+            if (savedRxAmount) {
+                sessionStorage.removeItem('pendingRxAmount');
+            }
+            
+            navigate('/customer/checkout/cancel', { state: { rxId: restoredRxId, rxAmount: savedRxAmount } });
+        }
+    }, [location.search]);
+
+    useEffect(() => {
+        if (rxId) {
+            const fetchPrescription = async () => {
+                try {
+                    const { db } = await import('../../lib/firebase');
+                    const { doc, getDoc } = await import('firebase/firestore');
+                    
+                    // 1. Fetch Prescription Data
+                    const rxRef = doc(db, 'prescriptions', rxId);
+                    const rxSnap = await getDoc(rxRef);
+                    
+                    if (rxSnap.exists()) {
+                        const data = rxSnap.data();
+                        setRxData(data);
+                        
+                        let targetEmail = null;
+
+                        // 2. Fetch Customer Profile using userId from prescription
+                        if (data.userId) {
+                            const userRef = doc(db, 'users', data.userId);
+                            const userSnap = await getDoc(userRef);
+                            if (userSnap.exists()) {
+                                targetEmail = userSnap.data().email;
+                            }
+                        }
+
+                        // 3. Fallback: Search by phone number if email not found yet
+                        if (!targetEmail && (data.customerPhone || data.phone)) {
+                            const { query, collection, where, getDocs } = await import('firebase/firestore');
+                            const phoneToSearch = data.customerPhone || data.phone;
+                            const q = query(collection(db, 'users'), where('phone', '==', phoneToSearch));
+                            const querySnap = await getDocs(q);
+                            
+                            if (!querySnap.empty) {
+                                targetEmail = querySnap.docs[0].data().email;
+                            }
+                        }
+
+                        if (targetEmail) {
+                            setOrderData(prev => ({ ...prev, email: targetEmail }));
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching prescription details:", error);
+                }
+            };
+            fetchPrescription();
+        }
+    }, [rxId]);
 
     const PAYMENT_GATEWAY_CONFIG = {
-        MERCHANT_ID: "1235095",
-        MERCHANT_SECRET: "NDUxMTU1MDYxNDEyNDEyMTgyMjM3MTEzMTYyMjMwMzQ0OTc1MjM=",
         CURRENCY: "LKR",
-        TOTAL_AMOUNT: (rxId ? rxAmount : getTotal()).toFixed(2),
+        TOTAL_AMOUNT: (parseFloat(rxId ? rxAmount : getTotal()) + 400).toFixed(2),
         NOTIFY_URL: "http://localhost:5000/api/customer-orders/notify",
-        RETURN_URL: `${window.location.origin}/customer/checkout/success`,
-        CANCEL_URL: `${window.location.origin}/customer/checkout/cancel`,
+        RETURN_URL: `${window.location.origin}/customer/checkout${window.location.search}`,
+        CANCEL_URL: `${window.location.origin}/customer/checkout${window.location.search}`,
     };
 
     const [orderData, setOrderData] = useState({
@@ -33,20 +155,61 @@ const Checkout = () => {
         firstName: queryParams.get('fname') || '',
         lastName:  queryParams.get('lname') || '',
         country: 'Sri Lanka',
+        district: '', // New field
         houseNumber: queryParams.get('addr')?.split(',')[0]?.trim() || '',
         laneStreet:  queryParams.get('addr')?.split(',').slice(1).join(',')?.trim() || '',
         city: '',
         phone: queryParams.get('phone') || '',
+        secondaryPhone: '', // New field
         orderNotes: '',
         agreeTerms: false,
-        paymentMethod: 'ONLINE'
+        paymentMethod: 'ONLINE',
+        saveAddressToProfile: false
     });
 
+    // Update email and profile data if currentUser becomes available
     useEffect(() => {
-        if (currentUser?.email && !orderData.email) {
-            setOrderData(prev => ({ ...prev, email: currentUser.email }));
-        }
-    }, [currentUser?.email, orderData.email]);
+        const fetchUserProfile = async () => {
+            if (currentUser) {
+                const userData = await getCurrentUserData();
+                if (userData) {
+                    let fName = queryParams.get('fname') || '';
+                    let lName = queryParams.get('lname') || '';
+                    
+                    if (userData.fullName && !fName && !lName) {
+                        const parts = userData.fullName.split(' ');
+                        fName = parts[0] || '';
+                        lName = parts.slice(1).join(' ') || '';
+                    }
+
+                    const profileDistrict = userData.district || '';
+                    const profileCity = userData.city || '';
+                    const profileHouseNumber = userData.houseNumber || '';
+                    const profileLaneStreet = userData.laneStreet || '';
+
+                    setOriginalProfileAddress({
+                        district: profileDistrict,
+                        city: profileCity,
+                        houseNumber: profileHouseNumber,
+                        laneStreet: profileLaneStreet
+                    });
+
+                    setOrderData(prev => ({ 
+                        ...prev, 
+                        email: currentUser.email || prev.email,
+                        firstName: prev.firstName || fName,
+                        lastName: prev.lastName || lName,
+                        phone: prev.phone || userData.phone || '',
+                        district: prev.district || profileDistrict,
+                        city: prev.city || profileCity,
+                        houseNumber: prev.houseNumber || profileHouseNumber,
+                        laneStreet: prev.laneStreet || profileLaneStreet,
+                    }));
+                }
+            }
+        };
+        fetchUserProfile();
+    }, [currentUser]);
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -54,192 +217,291 @@ const Checkout = () => {
             ...prev,
             [name]: type === 'checkbox' ? checked : value
         }));
+
+        // Clear general errors as user types
+        if (formErrors[name] && name !== 'phone' && name !== 'secondaryPhone') {
+            setFormErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[name];
+                return newErrors;
+            });
+        }
+
+        // Real-time validation for phone numbers
+        if (name === 'phone' || name === 'secondaryPhone') {
+            setFormErrors(prev => {
+                const newErrors = { ...prev };
+                if (name === 'phone' && !value) {
+                    newErrors.phone = "Phone number is required";
+                } else if (value) {
+                    if (/^\+(?!94)/.test(value.replace(/\s+/g, ''))) {
+                        newErrors[name] = "Sorry, our services are only available within Sri Lanka (+94)";
+                    } else if (!/^(?:0|\+94)\d{9}$/.test(value.replace(/\s+/g, ''))) {
+                        newErrors[name] = "Must be a valid Sri Lankan number (e.g. 071... or +9471...)";
+                    } else {
+                        delete newErrors[name];
+                    }
+                } else if (name === 'secondaryPhone' && !value) {
+                    delete newErrors.secondaryPhone;
+                }
+                return newErrors;
+            });
+        }
     };
 
-    const handlePlaceOrder = () => {
-        const { firstName, lastName, email, phone, houseNumber, laneStreet, city, agreeTerms } = orderData;
+    const handlePlaceOrder = async () => {
+        const { firstName, lastName, email, phone, secondaryPhone, houseNumber, laneStreet, city, district, agreeTerms } = orderData;
+        const errors = {};
 
-        if (!firstName || !lastName || !email || !phone || !houseNumber || !laneStreet || !city) {
-            alert("Please fill in all required fields marked with *");
+        if (!firstName) errors.firstName = "First name is required";
+        if (!lastName) errors.lastName = "Last name is required";
+        if (!email) errors.email = "Email is required";
+        
+        if (!phone) {
+            errors.phone = "Phone number is required";
+        } else if (/^\+(?!94)/.test(phone.replace(/\s+/g, ''))) {
+            errors.phone = "Sorry, our services are only available within Sri Lanka (+94)";
+        } else if (!/^(?:0|\+94)\d{9}$/.test(phone.replace(/\s+/g, ''))) {
+            errors.phone = "Must be a valid Sri Lankan number (e.g. 071... or +9471...)";
+        }
+
+        if (secondaryPhone) {
+            if (/^\+(?!94)/.test(secondaryPhone.replace(/\s+/g, ''))) {
+                errors.secondaryPhone = "Sorry, our services are only available within Sri Lanka (+94)";
+            } else if (!/^(?:0|\+94)\d{9}$/.test(secondaryPhone.replace(/\s+/g, ''))) {
+                errors.secondaryPhone = "Must be a valid Sri Lankan number";
+            }
+        }
+
+        if (!district) errors.district = "District is required";
+        if (!city) errors.city = "City is required";
+        if (!houseNumber) errors.houseNumber = "House Number is required";
+        if (!laneStreet) errors.laneStreet = "Lane/Street is required";
+        if (!agreeTerms) errors.agreeTerms = "Please accept the terms and conditions";
+
+        if (Object.keys(errors).length > 0) {
+            setFormErrors(errors);
+            // Scroll to top to show errors if needed
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             return;
         }
 
-        if (!agreeTerms) {
-            alert("Please accept the terms and conditions to proceed.");
-            return;
-        }
-
+        setFormErrors({});
         setIsLoading(true);
+        setPaymentError(null); // Reset error on new attempt
+
+        // Profile address update logic
+        if (orderData.saveAddressToProfile && currentUser) {
+            try {
+                const role = sessionStorage.getItem("userRole");
+                let collectionName = "users"; // default to customers
+                if (role === "supplier") collectionName = "suppliers";
+                else if (role === "pharmacist") collectionName = "pharmacists";
+                else if (role === "admin") collectionName = "admins";
+
+                await updateDoc(doc(db, collectionName, currentUser.uid), {
+                    district: orderData.district,
+                    city: orderData.city,
+                    houseNumber: orderData.houseNumber,
+                    laneStreet: orderData.laneStreet
+                });
+                console.log("Profile address updated successfully!");
+            } catch (err) {
+                console.error("Failed to update profile address:", err);
+            }
+        }
 
         if (orderData.paymentMethod === 'ONLINE') {
-            processOnlinePayment();
-        } else {
-            handleOrderSubmission(`COD_${Date.now()}`, true);
-        }
-    };
-
-    const processOnlinePayment = () => {
-        const orderId = `MCX${Date.now()}`;
-
-        const hashedSecret = CryptoJS.MD5(PAYMENT_GATEWAY_CONFIG.MERCHANT_SECRET).toString().toUpperCase();
-        const authString = PAYMENT_GATEWAY_CONFIG.MERCHANT_ID + orderId + PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT + PAYMENT_GATEWAY_CONFIG.CURRENCY + hashedSecret;
-        const securityHash = CryptoJS.MD5(authString).toString().toUpperCase();
-
-        const paymentPayload = {
-            sandbox: true,
-            merchant_id: PAYMENT_GATEWAY_CONFIG.MERCHANT_ID,
-            return_url:  PAYMENT_GATEWAY_CONFIG.RETURN_URL,
-            cancel_url:  PAYMENT_GATEWAY_CONFIG.CANCEL_URL,
-            notify_url:  PAYMENT_GATEWAY_CONFIG.NOTIFY_URL,
-            order_id:    orderId,
-            items:       "MediCareX Medicine Order",
-            amount:      PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT,
-            currency:    PAYMENT_GATEWAY_CONFIG.CURRENCY,
-            hash:        securityHash,
-            first_name:  orderData.firstName,
-            last_name:   orderData.lastName,
-            email:       orderData.email,
-            phone:       orderData.phone,
-            address:     `${orderData.houseNumber}, ${orderData.laneStreet}`,
-            city:        orderData.city,
-            country:     "Sri Lanka",
-        };
-
-        if (window.payhere) {
-            window.payhere.startPayment(paymentPayload);
-
-            window.payhere.onCompleted = (confirmedOrderId) => {
-                handleOrderSubmission(confirmedOrderId, true);
-            };
-
-            window.payhere.onDismissed = () => {
-                setIsLoading(false);
-            };
-
-            window.payhere.onError = (error) => {
-                setIsLoading(false);
-                alert(`Payment process failed: ${error}`);
-            };
-        } else {
-            setIsLoading(false);
-            alert("Payment SDK failed to load.");
-        }
-    };
-
-    const handleOrderSubmission = async (referenceId, shouldClearCart = false) => {
-        try {
-            // Skip creating a CustomerOrders record when paying for a prescription
-            if (!rxId) {
+            const tempOrderId = `MCX${Date.now()}`;
+            try {
                 const authHeaders = await getAuthHeaders();
                 const response = await fetch('http://localhost:5000/api/customer-orders', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...authHeaders
-                    },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders },
                     body: JSON.stringify({
                         ...orderData,
-                        userId:       currentUser?.uid || null,
-                        orderId:      referenceId,
+                        orderId:      tempOrderId,
                         totalAmount:  parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
-                        orderStatus:  orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Pending-COD',
+                        orderStatus:  'Pending',
+                        paymentStatus: 'pending',
                         items:        items.map(item => ({
-                            id:        item.id,
-                            productId: item.productId || '',
-                            stockId:   item.stockId   || '',
-                            name:      item.name,
-                            price:     item.price,
-                            quantity:  item.qty,
-                            imageUrl:  item.imageUrl || '',
-                            category:  item.category || '',
+                            id:       item.id,
+                            name:     item.name,
+                            price:    item.price,
+                            quantity: item.qty,
+                            imageUrl: item.imageUrl || '',
                         })),
-                        categories: [...new Set(items.map(item => item.category || '').filter(Boolean))],
                     }),
                 });
 
-                if (!response.ok) {
-                    const errorLog = await response.json();
-                    console.error("Backend Error:", errorLog);
-                    throw new Error("Order persistence failed");
+                if (response.ok) {
+                    processOnlinePayment(tempOrderId);
+                } else {
+                    throw new Error("Failed to initialize order");
                 }
-
+            } catch (err) {
+                console.error(err);
+                setIsLoading(false);
+                setPaymentError("Could not connect to server to initialize payment.");
             }
+        } else {
+            finalizeMediCareXOrder(`COD_${Date.now()}`, true, false);
+        }
+    };
 
-            if (shouldClearCart) {
-                const userId = currentUser?.uid || sessionStorage.getItem('userId');
-                if (userId) await clearCart(userId);
+    const processOnlinePayment = async (orderId) => {
+        // Save form state so it is not lost after redirect
+        sessionStorage.setItem('pendingOrderData', JSON.stringify(orderData));
+        sessionStorage.setItem('pendingRxId', rxId || 'null');
+        sessionStorage.setItem('pendingRxAmount', rxAmount || '0');
+
+        sessionStorage.setItem('pendingCartItems', JSON.stringify(items));
+        if (!rxId) clearCart(); // Clear the cart now since the order is already in DB
+
+        try {
+            // Fetch secure hash, merchant ID, and the TRUE AMOUNT from backend
+            const hashRes = await fetch(`http://localhost:5000/api/customer-orders/generate-hash?orderId=${orderId}&amount=${PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT}&currency=${PAYMENT_GATEWAY_CONFIG.CURRENCY}`);
+            if (!hashRes.ok) throw new Error("Could not fetch payment hash");
+            
+            const { hash, merchantId, actualAmount } = await hashRes.json();
+
+            const returnUrl = `${window.location.origin}${window.location.pathname}?payment_status=success&order_id=${orderId}`;
+        const cancelUrl = `${window.location.origin}/customer/checkout/cancel?order_id=${orderId}`;
+
+        const form = document.createElement("form");
+        form.setAttribute("method", "POST");
+        form.setAttribute("action", "https://sandbox.payhere.lk/pay/checkout");
+
+        const params = {
+            merchant_id: merchantId,
+            return_url: returnUrl,
+            cancel_url: cancelUrl,
+            notify_url: PAYMENT_GATEWAY_CONFIG.NOTIFY_URL,
+            order_id: orderId,
+            items: "MediCareX Medicine Order",
+            currency: PAYMENT_GATEWAY_CONFIG.CURRENCY,
+            amount: actualAmount, // SECURITY FIX: Use the actual amount from DB, not frontend config
+            first_name: orderData.firstName,
+            last_name: orderData.lastName,
+            email: orderData.email,
+            phone: orderData.phone,
+            address: `${orderData.houseNumber}, ${orderData.laneStreet}`,
+            city: orderData.city,
+            country: "Sri Lanka",
+            hash: hash
+        };
+
+        for (const key in params) {
+            if (params.hasOwnProperty(key)) {
+                const hiddenField = document.createElement("input");
+                hiddenField.setAttribute("type", "hidden");
+                hiddenField.setAttribute("name", key);
+                hiddenField.setAttribute("value", params[key]);
+                form.appendChild(hiddenField);
             }
+        }
 
-            if (rxId) {
-                try {
-                    const { db } = await import('../../lib/firebase');
-                    const { doc, getDoc, updateDoc, Timestamp } = await import('firebase/firestore');
+        document.body.appendChild(form);
+        form.submit();
+        } catch (error) {
+            console.error("Payment initialization error:", error);
+            setIsLoading(false);
+            setPaymentError("Failed to initialize payment gateway.");
+        }
+    };
 
-                    const rxRef = doc(db, 'prescriptions', rxId);
-                    const rxSnap = await getDoc(rxRef);
-                    const rxData = rxSnap.exists() ? rxSnap.data() : null;
+    const finalizeMediCareXOrder = async (referenceId, shouldClearCart = false, isAlreadyCreated = false, currentOrderData = orderData, currentRxId = rxId) => {
+        try {
+            let responseOk = true;
 
-                    if (rxData) {
-                        const history = await getDispensedHistory();
-                        const existingRecord = history.find(h => h.rxId === rxId);
-
-                        const dispensePayload = {
-                            rxId: rxId,
-                            patientName: `${orderData.firstName} ${orderData.lastName}`,
-                            verifiedPatient: `${orderData.firstName} ${orderData.lastName}`,
-                            phone: orderData.phone,
-                            address: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`,
-                            orderItems: rxData.orderItems || rxData.medications || [],
-                            total: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
-                            paymentStatus: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'COD',
-                            paymentMethod: orderData.paymentMethod,
-                            createdAt: new Date().toISOString(),
-                            finalized: false
-                        };
-
-                        if (existingRecord) {
-                            await updateDispensedRecord(existingRecord.firebaseId || existingRecord.id, dispensePayload);
-                        } else {
-                            const { addDispensedRecord } = await import('../../services/pharmacistService');
-                            await addDispensedRecord(dispensePayload);
-                        }
-
-                        await updateDoc(rxRef, {
-                            status: orderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Ready to Collect',
-                            customerConfirmed: true,
-                            paymentMethod: orderData.paymentMethod,
-                            confirmedAt: Timestamp.now(),
-                            customerAddress: `${orderData.houseNumber}, ${orderData.laneStreet}, ${orderData.city}`
-                        });
-
-                        // Update pharmacistDispensed collection if payment is online
-                        if (orderData.paymentMethod === 'ONLINE') {
-                            try {
-                                const { query, collection, where, getDocs, serverTimestamp } = await import('firebase/firestore');
-                                const q = query(collection(db, 'pharmacistDispensed'), where('rxId', '==', rxId));
-                                const snap = await getDocs(q);
-                                if (!snap.empty) {
-                                    await updateDoc(snap.docs[0].ref, {
-                                        paymentStatus: 'paid',
-                                        status: 'completed',
-                                        paidAt: serverTimestamp(),
-                                    });
-                                }
-                            } catch (err) {
-                                console.error("Failed to update pharmacistDispensed collection:", err);
-                            }
-                        }
-
-                        console.log("Prescription and Dispensing records synchronized for RX:", rxId);
+            if (!isAlreadyCreated) {
+                // If it's a prescription payment, use rxItems, else use cart items
+                let finalItems = [];
+                if (currentRxId) {
+                    try {
+                        const parsedItems = JSON.parse(new URLSearchParams(window.location.search).get('items') || '[]');
+                        finalItems = parsedItems.map(item => ({
+                            id:       item.id || 'rx-med',
+                            name:     item.name,
+                            price:    item.price || (item.total / (item.qty || 1)) || 0,
+                            quantity: item.qty || 1,
+                            imageUrl: item.imageUrl || '',
+                        }));
+                    } catch (e) {
+                        console.error("Error parsing rxItems:", e);
                     }
-                } catch (err) {
-                    console.error("Critical: Failed to sync prescription/dispensing data:", err);
+                } else {
+                    finalItems = items.map(item => ({
+                        id:       item.id,
+                        name:     item.name,
+                        price:    item.price,
+                        quantity: item.qty,
+                        imageUrl: item.imageUrl || '',
+                    }));
+                }
+
+                const authHeaders = await getAuthHeaders();
+                const response = await fetch('http://localhost:5000/api/customer-orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders },
+                    body: JSON.stringify({
+                        ...currentOrderData,
+                        orderId:      referenceId,
+                        totalAmount:  parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
+                        orderStatus:  currentOrderData.paymentMethod === 'ONLINE' ? 'Paid' : 'Pending-COD',
+                        items:        finalItems,
+                    }),
+                });
+                responseOk = response.ok;
+                if (!responseOk) {
+                   const errorLog = await response.json();
+                   console.error("Backend Error:", errorLog);
+                   throw new Error("Order persistence failed");
                 }
             }
 
-            navigate('/customer/checkout/success', {
-                state: { totalAmount: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT) }
-            });
+            if (responseOk) {
+                let orderItemsForSuccess = [];
+                if (currentRxId) {
+                    try {
+                        const { db } = await import('../../lib/firebase');
+                        const { doc, getDoc } = await import('firebase/firestore');
+                        
+                        // Just fetch items to pass to success page, DB updates are handled by backend
+                        const rxRef = doc(db, 'prescriptions', currentRxId);
+                        const rxSnap = await getDoc(rxRef);
+                        const rxData = rxSnap.exists() ? rxSnap.data() : null;
+
+                        if (rxData) {
+                            orderItemsForSuccess = rxData.orderItems || rxData.medications || [];
+                        }
+                    } catch (err) {
+                        console.error("Error fetching prescription items for success page:", err);
+                    }
+                } else {
+                    orderItemsForSuccess = items.map(item => ({
+                        name: item.name,
+                        price: item.price,
+                        qty: item.qty
+                    }));
+                }
+
+                if (shouldClearCart && !currentRxId) clearCart();
+                navigate(`/customer/checkout/success?orderId=${referenceId}`, {
+                    state: { 
+                        totalAmount: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
+                        orderData: { 
+                            ...currentOrderData, 
+                            orderId: referenceId,
+                            items: orderItemsForSuccess
+                        }
+                    }
+                });
+            } else {
+                const errorLog = await response.json();
+                console.error("Backend Error:", errorLog);
+                throw new Error("Order persistence failed");
+            }
         } catch (error) {
             console.error("Submission error:", error);
             alert("Connectivity issue: Unable to save your order to the server.");
@@ -249,21 +511,35 @@ const Checkout = () => {
     };
 
     return (
-        <div className="min-h-screen font-sans" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-            <nav className="max-w-7xl mx-auto px-4 py-4 text-sm text-slate-500 border-b border-slate-100 mb-8">
-                Home &gt; <span className="text-blue-900 font-medium">Checkout</span>
-            </nav>
+        <div className="min-h-screen bg-white font-sans text-slate-800">
 
             <main className="max-w-7xl mx-auto px-6 pb-20">
                 <header>
                     <h1 className="text-4xl font-bold text-blue-900 mb-10">Checkout</h1>
                 </header>
 
+                {paymentError && (
+                    <div className="mb-8 p-5 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-2xl flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm">
+                        <div className="p-2 bg-red-100 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-red-800">Payment Unsuccessful</h3>
+                            <p className="text-sm opacity-90">{paymentError}</p>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                     <section className="lg:col-span-7">
                         <BillingDetails
                             formData={orderData}
                             handleInputChange={handleInputChange}
+                            originalProfileAddress={originalProfileAddress}
+                            errors={formErrors}
+                            isLoading={isLoading}
                         />
                     </section>
 
@@ -274,8 +550,11 @@ const Checkout = () => {
                             handlePlaceOrder={handlePlaceOrder}
                             isLoading={isLoading}
                             prescriptionTotal={rxId ? rxAmount : null}
-                            prescriptionItems={queryParams.get('items')}
+                            prescriptionItems={rxData ? JSON.stringify(rxData.orderItems || rxData.medications || []) : queryParams.get('items')}
+                            cartItems={items}
+                            errors={formErrors}
                         />
+
                     </aside>
                 </div>
             </main>
