@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import CryptoJS from 'crypto-js';
 import { useCartStore } from '../../stores/cartStore';
@@ -29,7 +29,7 @@ const Checkout = () => {
     };
 
     const [orderData, setOrderData] = useState({
-        email: '',
+        email: currentUser?.email || '',
         firstName: queryParams.get('fname') || '',
         lastName:  queryParams.get('lname') || '',
         country: 'Sri Lanka',
@@ -41,6 +41,12 @@ const Checkout = () => {
         agreeTerms: false,
         paymentMethod: 'ONLINE'
     });
+
+    useEffect(() => {
+        if (currentUser?.email && !orderData.email) {
+            setOrderData(prev => ({ ...prev, email: currentUser.email }));
+        }
+    }, [currentUser?.email, orderData.email]);
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
