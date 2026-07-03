@@ -5,6 +5,8 @@ import { SupplierCard } from "../../components/admin/SupplierCard";
 import { SupplierDetail } from "../../components/admin/SupplierDetail";
 import PageLayout from "../../components/PageLayout";
 
+const SUPPLIERS_PER_PAGE = 6;
+
 export default function Suppliers() {
   const [suppliers, setSuppliers]               = useState([]);
   const [orders, setOrders]                     = useState([]);       // purchase orders for the selected supplier
@@ -12,6 +14,7 @@ export default function Suppliers() {
   const [loading, setLoading]                   = useState(true);
   const [selectedSupplier, setSelectedSupplier] = useState(null);     // null = list view, object = detail view
   const [adminRating, setAdminRating]           = useState(0);        // current rating for the selected supplier
+  const [currentPage, setCurrentPage]           = useState(0);        // pagination index for the supplier grid
 
   // Fetch all suppliers from Firestore on mount; filtering is done client-side
   useEffect(() => {
@@ -87,6 +90,22 @@ export default function Suppliers() {
     (s.name || s.email || "").toLowerCase().includes(search.toLowerCase())
   );
 
+  // Reset to the first page whenever the search term changes, so a new
+  // search never lands the user on a page that's now out of range
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSuppliers.length / SUPPLIERS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages - 1);
+  const paginatedSuppliers = filteredSuppliers.slice(
+    safePage * SUPPLIERS_PER_PAGE,
+    safePage * SUPPLIERS_PER_PAGE + SUPPLIERS_PER_PAGE
+  );
+
+  const goToPrevPage = () => setCurrentPage((p) => Math.max(0, p - 1));
+  const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages - 1, p + 1));
+
   // Loading state — shown while initial supplier fetch is in progress
   if (loading)
     return <div className="p-8 text-slate-500 text-lg">Loading suppliers...</div>;
@@ -103,7 +122,7 @@ export default function Suppliers() {
       />
     );
 
-  // Default list view — searchable supplier grid
+  // Default list view — searchable, paginated supplier grid
   return (
     <PageLayout
       title="Supplier Management"
@@ -133,15 +152,50 @@ export default function Suppliers() {
             <p className="text-lg text-slate-500">No suppliers found</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredSuppliers.map((supplier) => (
-              <SupplierCard
-                key={supplier.id}
-                supplier={supplier}
-                onView={() => setSelectedSupplier(supplier)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedSuppliers.map((supplier) => (
+                <SupplierCard
+                  key={supplier.id}
+                  supplier={supplier}
+                  onView={() => setSelectedSupplier(supplier)}
+                />
+              ))}
+            </div>
+
+            {/* Pagination controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center mt-8 pt-6 border-t border-slate-200">
+                <p className="text-sm text-slate-500">
+                  Showing {safePage * SUPPLIERS_PER_PAGE + 1}
+                  –{Math.min(safePage * SUPPLIERS_PER_PAGE + SUPPLIERS_PER_PAGE, filteredSuppliers.length)}
+                  {" "}of {filteredSuppliers.length} suppliers
+                </p>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={goToPrevPage}
+                    disabled={safePage === 0}
+                    className="px-4 py-2 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 transition-all duration-200 hover:border-indigo-500 hover:text-indigo-500 disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-600 disabled:cursor-not-allowed"
+                  >
+                    &lt;&lt;
+                  </button>
+
+                  <span className="text-sm font-medium text-slate-500">
+                    Page {safePage + 1} of {totalPages}
+                  </span>
+
+                  <button
+                    onClick={goToNextPage}
+                    disabled={safePage >= totalPages - 1}
+                    className="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-semibold transition-all duration-200 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-indigo-500 disabled:cursor-not-allowed"
+                  >
+                    &gt;&gt;
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </PageLayout>
