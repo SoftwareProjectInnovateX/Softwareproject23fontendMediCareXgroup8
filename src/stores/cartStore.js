@@ -130,7 +130,8 @@ export const useCartStore = create((set, get) => ({
     }
   },
 
-  clearCart: async (customerId) => {
+  clearCart: async () => {
+    const customerId = getCustomerId();
     if (!customerId) return console.error("No customerId found");
 
     set({ items: [] });

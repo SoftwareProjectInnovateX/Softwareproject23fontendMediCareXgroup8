@@ -35,9 +35,12 @@ const OrderSummary = ({ formData, handleInputChange, handlePlaceOrder, isLoading
     const formatPrice = (price) => `Rs. ${price.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
 
     return (
-        <section className="border-2 border-blue-600 rounded-2xl p-8 sticky top-6 bg-white shadow-lg">
-            <header className="flex justify-between items-end mb-8">
-                <h2 className="text-2xl font-bold text-blue-900 italic">Your order</h2>
+        <section className="rounded-2xl p-7 sticky top-6 bg-white border border-slate-200" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <header className="flex justify-between items-end mb-6">
+                <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-1">Summary</p>
+                    <h2 className="text-xl font-black text-slate-900">Your order</h2>
+                </div>
                 <Link to="/customer/cart" className="text-sm text-blue-600 hover:text-blue-800 font-bold underline transition-colors">
                     Edit Cart
                 </Link>
@@ -183,7 +186,7 @@ const OrderSummary = ({ formData, handleInputChange, handlePlaceOrder, isLoading
                 <button 
                     onClick={handlePlaceOrder} 
                     disabled={isLoading} 
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 rounded-full text-lg shadow-xl shadow-blue-200 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 w-full py-[13px] bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[12px] font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isLoading ? (
                         <div className="flex items-center justify-center gap-3">
@@ -198,24 +201,21 @@ const OrderSummary = ({ formData, handleInputChange, handlePlaceOrder, isLoading
             </div>
             {/* Terms and Conditions Modal */}
             {showTerms && createPortal(
-                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6 bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[2rem] w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-10 duration-300">
-                        <header className="bg-blue-600 p-6 text-white flex justify-between items-center relative overflow-hidden">
-                            {/* Decorative background circle */}
-                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                            
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                    <div className="bg-white rounded-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-10 duration-300 border border-slate-200" style={{ boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }}>
+                        <header className="bg-white p-6 border-b border-slate-100 flex justify-between items-center relative overflow-hidden">
                             <div className="flex items-center gap-4 relative z-10">
-                                <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-                                    <FileText size={24} />
+                                <div className="p-3 bg-blue-50 rounded-xl">
+                                    <FileText size={24} className="text-blue-600" />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black tracking-tight">Terms & Conditions</h3>
-                                    <p className="text-xs text-blue-100 font-bold uppercase tracking-widest opacity-80">MediCareX Pharmacy Service</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-0.5">MediCareX Service</p>
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Terms & Conditions</h3>
                                 </div>
                             </div>
                             <button 
                                 onClick={() => setShowTerms(false)}
-                                className="p-2 hover:bg-white/10 rounded-full transition-all active:scale-90 relative z-10"
+                                className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-all active:scale-90 relative z-10"
                             >
                                 <X size={24} />
                             </button>
@@ -262,7 +262,7 @@ const OrderSummary = ({ formData, handleInputChange, handlePlaceOrder, isLoading
                         <footer className="p-6 bg-white border-t border-slate-100 flex justify-end">
                             <button 
                                 onClick={() => setShowTerms(false)}
-                                className="w-full sm:w-auto px-10 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-xl shadow-blue-200 transition-all active:scale-95"
+                                className="flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-[13px] bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[12px] font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95"
                             >
                                 I Understand & Agree
                             </button>

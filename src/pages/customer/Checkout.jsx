@@ -7,6 +7,8 @@ import OrderSummary from '../../components/checkout/OrderSummary';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { getAuthHeaders } from '../../services/firebase';
+import { C, FONT } from '../../components/profile/profileTheme';
+
 
 const Checkout = () => {
     const { currentUser, getCurrentUserData } = useAuth();
@@ -23,6 +25,28 @@ const Checkout = () => {
     const [paymentStep, setPaymentStep] = useState('IDLE'); // IDLE, PAYING, COMPLETED
     const [originalProfileAddress, setOriginalProfileAddress] = useState(null);
     const [formErrors, setFormErrors] = useState({});
+    const isProcessingReturn = React.useRef(false);
+    const isSuccessNavigating = React.useRef(false);
+
+    // Handle Browser Back Button (bfcache)
+    useEffect(() => {
+        const handlePageShow = () => {
+            setIsLoading(false);
+        };
+        window.addEventListener('pageshow', handlePageShow);
+        return () => window.removeEventListener('pageshow', handlePageShow);
+    }, []);
+
+    // Prevent loading checkout with empty cart
+    useEffect(() => {
+        const currentPaymentStatus = new URLSearchParams(location.search).get('payment_status');
+        // We only redirect if it's not a prescription checkout, 
+        // and cart is completely empty, and we aren't returning from a payment gateway,
+        // and we aren't currently navigating to the success page
+        if (!rxId && (!items || items.length === 0) && !isProcessingReturn.current && !currentPaymentStatus && !isSuccessNavigating.current) {
+            navigate('/customer/cart', { replace: true });
+        }
+    }, [items, rxId, navigate, location.search]);
 
 
     // Handle PayHere Redirect Return
@@ -31,17 +55,26 @@ const Checkout = () => {
         const returnedOrderId = queryParams.get('order_id');
 
         if (paymentStatus === 'success' && returnedOrderId) {
+            if (isProcessingReturn.current) return;
+            isProcessingReturn.current = true;
+
             // Restore state
             const savedData = sessionStorage.getItem('pendingOrderData');
+            
+            // If savedData is missing, this is a back navigation from a completed order.
+            // Redirect to home to prevent loops or double processing.
+            if (!savedData) {
+                navigate('/customer', { replace: true });
+                return;
+            }
+
             const savedRxId = sessionStorage.getItem('pendingRxId');
             const savedRxAmount = sessionStorage.getItem('pendingRxAmount');
 
             let parsedData = orderData;
-            if (savedData) {
-                parsedData = JSON.parse(savedData);
-                setOrderData(parsedData);
-                sessionStorage.removeItem('pendingOrderData');
-            }
+            parsedData = JSON.parse(savedData);
+            setOrderData(parsedData);
+            sessionStorage.removeItem('pendingOrderData');
 
             let restoredRxId = null;
             if (savedRxId && savedRxId !== 'null') {
@@ -65,16 +98,23 @@ const Checkout = () => {
             window.history.replaceState({}, document.title, newUrl);
 
         } else if (paymentStatus === 'cancel') {
+            if (isProcessingReturn.current) return;
+            isProcessingReturn.current = true;
+
             const savedData = sessionStorage.getItem('pendingOrderData');
+            
+            if (!savedData) {
+                navigate('/customer/cart', { replace: true });
+                return;
+            }
+
             const savedRxId = sessionStorage.getItem('pendingRxId');
             const savedRxAmount = sessionStorage.getItem('pendingRxAmount');
             
             const savedCartItems = sessionStorage.getItem('pendingCartItems');
             
-            if (savedData) {
-                setOrderData(JSON.parse(savedData));
-                sessionStorage.removeItem('pendingOrderData');
-            }
+            setOrderData(JSON.parse(savedData));
+            sessionStorage.removeItem('pendingOrderData');
             if (savedCartItems) {
                 restoreCart(JSON.parse(savedCartItems));
                 sessionStorage.removeItem('pendingCartItems');
@@ -88,7 +128,13 @@ const Checkout = () => {
                 sessionStorage.removeItem('pendingRxAmount');
             }
             
-            navigate('/customer/checkout/cancel', { state: { rxId: restoredRxId, rxAmount: savedRxAmount } });
+            setPaymentError("Payment was cancelled. You can try again.");
+            
+            // Clean the URL, but restore rxId if needed so UI doesn't break
+            let newSearch = `?`;
+            if (restoredRxId) newSearch += `rxId=${restoredRxId}&amount=${savedRxAmount || 0}`;
+            const newUrl = window.location.pathname + (newSearch === '?' ? '' : newSearch);
+            window.history.replaceState({}, document.title, newUrl);
         }
     }, [location.search]);
 
@@ -253,6 +299,12 @@ const Checkout = () => {
         const { firstName, lastName, email, phone, secondaryPhone, houseNumber, laneStreet, city, district, agreeTerms } = orderData;
         const errors = {};
 
+        if (!rxId && (!items || items.length === 0)) {
+            setPaymentError("Your cart is empty. Please add items to your cart before placing an order.");
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
         if (!firstName) errors.firstName = "First name is required";
         if (!lastName) errors.lastName = "Last name is required";
         if (!email) errors.email = "Email is required";
@@ -290,25 +342,27 @@ const Checkout = () => {
         setIsLoading(true);
         setPaymentError(null); // Reset error on new attempt
 
-        // Profile address update logic
+        // Profile address update logic (non-blocking)
         if (orderData.saveAddressToProfile && currentUser) {
-            try {
-                const role = sessionStorage.getItem("userRole");
-                let collectionName = "users"; // default to customers
-                if (role === "supplier") collectionName = "suppliers";
-                else if (role === "pharmacist") collectionName = "pharmacists";
-                else if (role === "admin") collectionName = "admins";
+            const role = sessionStorage.getItem("userRole");
+            let collectionName = "users"; // default to customers
+            if (role === "supplier") collectionName = "suppliers";
+            else if (role === "pharmacist") collectionName = "pharmacists";
+            else if (role === "admin") collectionName = "admins";
 
-                await updateDoc(doc(db, collectionName, currentUser.uid), {
-                    district: orderData.district,
-                    city: orderData.city,
-                    houseNumber: orderData.houseNumber,
-                    laneStreet: orderData.laneStreet
-                });
-                console.log("Profile address updated successfully!");
-            } catch (err) {
-                console.error("Failed to update profile address:", err);
-            }
+            const fullAddress = [orderData.houseNumber, orderData.laneStreet, orderData.city, orderData.district]
+                .filter(Boolean)
+                .join(', ');
+
+            // Fire and forget, don't await this so it doesn't block checkout
+            updateDoc(doc(db, collectionName, currentUser.uid), {
+                district: orderData.district,
+                city: orderData.city,
+                houseNumber: orderData.houseNumber,
+                laneStreet: orderData.laneStreet,
+                address: fullAddress
+            }).then(() => console.log("Profile address updated successfully!"))
+              .catch(err => console.error("Failed to update profile address:", err));
         }
 
         if (orderData.paymentMethod === 'ONLINE') {
@@ -356,7 +410,6 @@ const Checkout = () => {
         sessionStorage.setItem('pendingRxAmount', rxAmount || '0');
 
         sessionStorage.setItem('pendingCartItems', JSON.stringify(items));
-        if (!rxId) clearCart(); // Clear the cart now since the order is already in DB
 
         try {
             // Fetch secure hash, merchant ID, and the TRUE AMOUNT from backend
@@ -366,47 +419,47 @@ const Checkout = () => {
             const { hash, merchantId, actualAmount } = await hashRes.json();
 
             const returnUrl = `${window.location.origin}${window.location.pathname}?payment_status=success&order_id=${orderId}`;
-        const cancelUrl = `${window.location.origin}/customer/checkout/cancel?order_id=${orderId}`;
+            const cancelUrl = `${window.location.origin}${window.location.pathname}?payment_status=cancel&order_id=${orderId}`;
 
-        const form = document.createElement("form");
-        form.setAttribute("method", "POST");
-        form.setAttribute("action", "https://sandbox.payhere.lk/pay/checkout");
+            const form = document.createElement("form");
+            form.setAttribute("method", "POST");
+            form.setAttribute("action", "https://sandbox.payhere.lk/pay/checkout");
 
-        const params = {
-            merchant_id: merchantId,
-            return_url: returnUrl,
-            cancel_url: cancelUrl,
-            notify_url: PAYMENT_GATEWAY_CONFIG.NOTIFY_URL,
-            order_id: orderId,
-            items: "MediCareX Medicine Order",
-            currency: PAYMENT_GATEWAY_CONFIG.CURRENCY,
-            amount: actualAmount, // SECURITY FIX: Use the actual amount from DB, not frontend config
-            first_name: orderData.firstName,
-            last_name: orderData.lastName,
-            email: orderData.email,
-            phone: orderData.phone,
-            address: `${orderData.houseNumber}, ${orderData.laneStreet}`,
-            city: orderData.city,
-            country: "Sri Lanka",
-            hash: hash
-        };
+            const params = {
+                merchant_id: merchantId,
+                return_url: returnUrl,
+                cancel_url: cancelUrl,
+                notify_url: PAYMENT_GATEWAY_CONFIG.NOTIFY_URL,
+                order_id: orderId,
+                items: "MediCareX Medicine Order",
+                currency: PAYMENT_GATEWAY_CONFIG.CURRENCY,
+                amount: actualAmount, // SECURITY FIX: Use the actual amount from DB, not frontend config
+                first_name: orderData.firstName,
+                last_name: orderData.lastName,
+                email: orderData.email,
+                phone: orderData.phone,
+                address: `${orderData.houseNumber}, ${orderData.laneStreet}`,
+                city: orderData.city,
+                country: "Sri Lanka",
+                hash: hash
+            };
 
-        for (const key in params) {
-            if (params.hasOwnProperty(key)) {
-                const hiddenField = document.createElement("input");
-                hiddenField.setAttribute("type", "hidden");
-                hiddenField.setAttribute("name", key);
-                hiddenField.setAttribute("value", params[key]);
-                form.appendChild(hiddenField);
+            for (const key in params) {
+                if (params.hasOwnProperty(key)) {
+                    const hiddenField = document.createElement("input");
+                    hiddenField.setAttribute("type", "hidden");
+                    hiddenField.setAttribute("name", key);
+                    hiddenField.setAttribute("value", params[key]);
+                    form.appendChild(hiddenField);
+                }
             }
-        }
 
-        document.body.appendChild(form);
-        form.submit();
-        } catch (error) {
-            console.error("Payment initialization error:", error);
+            document.body.appendChild(form);
+            form.submit();
+        } catch (err) {
+            console.error("Payment setup error:", err);
             setIsLoading(false);
-            setPaymentError("Failed to initialize payment gateway.");
+            setPaymentError("Could not initialize payment gateway.");
         }
     };
 
@@ -486,8 +539,10 @@ const Checkout = () => {
                     }));
                 }
 
+                isSuccessNavigating.current = true;
                 if (shouldClearCart && !currentRxId) clearCart();
                 navigate(`/customer/checkout/success?orderId=${referenceId}`, {
+                    replace: true,
                     state: { 
                         totalAmount: parseFloat(PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT),
                         orderData: { 
@@ -511,11 +566,12 @@ const Checkout = () => {
     };
 
     return (
-        <div className="min-h-screen bg-white font-sans text-slate-800">
+        <div className="min-h-screen" style={{ background: '#f1f5f9', fontFamily: FONT.body }}>
 
-            <main className="max-w-7xl mx-auto px-6 pb-20">
-                <header>
-                    <h1 className="text-4xl font-bold text-blue-900 mb-10">Checkout</h1>
+            <main className="max-w-7xl mx-auto px-6 py-8 pb-20">
+                <header className="mb-8">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-1">Secure Payment</p>
+                    <h1 className="text-2xl font-black text-slate-900">Checkout</h1>
                 </header>
 
                 {paymentError && (

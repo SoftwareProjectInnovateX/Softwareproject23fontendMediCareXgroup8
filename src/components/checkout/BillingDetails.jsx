@@ -56,15 +56,12 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
     const showSaveProfileCheck = isAddressMissingOrChanged() && formData.district && formData.city && formData.houseNumber && formData.laneStreet;
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            <header className="relative">
-                <h2 className="text-2xl font-black text-blue-900 flex items-center gap-3">
-                    <span className="w-2 h-8 bg-blue-600 rounded-full"></span>
+        <div className="space-y-8 animate-in fade-in duration-500 rounded-2xl p-7 bg-white border border-slate-200" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <header className="relative mb-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-1">Information</p>
+                <h2 className="text-xl font-black text-slate-900">
                     Billing Details
                 </h2>
-                <div className="h-1 w-full bg-slate-100 rounded-full mt-4 overflow-hidden">
-                    <div className="h-full w-1/3 bg-blue-600 rounded-full"></div>
-                </div>
             </header>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-7">
@@ -79,7 +76,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                         value={formData.email} 
                         onChange={handleInputChange} 
                         disabled={isLoading}
-                        className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.email ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`} 
+                        className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.email ? 'border-red-500 focus:border-red-500' : ''}`} 
                         placeholder="Enter your email"
                     />
                     {errors.email && <p className="text-red-500 text-xs mt-1 font-semibold animate-in fade-in">{errors.email}</p>}
@@ -96,7 +93,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                         value={formData.firstName} 
                         onChange={handleInputChange} 
                         disabled={isLoading}
-                        className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.firstName ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`} 
+                        className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.firstName ? 'border-red-500 focus:border-red-500' : ''}`} 
                     />
                     {errors.firstName && <p className="text-red-500 text-xs mt-1 font-semibold animate-in fade-in">{errors.firstName}</p>}
                 </div>
@@ -111,7 +108,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                         value={formData.lastName} 
                         onChange={handleInputChange} 
                         disabled={isLoading}
-                        className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.lastName ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`} 
+                        className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.lastName ? 'border-red-500 focus:border-red-500' : ''}`} 
                     />
                     {errors.lastName && <p className="text-red-500 text-xs mt-1 font-semibold animate-in fade-in">{errors.lastName}</p>}
                 </div>
@@ -126,7 +123,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                         value={formData.district} 
                         onChange={handleInputChange} 
                         disabled={isLoading}
-                        className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${errors.district ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`}
+                        className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${errors.district ? 'border-red-500 focus:border-red-500' : ''}`}
                     >
                         <option value="">Select District</option>
                         {districts.map(d => <option key={d} value={d}>{d}</option>)}
@@ -144,7 +141,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                         value={formData.city} 
                         onChange={handleInputChange} 
                         disabled={!formData.district || isLoading}
-                        className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${errors.city ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`}
+                        className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${errors.city ? 'border-red-500 focus:border-red-500' : ''}`}
                     >
                         <option value="">Select City</option>
                         {cities.map(c => <option key={c} value={c}>{c}</option>)}
@@ -166,7 +163,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                                 onChange={handleInputChange} 
                                 disabled={isLoading}
                                 placeholder="House Number / Name" 
-                                className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.houseNumber ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`} 
+                                className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.houseNumber ? 'border-red-500 focus:border-red-500' : ''}`} 
                             />
                             {errors.houseNumber && <p className="text-red-500 text-xs mt-1 font-semibold animate-in fade-in">{errors.houseNumber}</p>}
                         </div>
@@ -178,7 +175,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                                 onChange={handleInputChange} 
                                 disabled={isLoading}
                                 placeholder="Lane / Street" 
-                                className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.laneStreet ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`} 
+                                className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.laneStreet ? 'border-red-500 focus:border-red-500' : ''}`} 
                             />
                             {errors.laneStreet && <p className="text-red-500 text-xs mt-1 font-semibold animate-in fade-in">{errors.laneStreet}</p>}
                         </div>
@@ -212,7 +209,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                         value={formData.phone} 
                         onChange={handleInputChange} 
                         disabled={isLoading}
-                        className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.phone ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`} 
+                        className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.phone ? 'border-red-500 focus:border-red-500' : ''}`} 
                         placeholder="07xxxxxx"
                     />
                     {errors.phone && <p className="text-red-500 text-xs mt-1 font-semibold animate-in fade-in">{errors.phone}</p>}
@@ -228,7 +225,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                         value={formData.secondaryPhone} 
                         onChange={handleInputChange} 
                         disabled={isLoading}
-                        className={`w-full p-4 bg-slate-50 border-2 rounded-2xl outline-none focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.secondaryPhone ? 'border-red-500 focus:border-red-500' : 'border-slate-100 focus:border-blue-500'}`} 
+                        className={`w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${errors.secondaryPhone ? 'border-red-500 focus:border-red-500' : ''}`} 
                         placeholder="Alternative contact"
                     />
                     {errors.secondaryPhone && <p className="text-red-500 text-xs mt-1 font-semibold animate-in fade-in">{errors.secondaryPhone}</p>}
@@ -246,7 +243,7 @@ const BillingDetails = ({ formData, handleInputChange, originalProfileAddress, e
                         disabled={isLoading}
                         rows="3" 
                         placeholder="Special notes for delivery..." 
-                        className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-blue-500 focus:bg-white transition-all shadow-sm font-medium resize-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full px-[14px] py-[10px] bg-slate-50 border border-blue-200/60 rounded-[10px] text-[13px] outline-none focus:border-blue-400 focus:bg-white transition-all shadow-sm font-medium resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                     ></textarea>
                 </div>
             </div>

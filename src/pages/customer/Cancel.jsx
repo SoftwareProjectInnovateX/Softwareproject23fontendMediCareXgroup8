@@ -41,8 +41,8 @@ const Cancel = () => {
         : UI_CONFIG.CHECKOUT_BASE_PATH;
 
     return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-            <main className="max-w-md w-full bg-white p-10 rounded-3xl shadow-xl text-center animate-in zoom-in duration-500">
+        <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#f1f5f9', fontFamily: "'DM Sans', sans-serif" }}>
+            <main className="max-w-md w-full bg-white p-10 rounded-2xl border border-slate-200 text-center animate-in zoom-in duration-500" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
                 <div className="flex justify-center mb-6 relative">
                     <div className="absolute inset-0 bg-red-100 rounded-full scale-150 blur-xl opacity-20"></div>
                     <XCircle 
@@ -52,7 +52,8 @@ const Cancel = () => {
                 </div>
 
                 <header>
-                    <h1 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-2 mt-4">Order Status</p>
+                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight">
                         {ERROR_MESSAGES.PAYMENT_FAILED_TITLE}
                     </h1>
                 </header>
@@ -66,14 +67,14 @@ const Cancel = () => {
 
                 <Link 
                     to={returnUrl} 
-                    className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 active:scale-95"
+                    className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-[13px] rounded-xl text-[12px] uppercase tracking-wider transition-all shadow-sm active:scale-95"
                 >
                     Try Again
                 </Link>
 
                 <Link 
                     to="/customer" 
-                    className="block mt-4 text-slate-400 hover:text-slate-600 text-sm font-medium transition-colors"
+                    className="flex items-center justify-center gap-2 w-full mt-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-[13px] rounded-xl text-[12px] uppercase tracking-wider transition-all"
                 >
                     Back to Home
                 </Link>
