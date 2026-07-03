@@ -4,6 +4,7 @@ import { db, getAuthHeaders } from "../../services/firebase";
 import PageLayout from "../../components/PageLayout";
 
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
+const REQUESTS_PER_PAGE = 6;
 
 // ── Info field ──────────────────────────────────────────────────────────────
 const Info = ({ label, value, span }) => (
@@ -13,11 +14,47 @@ const Info = ({ label, value, span }) => (
   </div>
 );
 
+// ── Pagination controls ──────────────────────────────────────────────────────
+const Pagination = ({ page, totalPages, totalItems, onPrev, onNext }) => {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
+      <p className="text-xs md:text-sm text-slate-500">
+        Showing {page * REQUESTS_PER_PAGE + 1}
+        –{Math.min(page * REQUESTS_PER_PAGE + REQUESTS_PER_PAGE, totalItems)}
+        {" "}of {totalItems}
+      </p>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onPrev}
+          disabled={page === 0}
+          className="px-4 py-2 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 transition-all duration-200 hover:border-blue-500 hover:text-blue-500 disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-600 disabled:cursor-not-allowed">
+          &lt;&lt;
+        </button>
+
+        <span className="text-sm font-medium text-slate-500">
+          Page {page + 1} of {totalPages}
+        </span>
+
+        <button
+          onClick={onNext}
+          disabled={page >= totalPages - 1}
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-900 to-blue-500 text-white text-sm font-semibold transition-all duration-200 hover:shadow-md disabled:opacity-40 disabled:hover:shadow-none disabled:cursor-not-allowed">
+          &gt;&gt;
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function AccountRequests() {
   const [requests, setRequests]         = useState([]);
   const [loading, setLoading]           = useState(true);
   const [filter, setFilter]             = useState('all');
   const [actionLoading, setActionLoading] = useState(null);
+  const [pendingPage, setPendingPage]     = useState(0);
+  const [processedPage, setProcessedPage] = useState(0);
 
   useEffect(() => { fetchRequests(); }, []);
 
@@ -73,6 +110,27 @@ export default function AccountRequests() {
   const filtered  = filter === 'all' ? requests : requests.filter(r => r.type === filter);
   const pending   = filtered.filter(r => r.status === 'pending');
   const processed = filtered.filter(r => r.status !== 'pending');
+
+  // Reset both pagination indexes whenever the filter changes, so a new
+  // filter never lands the user on a page that's now out of range
+  useEffect(() => {
+    setPendingPage(0);
+    setProcessedPage(0);
+  }, [filter]);
+
+  const pendingTotalPages   = Math.max(1, Math.ceil(pending.length / REQUESTS_PER_PAGE));
+  const processedTotalPages = Math.max(1, Math.ceil(processed.length / REQUESTS_PER_PAGE));
+  const safePendingPage     = Math.min(pendingPage, pendingTotalPages - 1);
+  const safeProcessedPage   = Math.min(processedPage, processedTotalPages - 1);
+
+  const paginatedPending = pending.slice(
+    safePendingPage * REQUESTS_PER_PAGE,
+    safePendingPage * REQUESTS_PER_PAGE + REQUESTS_PER_PAGE
+  );
+  const paginatedProcessed = processed.slice(
+    safeProcessedPage * REQUESTS_PER_PAGE,
+    safeProcessedPage * REQUESTS_PER_PAGE + REQUESTS_PER_PAGE
+  );
 
   // ── Request Card ──────────────────────────────────────────────────────────
   const RequestCard = ({ request }) => {
@@ -208,8 +266,15 @@ export default function AccountRequests() {
                 Pending Requests ({pending.length})
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
-                {pending.map(r => r?.id ? <RequestCard key={r.id} request={r} /> : null)}
+                {paginatedPending.map(r => r?.id ? <RequestCard key={r.id} request={r} /> : null)}
               </div>
+              <Pagination
+                page={safePendingPage}
+                totalPages={pendingTotalPages}
+                totalItems={pending.length}
+                onPrev={() => setPendingPage(p => Math.max(0, p - 1))}
+                onNext={() => setPendingPage(p => Math.min(pendingTotalPages - 1, p + 1))}
+              />
             </div>
           )}
 
@@ -220,8 +285,15 @@ export default function AccountRequests() {
                 Processed Requests ({processed.length})
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
-                {processed.map(r => r?.id ? <RequestCard key={r.id} request={r} /> : null)}
+                {paginatedProcessed.map(r => r?.id ? <RequestCard key={r.id} request={r} /> : null)}
               </div>
+              <Pagination
+                page={safeProcessedPage}
+                totalPages={processedTotalPages}
+                totalItems={processed.length}
+                onPrev={() => setProcessedPage(p => Math.max(0, p - 1))}
+                onNext={() => setProcessedPage(p => Math.min(processedTotalPages - 1, p + 1))}
+              />
             </div>
           )}
 
