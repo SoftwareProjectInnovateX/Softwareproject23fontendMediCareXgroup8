@@ -22,7 +22,7 @@ import UpdateDelivery from "./pages/supplier/UpdateDelivery";
 import Settings from "./pages/supplier/Settings";
 import InvoicePayments from "./pages/supplier/InvoicePayments";
 import RestockAlert from "./pages/supplier/RestockAlert";
-import AIAnalytics from "./pages/supplier/AIAnalytics";
+import AIAnalytics from "./pages/supplier/AiAnalytics";
 
 /* ADMIN */
 import AdminDashboard from "./pages/admin/AdminDashboard";
