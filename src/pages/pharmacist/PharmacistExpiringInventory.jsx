@@ -126,7 +126,7 @@ const PharmacistExpiringInventory = () => {
 
       {/* Stats row */}
       {!isLoading && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
               <AlertTriangle className="w-4 h-4 text-red-600" />

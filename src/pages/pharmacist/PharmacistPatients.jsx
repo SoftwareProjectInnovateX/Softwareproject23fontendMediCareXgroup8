@@ -197,7 +197,7 @@ const PharmacistPatients = () => {
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div>
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">First Name *</label>
                 <input type="text" value={newPatient.firstName} onChange={e => setNewPatient({...newPatient, firstName: e.target.value})} placeholder="John" className="w-full bg-slate-50 border-2 border-slate-200 rounded-lg py-3 px-4 text-sm outline-none focus:border-blue-500 focus:bg-white transition-all font-medium" />
@@ -437,7 +437,7 @@ const PharmacistPatients = () => {
             </div>
           ) : (
             <div className="space-y-4 animate-in fade-in duration-300">
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white border-2 border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow">
                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Age</span>
                      <span className="text-2xl font-bold text-slate-900">{activePatient.age !== '—' ? activePatient.age : '—'}</span>

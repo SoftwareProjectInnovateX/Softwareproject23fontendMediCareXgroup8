@@ -595,7 +595,7 @@ const PharmacistNewRxEntry = () => {
               <User className="w-5 h-5 text-blue-500" />
               Patient Information
             </h2>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="relative col-span-1">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Name</label>
                 <input 

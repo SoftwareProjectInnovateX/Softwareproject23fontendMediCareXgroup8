@@ -554,7 +554,7 @@ const handleSelectRx = async (p) => {
 
               {/* Add medication inputs */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-6">
-                <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Medication Name</label>
                     <input
@@ -576,7 +576,7 @@ const handleSelectRx = async (p) => {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Timing</label>
                     <input

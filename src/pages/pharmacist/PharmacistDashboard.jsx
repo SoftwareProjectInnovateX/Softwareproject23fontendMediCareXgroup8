@@ -361,7 +361,7 @@ const PharmacistDashboard = () => {
       </div>
 
       {/* Top Stats */}
-      <div className="grid grid-cols-4 gap-4 items-stretch">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
 
         {/* Card 1 - Dispensed Today (Emerald) */}
         <div
@@ -508,7 +508,7 @@ const PharmacistDashboard = () => {
       </div>
 
       {/* Main Grid Content */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Column */}
         <div className="col-span-2 space-y-6">
@@ -525,7 +525,7 @@ const PharmacistDashboard = () => {
 
             {/* Card - circles only inside */}
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden transition-all duration-300 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
-              <div className="w-full grid grid-cols-3 divide-x divide-slate-100">
+              <div className="w-full grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
 
               {/* (1) Online Prescriptions */}
               <div className="flex-1 flex flex-col items-center px-6 py-6">

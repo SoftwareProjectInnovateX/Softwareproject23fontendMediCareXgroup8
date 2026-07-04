@@ -21,7 +21,7 @@ import {
   Trophy,
 } from 'lucide-react';
 
-const PharmacistSidebar = () => {
+const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const navigate = useNavigate();
   const { unreadAlerts, pendingRxCount } = useContext(AlertContext);
   const { logout } = useAuth();
@@ -94,13 +94,14 @@ const PharmacistSidebar = () => {
   );
 
   return (
-    <div className="w-64 bg-[#0b5ed7] text-white flex flex-col h-screen fixed left-0 top-0">
+    <div className={`w-64 bg-[#0b5ed7] text-white flex flex-col h-screen fixed left-0 top-0 z-[200] transition-transform duration-300
+      ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
 
       {/* Logo + Settings & Logout top-right */}
       <div className="h-[70px] flex items-center justify-between px-5 bg-[#084298] border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-            <Pill className="w-4 h-4 text-white" />
+          <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-white/15 border border-white/20 flex items-center justify-center">
+            <img src="/logo.png" alt="MediCareX" className="w-full h-full object-contain p-1" />
           </div>
           <span className="text-xl font-black tracking-wide text-white">
             MediCareX

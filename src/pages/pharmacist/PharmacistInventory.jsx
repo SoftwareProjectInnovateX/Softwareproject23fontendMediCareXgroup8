@@ -173,7 +173,7 @@ export default function Inventory() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div className="grid grid-cols-4 gap-[14px] mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[14px] mb-6">
         <StatCard icon={Package}       label="Total Products" value={totalProducts} iconBg="rgba(26,135,225,0.1)"  iconColor="#1a87e1" />
         <StatCard icon={AlertTriangle} label="Low Stock"      value={lowStock}      iconBg="rgba(245,158,11,0.1)"  iconColor="#d97706" />
         <StatCard icon={XCircle}       label="Out of Stock"   value={outOfStock}    iconBg="rgba(239,68,68,0.1)"   iconColor="#dc2626" />

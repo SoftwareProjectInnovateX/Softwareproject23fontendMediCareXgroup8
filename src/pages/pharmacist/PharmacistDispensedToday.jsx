@@ -158,7 +158,7 @@ const PharmacistDispensedToday = () => {
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4 flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <User className="w-4 h-4 text-emerald-500" />

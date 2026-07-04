@@ -87,7 +87,7 @@ export default function BrandsManagementPage() {
         </div>
       ) : (
         // ── 2-column brand card grid ──
-        <div className="grid grid-cols-2 gap-[14px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
           {brands.map((b) => (
             <div
               key={b.id}
