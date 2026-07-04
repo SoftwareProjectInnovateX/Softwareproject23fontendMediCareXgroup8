@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useCartStore } from "../stores/cartStore";
-import { ShoppingCart, User, LogOut, Phone, Mail, Sun, Moon } from "lucide-react";
+import { ShoppingCart, User, LogOut, Phone, Mail, Sun, Moon, Menu, X } from "lucide-react";
 import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -15,6 +15,7 @@ const WhatsAppIcon = ({ size = 14 }) => (
 );
 
 export default function CustomerNavbar() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const pathname = location.pathname;
   const navigate = useNavigate();
@@ -66,7 +67,7 @@ export default function CustomerNavbar() {
     <header style={{ position: "sticky", top: 0, zIndex: 50, width: "100%", fontFamily: FONT.body }}>
 
       {/* Top Bar */}
-      <div style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}>
+      <div className="hidden sm:block" style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)" }}>
         <div style={{ maxWidth: "100%", margin: "0 auto", padding: "0 40px", height: 42, display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 20 }}>
           {socialLinks.map(({ icon, label, href, target }) =>
             href ? (
@@ -91,7 +92,7 @@ export default function CustomerNavbar() {
         boxShadow: "0 2px 16px rgba(26,135,225,0.09)",
         transition: "background 0.3s ease, border-color 0.3s ease",
       }}>
-        <div style={{ width: "100%", padding: "0 40px", boxSizing: "border-box" }}>
+        <div style={{ width: "100%", padding: "0 20px", boxSizing: "border-box" }} className="md:px-[40px]">
           <div style={{ height: 90, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
             {/* Logo */}
@@ -108,8 +109,7 @@ export default function CustomerNavbar() {
             </Link>
 
             {/* Nav Links */}
-           <nav style={{
-  display: "flex",
+           <nav className="hidden lg:flex" style={{
   alignItems: "center",
   justifyContent: "center",
   gap: 40,
@@ -157,7 +157,7 @@ export default function CustomerNavbar() {
 </nav>
 
             {/* Right: Cart + Profile + Theme Toggle + Logout */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <div className="hidden lg:flex" style={{ alignItems: "center", gap: 8, flexShrink: 0 }}>
 
               {/* Theme Toggle */}
               <button
@@ -243,8 +243,107 @@ export default function CustomerNavbar() {
               )}
 
             </div>
+
+            {/* Mobile Menu Button */}
+            <div className="flex lg:hidden items-center gap-3">
+              <button
+                onClick={toggleTheme}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 40, height: 40, borderRadius: 10,
+                  background: "var(--accent-blue-soft)",
+                  border: "1.5px solid var(--card-border)",
+                  cursor: "pointer",
+                }}
+              >
+                {isDarkMode ? <Sun size={18} color="var(--accent-blue)" /> : <Moon size={18} color="var(--accent-blue)" />}
+              </button>
+              
+              <Link
+                to="/customer/cart"
+                style={{
+                  position: "relative",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 40, height: 40, borderRadius: 10,
+                  background: "var(--accent-blue-soft)",
+                  border: "1.5px solid var(--card-border)",
+                  textDecoration: "none",
+                }}
+              >
+                <ShoppingCart size={18} color="var(--accent-blue)" strokeWidth={1.8} />
+                {cartCount > 0 && (
+                  <span style={{ position: "absolute", top: -5, right: -5, background: "#dc2626", color: "#ffffff", fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "2px 5px", border: "2px solid #ffffff", minWidth: 16, textAlign: "center" }}>
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+              
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 40, height: 40, borderRadius: 10,
+                  background: "var(--accent-blue-soft)",
+                  border: "1.5px solid var(--card-border)",
+                  cursor: "pointer",
+                }}
+              >
+                {isMobileMenuOpen ? <X size={20} color="var(--accent-blue)" /> : <Menu size={20} color="var(--accent-blue)" />}
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        {isMobileMenuOpen && (
+          <div className="lg:hidden flex flex-col border-t" style={{ background: "var(--navbar-bg)", borderColor: "var(--navbar-border)" }}>
+            <nav className="flex flex-col p-4 gap-2">
+              {navLinks.map((link) => (
+                <Link key={link.href} to={link.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 8,
+                    fontSize: 16,
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    ...(isActive(link.href)
+                      ? { background: "#1749b5", color: "#ffffff" }
+                      : { color: "var(--text-primary)" }
+                    ),
+                  }}
+                >
+                  {link.name}
+                </Link>
+              ))}
+              <hr style={{ borderColor: "var(--navbar-border)", margin: "8px 0", borderWidth: "1px 0 0 0" }} />
+              {/* Mobile Profile / Auth */}
+              {currentUser ? (
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => { setIsMobileMenuOpen(false); navigate("/customer/profile"); }}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-none"
+                    style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)", color: "#fff", fontWeight: "bold" }}
+                  >
+                    <User size={18} /> Profile
+                  </button>
+                  <button onClick={() => { setIsMobileMenuOpen(false); handleLogout(); }}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg border-none"
+                    style={{ background: "rgba(220,38,38,0.1)", color: "#dc2626", fontWeight: "bold" }}
+                  >
+                    <LogOut size={18} /> Logout
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => { setIsMobileMenuOpen(false); navigate("/login"); }}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-lg mt-2 border-none"
+                  style={{ background: "linear-gradient(135deg, #0f2a5e 0%, #1a87e1 100%)", color: "#fff", fontWeight: "bold" }}
+                >
+                  Login / Register
+                </button>
+              )}
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );
