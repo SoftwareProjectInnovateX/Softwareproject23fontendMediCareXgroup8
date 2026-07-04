@@ -134,7 +134,7 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
       <div className="p-6 flex flex-col gap-4 bg-[#f0f4fb]">
 
         {/* Product + Order Info */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card>
             <SectionTitle icon={Package} title="Product" iconCls="text-blue-500" />
             <DetailRow label="Product Name"   value={productName} />
@@ -158,7 +158,7 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
         </div>
 
         {/* Supplier + Pharmacy */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card>
             <SectionTitle icon={Factory} title="Supplier" iconCls="text-purple-400" />
             <DetailRow label="Supplier Name" value={supplierName} />
@@ -179,7 +179,7 @@ export default function OrderDetailsModal({ order, onClose, onApprove, onReject,
         {/* Financial Summary */}
         <Card>
           <SectionTitle icon={DollarSign} title="Financial Summary" iconCls="text-emerald-500" />
-          <div className="grid grid-cols-2 gap-x-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
             <div>
               <DetailRow label="Subtotal"   value={order.subtotal  != null ? `Rs. ${Number(order.subtotal).toFixed(2)}`  : null} />
               <DetailRow label="Tax Rate"   value={order.taxRate   != null ? `${order.taxRate}%`                         : null} />

@@ -416,7 +416,7 @@ const InvoicePayments = () => {
 
           <div className="px-7 py-6">
             {/* Basic details grid */}
-            <div className="grid grid-cols-2 gap-5 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
               {[
                 { label: 'Invoice Number', value: selectedInvoice.invoiceNumber },
                 { label: 'Product',        value: selectedInvoice.productName || selectedInvoice.items?.[0]?.productName || selectedInvoice.items?.[0]?.name || '—' },
@@ -509,8 +509,8 @@ const InvoicePayments = () => {
 
             {/* Items table */}
             <h3 className="text-[14px] font-bold text-slate-800 mb-3">Line Items</h3>
-            <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
-              <table className="w-full border-collapse">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto mb-5">
+              <table className="w-full border-collapse min-w-[500px]">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200">
                     {['Product', 'Quantity', 'Unit Price', 'Total'].map((h) => (
@@ -559,7 +559,7 @@ const InvoicePayments = () => {
                   <span className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center text-white text-[9px] font-bold">✓</span>
                   Payment Information
                 </h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {[
                     { label: 'Paid Amount',    value: `Rs.${Number(selectedInvoice.paidAmount || selectedInvoice.totalAmount).toFixed(2)}` },
                     { label: 'Payment Date',   value: selectedInvoice.paidDate },

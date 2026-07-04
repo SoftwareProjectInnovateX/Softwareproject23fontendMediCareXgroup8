@@ -81,7 +81,7 @@ const ProductModal = ({
           )}
 
           <form onSubmit={editingProduct ? onSubmitUpdate : onSubmitAdd}>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
 
               {/* Category */}
               <div className="flex flex-col">
