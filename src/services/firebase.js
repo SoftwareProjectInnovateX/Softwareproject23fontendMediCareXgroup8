@@ -9,13 +9,13 @@ import { getStorage } from "firebase/storage";          // ← added
 
 // Firebase configuration (shared)
 const firebaseConfig = {
-  apiKey:            'AIzaSyC64IrEovMCJi6mNKMAb4WPNDKGeubsuVM',
-  authDomain:        'supplier-management-70b81.firebaseapp.com',
-  projectId:         'supplier-management-70b81',
-  storageBucket:     'supplier-management-70b81.appspot.com',
-  messagingSenderId: '1051492488454',
-  appId:             '1:1051492488454:web:1234567890abcdef',
-  measurementId:     'G-1234567890',
+  apiKey: "AIzaSyC64IrEovMCJi6mNKMAb4WPNDKGeubsuVM",
+  authDomain: "supplier-management-70b81.firebaseapp.com",
+  projectId: "supplier-management-70b81",
+  storageBucket: "supplier-management-70b81.firebasestorage.app",
+  messagingSenderId: "109245280482",
+  appId: "1:109245280482:web:d0c1df43c6628fd5f36ebb",
+  measurementId: "G-NLMV8D63XD",
 };
 
 // Initialize Firebase (ONCE)
