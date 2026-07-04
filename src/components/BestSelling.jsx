@@ -121,7 +121,7 @@ export default function BestSelling() {
         </div>
 
         {/* ── 3-column product grid ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-[18px]">
           {products.map((p, idx) => (
             <div
               key={p.name + idx}
