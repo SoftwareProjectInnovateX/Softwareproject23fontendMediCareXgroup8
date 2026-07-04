@@ -9,7 +9,7 @@ import { C, FONT, inputStyle }                        from '../../components/pro
 import { SectionCard, SectionLabel, Field,
          SuccessBanner }                              from '../../components/profile/ProfileUI';
 import PageBanner from '../../components/profile/PageBanner';
-import { StatusBadge, getStatusColor } from '../../components/orders/orderStatusUtils';
+import { StatusBadge, getStatusColor } from '../../components/orders/Orderstatusutils';
 import Card                                           from '../../components/Card';
 
 // ── Drop zone ─────────────────────────────────────────────────────────────────
