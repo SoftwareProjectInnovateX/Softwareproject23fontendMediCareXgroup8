@@ -305,7 +305,7 @@ export default function BrandsPage() {
                     Clear filters
                   </button>
                 </div>
-                <div className="grid gap-4 grid-cols-2">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                   {filteredBrands.map((brand) => (
                     <BrandCard key={brand.id} brand={brand} />
                   ))}
