@@ -229,7 +229,7 @@ const Settings = () => {
     );
 
   return (
-    <div className="min-h-screen bg-slate-50 px-6 py-8">
+    <div className="min-h-screen bg-slate-50 px-4 sm:px-6 py-6 sm:py-8">
 
       {/* Page Header */}
             <div className="mb-8">
@@ -263,15 +263,15 @@ const Settings = () => {
       )}
 
       {/* Layout: Sidebar + Content */}
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start">
 
-        {/* Sidebar Tabs */}
-        <div className="w-48 shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm p-2 flex flex-col gap-1">
+        {/* Sidebar Tabs — horizontal on mobile, vertical on sm+ */}
+        <div className="w-full sm:w-48 shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm p-2 flex flex-row sm:flex-col gap-1 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2.5 w-full px-3.5 py-2.5 rounded-xl text-sm font-semibold text-left transition
+              className={`flex items-center gap-2 shrink-0 sm:w-full px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-sm font-semibold text-left transition whitespace-nowrap
                 ${activeTab === tab.id
                   ? "bg-blue-600 text-white shadow-sm"
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
@@ -284,7 +284,7 @@ const Settings = () => {
         </div>
 
         {/* Content Panel */}
-        <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-8 min-w-0">
+        <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-8 min-w-0 w-full">
 
           {/* ═══════════ PROFILE TAB ═══════════ */}
           {activeTab === "profile" && (

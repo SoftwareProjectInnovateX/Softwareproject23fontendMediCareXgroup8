@@ -38,7 +38,7 @@ const ProductModal = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 rounded-t-2xl">
+        <div className="px-5 sm:px-8 py-5 sm:py-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10 rounded-t-2xl">
           <div>
             <h2 className="text-[20px] font-bold text-slate-900">
               {editingProduct ? 'Edit Product' : 'Add New Product'}
@@ -57,7 +57,7 @@ const ProductModal = ({
           </button>
         </div>
 
-        <div className="px-8 py-6">
+        <div className="px-5 sm:px-8 py-5 sm:py-6">
           {!editingProduct && (
             <div className="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
               <svg className="shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b45309" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
