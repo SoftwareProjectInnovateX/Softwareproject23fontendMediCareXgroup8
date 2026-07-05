@@ -7,7 +7,7 @@ import { C, FONT } from '../../components/profile/profileTheme';
 import { getFirestore, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 
 // Base URL for all API calls — falls back to localhost in development
-const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app/'}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app'}/api`;
 
 // Firebase initialization — reuses existing app instance if already initialized
 const firebaseConfig = {

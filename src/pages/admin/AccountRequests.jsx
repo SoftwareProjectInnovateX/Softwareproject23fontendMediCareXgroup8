@@ -3,7 +3,7 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db, getAuthHeaders } from "../../services/firebase";
 import PageLayout from "../../components/PageLayout";
 
-const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app/'}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app'}/api`;
 const REQUESTS_PER_PAGE = 6;
 
 // ── Info field ──────────────────────────────────────────────────────────────

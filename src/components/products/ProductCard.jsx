@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { auth } from '../../services/firebase';
 import { C, FONT } from './categoryConfig';
 
-const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app/'}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app'}/api`;
 
 function ProductImage({ imageUrl, name, height = 200, iconSize = 48 }) {
   return imageUrl ? (

@@ -3,7 +3,7 @@ import { Pill, Globe, Tag, CheckCircle, Search, Bot, Verified, Lightbulb, Extern
 import PageBanner from "../../components/profile/PageBanner";
 import BrandCard from "../../components/brands/BrandCard";
 
-const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app/'}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app'}/api`;
 
 const C = {
   bg: '#F0F4F8',
@@ -439,7 +439,7 @@ export default function BrandsPage() {
                               href={brandUrls[brand.name]}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="mt-3 inline-block text-xs font-semibold text-blue-700 flex items-center gap-1"
+                              className="mt-3 inline-flex text-xs font-semibold text-blue-700 items-center gap-1"
                             >
                               <ExternalLink size={12} />
                               Visit official site

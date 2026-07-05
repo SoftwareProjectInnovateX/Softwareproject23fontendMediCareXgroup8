@@ -14,7 +14,7 @@ import ProductTable         from '../../components/supplier/ProductTable';
 import PendingTable         from '../../components/supplier/PendingTable';
 import ProductModal         from '../../components/supplier/ProductModal';
 
-const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app/'}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app'}/api`;
 
 const getAuthToken = async () => {
   const auth = getAuth();
