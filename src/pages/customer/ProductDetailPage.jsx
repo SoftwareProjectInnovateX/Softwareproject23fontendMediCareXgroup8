@@ -685,22 +685,24 @@ export default function ProductDetailPage() {
                   </span>
                   <div className="blue-divider" style={{ flex: 1 }} />
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <tbody>
-                    {[
-                      ['Manufacturer', product.manufacturer],
-                      ['Product Code', product.productCode],
-                      ['Expiry Date',  product.expiryDate],
-                      ['Weight',       product.weight],
-                      ['Dimensions',   product.dimensions],
-                    ].filter(([, v]) => v).map(([k, v]) => (
-                      <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '12px 0', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1.5, textTransform: 'uppercase', width: '40%', fontFamily: "'Sora', sans-serif", fontWeight: 600 }}>{k}</td>
-                        <td style={{ padding: '12px 0', fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 }}>{v}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto w-full">
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '400px' }}>
+                    <tbody>
+                      {[
+                        ['Manufacturer', product.manufacturer],
+                        ['Product Code', product.productCode],
+                        ['Expiry Date',  product.expiryDate],
+                        ['Weight',       product.weight],
+                        ['Dimensions',   product.dimensions],
+                      ].filter(([, v]) => v).map(([k, v]) => (
+                        <tr key={k} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: '12px 0', fontSize: 11, color: 'var(--text-dim)', letterSpacing: 1.5, textTransform: 'uppercase', width: '40%', fontFamily: "'Sora', sans-serif", fontWeight: 600 }}>{k}</td>
+                          <td style={{ padding: '12px 0', fontSize: 14, color: 'var(--text-primary)', fontWeight: 500 }}>{v}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>

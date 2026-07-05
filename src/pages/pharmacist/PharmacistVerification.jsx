@@ -528,7 +528,7 @@ const PharmacistVerification = () => {
             <div className={`space-y-4 ${orderItems.length > 0 ? 'border-t border-slate-100 pt-5' : ''}`}>
               <h4 className="text-xs font-bold text-slate-800 mb-2 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Add Item to Bill & Prescription</h4>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="relative col-span-2">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Medication Name</label>
                   <div className="relative">
@@ -813,7 +813,7 @@ const PharmacistVerification = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">First Name</label>
                 <input type="text" value={newPatient.firstName} onChange={e => setNewPatient({...newPatient, firstName: e.target.value})} placeholder="John" className="w-full bg-slate-50 border border-slate-200 rounded-md py-2 px-3 text-sm mt-1 outline-none focus:border-blue-500" />

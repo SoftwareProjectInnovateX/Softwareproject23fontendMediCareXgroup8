@@ -324,7 +324,7 @@ export default function Returns() {
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-[14px] mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-[14px] mb-6">
         <StatCard icon={RefreshCw}   label="Total Returns" value={total}    iconBg="rgba(26,135,225,0.1)"  iconColor="#1a87e1" />
         <StatCard icon={Clock}       label="Pending"       value={pending}  iconBg="rgba(245,158,11,0.1)"  iconColor="#d97706" />
         <StatCard icon={CheckCircle} label="Approved"      value={approved} iconBg="rgba(16,185,129,0.1)"  iconColor="#059669" />

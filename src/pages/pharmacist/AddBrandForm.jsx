@@ -226,7 +226,7 @@ export default function AddBrandForm() {
       </Field>
 
       {/* Rating and product count side by side */}
-      <div className="grid grid-cols-2 gap-[14px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
         <Field label="Rating">
           <input
             name="rating"
@@ -253,7 +253,7 @@ export default function AddBrandForm() {
       </div>
 
       {/* Established year and country of origin side by side */}
-      <div className="grid grid-cols-2 gap-[14px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
         <Field label="Established Year">
           <input
             name="established"

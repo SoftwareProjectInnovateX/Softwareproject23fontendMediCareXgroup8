@@ -18,13 +18,13 @@ export default function HomePage() {
       <HeroCarousel />
 
       {/* FEATURES SECTION */}
-      <section className="py-16 px-6">
+      <section className="py-10 px-4 md:py-16 md:px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4" style={{ color: C.textPrimary, fontFamily: FONT.body }}>
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-2xl md:text-3xl font-bold mb-3 md:mb-4" style={{ color: C.textPrimary, fontFamily: FONT.body }}>
               Why Choose MediCareX?
             </h2>
-            <p className="text-lg" style={{ color: C.textSecondary }}>
+            <p className="text-base md:text-lg" style={{ color: C.textSecondary }}>
               Your trusted partner for quality healthcare products and services
             </p>
           </div>
@@ -67,13 +67,13 @@ export default function HomePage() {
       <BestSelling />
 
       {/* QUICK ACCESS SECTION */}
-      <section className="py-16 px-6" style={{ background: C.surface }}>
+      <section className="py-10 px-4 md:py-16 md:px-6" style={{ background: C.surface }}>
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4" style={{ color: C.textPrimary, fontFamily: FONT.display }}>
+          <div className="text-center mb-8 md:mb-12">
+            <h2 className="text-2xl md:text-3xl font-bold mb-3 md:mb-4" style={{ color: C.textPrimary, fontFamily: FONT.display }}>
               Quick Access
             </h2>
-            <p className="text-lg" style={{ color: C.textSecondary }}>
+            <p className="text-base md:text-lg" style={{ color: C.textSecondary }}>
               Everything you need is just a click away
             </p>
           </div>

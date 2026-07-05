@@ -39,7 +39,7 @@ export default function HeroCarousel() {
   return (
     <section style={{ background: C.bg, fontFamily: FONT.body }}>
       <div>
-        <div className="relative overflow-hidden" style={{ height: HERO_CAROUSEL_HEIGHT }}>
+        <div className="relative overflow-hidden min-h-[400px] md:h-auto" style={{ height: window.innerWidth > 768 ? HERO_CAROUSEL_HEIGHT : 'auto' }}>
 
           {heroSlides.map((slide, index) => (
             <div
@@ -51,12 +51,12 @@ export default function HeroCarousel() {
               }}
             >
               <div
-                className="h-full flex items-center px-14 gap-10"
+                className="h-full flex flex-col md:flex-row justify-center md:items-center px-8 py-10 md:py-0 md:px-14 gap-6 md:gap-10"
                 style={{ background: slide.gradient }}
               >
 
                 {/* Text side */}
-                <div className="flex flex-col gap-3" style={{ flex: "0 0 34%" }}>
+                <div className="flex flex-col gap-3 w-full md:w-[34%] z-10">
 
                   <span
                     className="self-start text-[12px] font-bold uppercase tracking-[0.12em] rounded-full px-3 py-0.5"
@@ -97,7 +97,7 @@ export default function HeroCarousel() {
                 </div>
 
                 {/* Image side */}
-                <div className="flex justify-center items-center" style={{ flex: "0 0 62%" }}>
+                <div className="flex justify-center items-center w-full md:w-[62%] hidden md:flex">
                   <img
                     src={slide.image}
                     alt={slide.title}

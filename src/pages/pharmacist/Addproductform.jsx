@@ -444,7 +444,7 @@ export default function AddProductForm() {
         )}
 
         {/* Name + Price */}
-        <div className="grid grid-cols-2 gap-[14px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
           <Field label="Product Name">
             <input
               name="name"
@@ -538,7 +538,7 @@ export default function AddProductForm() {
         </Field>
 
         {/* Supplier + Stock */}
-        <div className="grid grid-cols-2 gap-[14px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
           <Field label="Supplier ID">
             <input
               name="supplierId"

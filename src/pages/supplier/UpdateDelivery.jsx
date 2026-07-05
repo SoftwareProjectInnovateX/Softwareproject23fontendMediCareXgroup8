@@ -281,7 +281,7 @@ const UpdateDelivery = () => {
         </div>
       </div>
       {/* Status summary cards */}
-      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <div className="mb-8 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {ALL_STATUSES.map((status) => (
           <Card
             key={status}

@@ -317,11 +317,11 @@ const AiAnalyticsDashboard = () => {
   const hasResults = supplyRecs.length || demandData.length || paymentRisk.length || restockData.length;
 
   return (
-    <div className="p-6 bg-slate-100 min-h-screen">
+    <div className="p-4 sm:p-6 bg-slate-100 min-h-screen">
       <MessageCard messages={messages} removeMessage={removeMessage} />
 
       {/* ── Header ── */}
-      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         {/* Left: title + description */}
         <div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">
@@ -332,8 +332,8 @@ const AiAnalyticsDashboard = () => {
           </p>
         </div>
 
-        {/* Right: last-run time + buttons stacked */}
-        <div className="flex flex-col items-end gap-2 shrink-0">
+        {/* Right: last-run time + buttons */}
+        <div className="flex flex-row sm:flex-col items-start sm:items-end gap-2 shrink-0 flex-wrap">
           {lastRun ? (
             <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-400 font-medium bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
@@ -345,20 +345,20 @@ const AiAnalyticsDashboard = () => {
               Not yet analysed
             </span>
           )}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={downloadSummaryPDF}
               disabled={downloadingPDF || !analysisRan}
               title={!analysisRan ? 'Run AI analysis first' : 'Download Summary PDF'}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-[13.5px] font-semibold rounded-xl border border-slate-200 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
+              className="inline-flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-[13px] sm:text-[13.5px] font-semibold rounded-xl border border-slate-200 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
             >
               <MdDownload size={16} className={downloadingPDF ? 'animate-bounce' : ''} />
-              {downloadingPDF ? 'Generating…' : 'Download Summary PDF'}
+              {downloadingPDF ? 'Generating…' : 'Download PDF'}
             </button>
             <button
               onClick={runAIAnalysis}
               disabled={loadingAI || !invoices.length}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13.5px] font-semibold rounded-xl border-none cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-200"
+              className="inline-flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13px] sm:text-[13.5px] font-semibold rounded-xl border-none cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-200"
             >
               <MdRefresh size={16} className={loadingAI ? 'animate-spin' : ''} />
               {loadingAI ? 'Analysing…' : 'Run AI Analysis'}

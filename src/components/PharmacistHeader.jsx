@@ -1,10 +1,10 @@
 import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Bell, Plus, User, FileText, Pill } from 'lucide-react';
+import { Search, Bell, Plus, User, FileText, Pill, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlertContext } from '../layouts/PharmacistLayout';
 import { getPatients, getPrescriptions, getInventory } from '../services/pharmacistService';
 
-const PharmacistHeader = () => {
+const PharmacistHeader = ({ setIsMobileOpen }) => {
   const navigate = useNavigate();
   const { unreadAlerts, userProfile } = useContext(AlertContext);
 
@@ -119,7 +119,15 @@ const PharmacistHeader = () => {
   const hasResults = results.patients.length > 0 || results.prescriptions.length > 0 || results.drugs.length > 0;
 
   return (
-    <div className="h-[70px] bg-[#9fbaf2] border-b border-gray-200 px-8 flex items-center justify-between sticky top-0 z-[100] transition-colors duration-200">
+    <div className="h-[70px] bg-[#9fbaf2] border-b border-gray-200 px-4 md:px-8 flex items-center justify-between sticky top-0 z-[100] transition-colors duration-200">
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={() => setIsMobileOpen?.(true)}
+        className="md:hidden p-2 rounded-lg text-blue-900 hover:bg-white/20 transition shrink-0 mr-2"
+        aria-label="Open navigation"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
       {/* Title / Search */}
       <div className="flex-1 max-w-2xl relative" ref={searchRef}>
         <div className="relative z-10 relative">

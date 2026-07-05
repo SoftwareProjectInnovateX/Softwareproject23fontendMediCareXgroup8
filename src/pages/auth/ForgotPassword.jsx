@@ -84,7 +84,7 @@ const ForgotPassword = () => {
       <div className="absolute top-1/2 right-[8%] w-52 h-52 rounded-full bg-white/10 animate-pulse pointer-events-none" />
 
       {/* Card */}
-      <div className="relative z-10 bg-white rounded-3xl shadow-2xl w-full max-w-md px-10 py-12 animate-[slideUp_0.5s_ease]">
+      <div className="relative z-10 bg-white rounded-3xl shadow-2xl w-full max-w-md px-6 sm:px-10 py-8 sm:py-12 animate-[slideUp_0.5s_ease]">
 
         {/* Header */}
         <div className="text-center mb-8">
