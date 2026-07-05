@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-const PHARMACIST_API = "http://localhost:5000/api/products";
+const PHARMACIST_API = "https://backendg08innovatex-production.up.railway.app/api/products";
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = `

@@ -15,7 +15,7 @@ const C = {
 const FONT = { body: "'DM Sans', sans-serif" };
 
 // Backend endpoint for all brand CRUD operations
-const BRANDS_API = 'http://localhost:5000/api/brands';
+const BRANDS_API = 'https://backendg08innovatex-production.up.railway.app/api/brands';
 
 // Reusable labelled field wrapper used across all form inputs
 function Field({ label, children }) {

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-const API = "http://localhost:5000/api/cart";
+const API = "https://backendg08innovatex-production.up.railway.app/api/cart";
 
 // ==============================
 // Reads Firebase UID from sessionStorage

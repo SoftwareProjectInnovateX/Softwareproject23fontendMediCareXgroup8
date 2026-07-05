@@ -34,7 +34,7 @@ jest.mock('./CustomerProfilePage', () => {
     ROUTES,
   } = require('../../components/utils/constants');
 
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = 'https://backendg08innovatex-production.up.railway.app/api';
 
   function CustomerProfilePage() {
     const navigate = useNavigate();

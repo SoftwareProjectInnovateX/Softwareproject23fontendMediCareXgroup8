@@ -26,7 +26,7 @@ export default function UserManagement() {
       // Fetch users; on failure set to empty array so the page still renders
       try {
         const authHeaders = await getAuthHeaders();
-        const usersRes = await axios.get("http://localhost:5000/api/users", {
+        const usersRes = await axios.get("https://backendg08innovatex-production.up.railway.app/api/users", {
           headers: authHeaders,
         });
         setUsers(usersRes.data);
@@ -38,7 +38,7 @@ export default function UserManagement() {
       // Fetch orders separately so a users failure doesn't block this
       try {
         const authHeaders = await getAuthHeaders();
-        const ordersRes = await axios.get("http://localhost:5000/api/orders", {
+        const ordersRes = await axios.get("https://backendg08innovatex-production.up.railway.app/api/orders", {
           headers: authHeaders,
         });
         setOrders(ordersRes.data);
@@ -65,7 +65,7 @@ export default function UserManagement() {
     try {
       const authHeaders = await getAuthHeaders();
       await axios.put(
-        `http://localhost:5000/api/users/${docId}/loyalty`,
+        `https://backendg08innovatex-production.up.railway.app/api/users/${docId}/loyalty`,
         { points: Number(points) },
         { headers: authHeaders }
       );
@@ -89,7 +89,7 @@ export default function UserManagement() {
     try {
       const authHeaders = await getAuthHeaders();
       await axios.put(
-        `http://localhost:5000/api/users/${docId}/status`,
+        `https://backendg08innovatex-production.up.railway.app/api/users/${docId}/status`,
         { status: "inactive" },
         { headers: authHeaders }
       );

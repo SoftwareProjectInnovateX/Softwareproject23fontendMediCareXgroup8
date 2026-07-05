@@ -5,7 +5,7 @@ import { auth, db } from '../services/firebase';
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app/';
 
 const PAGE_META = {
   "/":                           { title: "Dashboard",        subtitle: "Admin overview & insights"    },

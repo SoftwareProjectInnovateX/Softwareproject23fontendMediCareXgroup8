@@ -45,7 +45,7 @@ const Success = () => {
                 return;
             }
             try {
-                const res = await fetch(`http://localhost:5000/api/customer-orders/details/${urlOrderId}`);
+                const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer-orders/details/${urlOrderId}`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data) {

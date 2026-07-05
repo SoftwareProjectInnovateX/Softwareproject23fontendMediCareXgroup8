@@ -191,7 +191,7 @@ const Checkout = () => {
     const PAYMENT_GATEWAY_CONFIG = {
         CURRENCY: "LKR",
         TOTAL_AMOUNT: (parseFloat(rxId ? rxAmount : getTotal()) + 400).toFixed(2),
-        NOTIFY_URL: "http://localhost:5000/api/customer-orders/notify",
+        NOTIFY_URL: "https://backendg08innovatex-production.up.railway.app/api/customer-orders/notify",
         RETURN_URL: `${window.location.origin}/customer/checkout${window.location.search}`,
         CANCEL_URL: `${window.location.origin}/customer/checkout${window.location.search}`,
     };
@@ -369,7 +369,7 @@ const Checkout = () => {
             const tempOrderId = `MCX${Date.now()}`;
             try {
                 const authHeaders = await getAuthHeaders();
-                const response = await fetch('http://localhost:5000/api/customer-orders', {
+                const response = await fetch('https://backendg08innovatex-production.up.railway.app/api/customer-orders', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders },
                     body: JSON.stringify({
@@ -413,7 +413,7 @@ const Checkout = () => {
 
         try {
             // Fetch secure hash, merchant ID, and the TRUE AMOUNT from backend
-            const hashRes = await fetch(`http://localhost:5000/api/customer-orders/generate-hash?orderId=${orderId}&amount=${PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT}&currency=${PAYMENT_GATEWAY_CONFIG.CURRENCY}`);
+            const hashRes = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer-orders/generate-hash?orderId=${orderId}&amount=${PAYMENT_GATEWAY_CONFIG.TOTAL_AMOUNT}&currency=${PAYMENT_GATEWAY_CONFIG.CURRENCY}`);
             if (!hashRes.ok) throw new Error("Could not fetch payment hash");
             
             const { hash, merchantId, actualAmount } = await hashRes.json();
@@ -494,7 +494,7 @@ const Checkout = () => {
                 }
 
                 const authHeaders = await getAuthHeaders();
-                const response = await fetch('http://localhost:5000/api/customer-orders', {
+                const response = await fetch('https://backendg08innovatex-production.up.railway.app/api/customer-orders', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders },
                     body: JSON.stringify({

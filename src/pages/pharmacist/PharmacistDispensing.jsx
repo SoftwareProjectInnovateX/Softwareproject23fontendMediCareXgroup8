@@ -8,7 +8,7 @@ import {
   MessageSquare, Tag
 } from "lucide-react";
 
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = "https://backendg08innovatex-production.up.railway.app/api";
 
 const C = {
   bg:          "#f8fafc",

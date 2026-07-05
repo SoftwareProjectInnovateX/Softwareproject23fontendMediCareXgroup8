@@ -11,7 +11,7 @@ import OrderCard      from '../../components/orders/OrderCard';
 import { ROUTES }     from '../../components/utils/constants';
 
 
-const API_BASE = 'http://localhost:5000/api/customer-orders';
+const API_BASE = 'https://backendg08innovatex-production.up.railway.app/api/customer-orders';
 
 const COLLECTIONS = {
   CUSTOMER_ORDERS: 'CustomerOrders',

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 // ── API base (unchanged) ──────────────────────────────────────────────────────
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = "https://backendg08innovatex-production.up.railway.app/api";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -598,7 +598,7 @@ export default function Orders() {
     setOrders(o => o.map(x => x.id === orderId ? { ...x, paymentStatus: "paid" } : x));
     try {
       const res = await fetch(
-        `http://localhost:5000/api/customer-orders/${orderId}/settle-payment`,
+        `https://backendg08innovatex-production.up.railway.app/api/customer-orders/${orderId}/settle-payment`,
         { method: "PUT", headers: { "Content-Type": "application/json" } }
       );
       if (!res.ok) throw new Error(await res.text());

@@ -8,7 +8,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://backendg08innovatex-production.up.railway.app/',
         changeOrigin: true,
       },
     },

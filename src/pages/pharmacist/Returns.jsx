@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 
 // Base URL for all pharmacist return API calls
-const API_BASE = "http://localhost:5000/api/pharmacist/returns";
+const API_BASE = "https://backendg08innovatex-production.up.railway.app/api/pharmacist/returns";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
