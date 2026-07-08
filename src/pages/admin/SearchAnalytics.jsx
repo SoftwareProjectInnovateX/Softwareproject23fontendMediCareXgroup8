@@ -34,16 +34,25 @@ export default function SearchAnalytics() {
       setLoading(true);
       setError(null);
       const { auth } = await import("../../services/firebase");
-      const token = auth.currentUser
-        ? await auth.currentUser.getIdToken()
-        : null;
+
+      // Wait up to 5 s for auth to resolve if currentUser is not yet available
+      const currentUser = auth.currentUser ?? await new Promise((resolve) => {
+        const unsub = auth.onAuthStateChanged((u) => { unsub(); resolve(u); });
+        setTimeout(() => resolve(null), 5000);
+      });
+
+      if (!currentUser) {
+        setError("Not authenticated. Please log in as admin.");
+        setLoading(false);
+        return;
+      }
+
+      const token = await currentUser.getIdToken();
       const response = await fetch(`${API_BASE_URL}/admin/search/analytics`, {
         cache: "no-store",
-        headers: {
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error("Failed to fetch analytics");
+      if (!response.ok) throw new Error(`Server responded ${response.status}`);
       const data = await response.json();
       setAnalytics(data);
     } catch (err) {
