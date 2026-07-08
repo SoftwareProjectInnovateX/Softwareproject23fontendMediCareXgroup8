@@ -189,3 +189,35 @@ export const resetSystemData = async () => {
     method: 'POST',
   }));
 };
+
+/* ================= BLOG APPROVAL ================= */
+
+export async function getPendingBlog() {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`http://localhost:5000/api/customer/blogs/admin/pending`, {
+    headers: { ...authHeaders }
+  });
+  if (!res.ok) throw new Error(`Failed to fetch pending blog: ${res.statusText}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+export async function approveBlog(id) {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`http://localhost:5000/api/customer/blogs/admin/approve/${id}`, { 
+    method: 'POST',
+    headers: { ...authHeaders }
+  });
+  if (!res.ok) throw new Error(`Failed to approve blog: ${res.statusText}`);
+  return res.json();
+}
+
+export async function rejectAndRegenerateBlog(id) {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`http://localhost:5000/api/customer/blogs/admin/reject/${id}`, { 
+    method: 'POST',
+    headers: { ...authHeaders }
+  });
+  if (!res.ok) throw new Error(`Failed to reject blog: ${res.statusText}`);
+  return res.json();
+}

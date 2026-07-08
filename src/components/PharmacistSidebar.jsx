@@ -53,6 +53,7 @@ const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     { path: '/pharmacist/add-product',   name: 'Add Product',    icon: PlusCircle },
     { path: '/pharmacist/brands',        name: 'Add Brand',      icon: Tag },
     { path: '/pharmacist/my-products',   name: 'My Products',    icon: Layers },
+    { path: '/pharmacist/blog-approval', name: 'Blog Approval',  icon: FileText },
     { path: '/pharmacist/messages',      name: 'Messages',       icon: MessageSquare, dot: false },
   ];
 
