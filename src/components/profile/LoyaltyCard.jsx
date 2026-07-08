@@ -56,8 +56,8 @@ export default function LoyaltyCard({ user }) {
           border-radius: 24px;
           overflow: hidden;
           position: relative;
-          background: #ffffff;
-          border: 1px solid rgba(226,232,240,0.8);
+          background: ${C.surface};
+          border: 1px solid ${C.border};
           box-shadow: 0 8px 40px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
           font-family: 'Outfit', sans-serif;
         }
@@ -155,9 +155,9 @@ export default function LoyaltyCard({ user }) {
                   style={{
                     display: "flex", alignItems: "center", gap: 6,
                     padding: "5px 12px", borderRadius: 10,
-                    border: `1.5px solid ${copied ? "#BBF7D0" : "#E2E8F0"}`,
-                    background: copied ? "#F0FDF4" : "#F8FAFC",
-                    color: copied ? "#16A34A" : "#3B82F6",
+                    border: `1.5px solid ${copied ? C.successBorder : C.border}`,
+                    background: copied ? C.successBg : C.bg,
+                    color: copied ? C.successText : C.accent,
                     fontSize: 12, fontWeight: 700,
                     cursor: "pointer",
                     fontFamily: "'DM Mono', monospace",
@@ -172,7 +172,7 @@ export default function LoyaltyCard({ user }) {
         </div>
 
         {/* ── Divider ── */}
-        <div style={{ height: 1, background: "linear-gradient(90deg, transparent, #E2E8F0 30%, #E2E8F0 70%, transparent)" }} />
+        <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${C.border} 30%, ${C.border} 70%, transparent)` }} />
 
         {/* ── Progress bar to next level ── */}
         {lvl.next && (
@@ -189,12 +189,12 @@ export default function LoyaltyCard({ user }) {
               </span>
             </div>
             {/* Progress track */}
-            <div style={{ height: 8, borderRadius: 999, background: "#F1F5F9", overflow: "hidden", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.08)" }}>
+            <div style={{ height: 8, borderRadius: 999, background: C.bg, overflow: "hidden", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.08)" }}>
               <div
                 className="lc-bar-fill"
                 style={{
                   height: "100%", width: `${progress}%`, borderRadius: 999,
-                  background: `linear-gradient(90deg, ${lvl.color}, #fff 50%, ${lvl.color})`,
+                  background: `linear-gradient(90deg, ${lvl.color}, rgba(255,255,255,0.6) 50%, ${lvl.color})`,
                   backgroundSize: "200% auto",
                   transition: "width 0.8s cubic-bezier(0.4,0,0.2,1)",
                   boxShadow: `0 0 10px ${lvl.glow}`,
@@ -207,7 +207,7 @@ export default function LoyaltyCard({ user }) {
         {/* ── Recommended offers (only when available) ── */}
         {user.recommendedOffers?.length > 0 && (
           <>
-            <div style={{ height: 1, background: "linear-gradient(90deg, transparent, #E2E8F0 30%, #E2E8F0 70%, transparent)" }} />
+            <div style={{ height: 1, background: `linear-gradient(90deg, transparent, ${C.border} 30%, ${C.border} 70%, transparent)` }} />
             <div style={{ padding: "14px 22px 18px" }}>
               <p style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: "0.1em",

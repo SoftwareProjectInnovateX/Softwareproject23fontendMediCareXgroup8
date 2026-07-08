@@ -6,20 +6,20 @@ import BrandCard from "../../components/brands/BrandCard";
 const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 
 const C = {
-  bg: '#F0F4F8',
-  surface: '#ffffff',
-  accent: '#1A56DB',
-  accentHover: '#1544B8',
-  accentLight: '#EBF2FF',
-  accentMid: '#C7D9F8',
-  dark: '#0B1120',
-  darkCard: '#151E2F',
-  darkBorder: 'rgba(255,255,255,0.07)',
-  textPrimary: '#0D1B2A',
-  textSecondary: '#4A5568',
-  textMuted: '#718096',
-  border: '#D6E4F7',
-  success: '#059669',
+  bg: 'var(--bg-primary)',
+  surface: 'var(--bg-secondary)',
+  accent: 'var(--accent-blue)',
+  accentHover: 'var(--accent-blue)',
+  accentLight: 'var(--accent-blue-soft)',
+  accentMid: 'var(--navbar-border)',
+  dark: 'var(--text-primary)',
+  darkCard: 'var(--bg-secondary)',
+  darkBorder: 'var(--navbar-border)',
+  textPrimary: 'var(--text-primary)',
+  textSecondary: 'var(--text-secondary)',
+  textMuted: 'var(--text-secondary)',
+  border: 'var(--navbar-border)',
+  success: 'var(--accent-blue)',
   successBg: 'rgba(5,150,105,0.12)',
 };
 
@@ -333,18 +333,19 @@ export default function BrandsPage() {
 
           {/* RIGHT column: blue AI Advisor — cleaner, simpler and more helpful */}
           <div
-            className="rounded-[32px] p-6 text-slate-950 h-full min-h-[380px] overflow-hidden"
+            className="rounded-[32px] p-6 h-full min-h-[380px] overflow-hidden"
             style={{
-              background: 'linear-gradient(180deg, rgba(219,234,254,0.95), #E0F2FE)',
+              background: C.surface,
               border: `1px solid ${C.border}`,
-              boxShadow: '0 16px 45px rgba(59,130,246,0.12)',
+              boxShadow: '0 16px 45px rgba(26,135,225,0.08)',
+              color: C.textPrimary
             }}
           >
             <div className="mb-5">
-              <div className="inline-flex h-9 min-w-[3rem] items-center justify-center rounded-2xl bg-blue-100 text-blue-700 shadow-sm">
+              <div className="inline-flex h-9 min-w-[3rem] items-center justify-center rounded-2xl shadow-sm" style={{ background: C.accentLight, color: C.accent }}>
                 <Bot size={20} />
               </div>
-              <p className="mt-4 text-[10px] uppercase tracking-[0.35em] font-semibold text-blue-500">
+              <p className="mt-4 text-[10px] uppercase tracking-[0.35em] font-semibold" style={{ color: C.accent }}>
                 AI Health Advisor
               </p>
               <h3 className="mt-3 text-2xl font-semibold" style={{ color: C.dark }}>
@@ -365,7 +366,7 @@ export default function BrandsPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleRecommendBrands()}
               placeholder="e.g. immune support, pain relief, digestion"
               className="w-full rounded-3xl px-4 py-3 text-sm outline-none"
-              style={{ background: '#ffffff', border: `1px solid ${C.border}`, color: C.dark }}
+              style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textPrimary }}
             />
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -378,7 +379,7 @@ export default function BrandsPage() {
                   style={
                     healthGoal === preset
                       ? { background: C.accent, color: '#fff', border: `1px solid ${C.accent}` }
-                      : { background: '#fff', color: C.accent, border: `1px solid ${C.border}` }
+                      : { background: C.bg, color: C.textPrimary, border: `1px solid ${C.border}` }
                   }
                 >
                   {preset}
@@ -400,46 +401,48 @@ export default function BrandsPage() {
               <button
                 type="button"
                 onClick={() => setHealthGoal('')}
-                className="rounded-3xl border border-blue-300 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                className="rounded-3xl border px-4 py-3 text-sm font-semibold transition"
+                style={{ background: C.bg, borderColor: C.accentMid, color: C.accent }}
               >
                 Reset query
               </button>
             </div>
 
-            <div className="mt-6 rounded-[28px] border border-blue-200 bg-white/80 p-4 shadow-sm" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+            <div className="mt-6 rounded-[28px] border p-4 shadow-sm" style={{ maxHeight: '420px', overflowY: 'auto', background: C.bg, borderColor: C.border }}>
               {!recommendation.title ? (
                 <div className="space-y-3 text-sm">
-                  <p className="font-semibold text-slate-900">Try a quick health goal</p>
-                  <p className="text-slate-600">Our AI will match you with the most relevant brands from your catalog and trusted global names.</p>
-                  <p className="text-sm leading-6 text-slate-600"><Lightbulb size={16} className="inline mr-1" /> WHO Fact: {whoFacts[factIndex]}</p>
+                  <p className="font-semibold" style={{ color: C.textPrimary }}>Try a quick health goal</p>
+                  <p style={{ color: C.textSecondary }}>Our AI will match you with the most relevant brands from your catalog and trusted global names.</p>
+                  <p className="text-sm leading-6" style={{ color: C.textSecondary }}><Lightbulb size={16} className="inline mr-1" /> WHO Fact: {whoFacts[factIndex]}</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.28em] font-semibold text-blue-500">Recommendation</p>
-                    <p className="mt-2 text-base font-semibold text-slate-900">{recommendation.title}</p>
+                    <p className="text-xs uppercase tracking-[0.28em] font-semibold" style={{ color: C.accent }}>Recommendation</p>
+                    <p className="mt-2 text-base font-semibold" style={{ color: C.textPrimary }}>{recommendation.title}</p>
                   </div>
                   {recommendation.summary && (
-                    <p className="text-sm leading-6 text-slate-600">{recommendation.summary}</p>
+                    <p className="text-sm leading-6" style={{ color: C.textSecondary }}>{recommendation.summary}</p>
                   )}
                   <div className="grid gap-3">
                     {recommendation.brands.length > 0 ? (
                       recommendation.brands.map((brand) => (
-                        <div key={brand.id ?? brand.name} className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
+                        <div key={brand.id ?? brand.name} className="rounded-3xl border p-4" style={{ background: C.accentLight, borderColor: C.accentMid }}>
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs uppercase tracking-[0.24em] text-blue-500">{brand.category || 'Health brand'}</p>
-                            <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-semibold text-blue-700">
+                            <p className="text-xs uppercase tracking-[0.24em]" style={{ color: C.accent }}>{brand.category || 'Health brand'}</p>
+                            <span className="rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: C.surface, color: C.accent }}>
                               {brand.external ? 'Global' : 'Local'}
                             </span>
                           </div>
-                          <p className="mt-2 text-sm font-semibold text-slate-950">{brand.name}</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-600">{brand.tagline || brand.description?.slice(0, 65)}</p>
+                          <p className="mt-2 text-sm font-semibold" style={{ color: C.textPrimary }}>{brand.name}</p>
+                          <p className="mt-1 text-xs leading-5" style={{ color: C.textSecondary }}>{brand.tagline || brand.description?.slice(0, 65)}</p>
                           {brand.external && brandUrls[brand.name] ? (
                             <a
                               href={brandUrls[brand.name]}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="mt-3 inline-block text-xs font-semibold text-blue-700 flex items-center gap-1"
+                              className="mt-3 inline-block text-xs font-semibold flex items-center gap-1"
+                              style={{ color: C.accent }}
                             >
                               <ExternalLink size={12} />
                               Visit official site
@@ -448,7 +451,7 @@ export default function BrandsPage() {
                         </div>
                       ))
                     ) : (
-                      <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-600">
+                      <div className="rounded-3xl border p-4 text-sm" style={{ background: C.accentLight, borderColor: C.accentMid, color: C.textSecondary }}>
                         No exact brand match yet. Try another keyword like “sleep support” or “joint care.”
                       </div>
                     )}
@@ -459,7 +462,8 @@ export default function BrandsPage() {
                         href={whoLinks[topic]}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm font-semibold text-blue-700 flex items-center gap-1"
+                        className="text-sm font-semibold flex items-center gap-1"
+                        style={{ color: C.accent }}
                       >
                         <Hospital size={16} />
                         Read WHO guidance on {topic}
@@ -469,7 +473,7 @@ export default function BrandsPage() {
                 </div>
               )}
             </div>
-            <p className="mt-4 text-[12px] text-slate-500 flex items-center gap-1">
+            <p className="mt-4 text-[12px] flex items-center gap-1" style={{ color: C.textMuted }}>
               <Stethoscope size={14} />
               Brand suggestions are informational only. Always consult a licensed pharmacist or physician before starting any medication.
             </p>

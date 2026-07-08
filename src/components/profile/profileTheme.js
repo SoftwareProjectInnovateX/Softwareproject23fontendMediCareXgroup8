@@ -11,9 +11,9 @@ export const C = {
   textPrimary:    "var(--text-primary)",
   textMuted:      "var(--text-secondary)",
   textSoft:       "var(--text-secondary)",
-  successBg:      "#f0fdf4",
-  successBorder:  "#bbf7d0",
-  successText:    "#16a34a",
+  successBg:      "rgba(22,163,74,0.08)",
+  successBorder:  "rgba(22,163,74,0.25)",
+  successText:    "#22c55e",
   gold:           "#d97706",
   goldLight:      "#f59e0b",
   goldGradient:   "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
@@ -24,9 +24,9 @@ export const C = {
   bannerBtnBg:    "rgba(255,255,255,0.12)",
   bannerBtnBorder:"rgba(255,255,255,0.3)",
   cardShadow:     "0 1px 4px rgba(26,135,225,0.07)",
-  dangerBg:       "#fef2f2",
-  dangerText:     "#dc2626",
-  dangerBorder:   "#fecaca",
+  dangerBg:       "rgba(220,38,38,0.06)",
+  dangerText:     "#ef4444",
+  dangerBorder:   "rgba(220,38,38,0.22)",
 };
 
 export const FONT = {
