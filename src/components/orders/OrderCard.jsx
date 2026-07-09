@@ -134,11 +134,11 @@ export default function OrderCard({ order }) {
       {order.type === 'prescription' && (
         <div className="mt-4 px-1 pb-2">
           {order.orderStatus === 'Pending' && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 flex items-center gap-3 animate-pulse">
+            <div className="p-3 rounded-xl flex items-center gap-3 animate-pulse" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
               <Clock className="text-amber-500" size={18} />
               <div className="flex-1">
-                <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Pending Verification</p>
-                <p className="text-[9px] text-amber-600 font-bold">Pharmacist is reviewing your prescription...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#d97706' }}>Pending Verification</p>
+                <p className="text-[9px] font-bold" style={{ color: '#b45309' }}>Pharmacist is reviewing your prescription...</p>
               </div>
             </div>
           )}
@@ -160,12 +160,12 @@ export default function OrderCard({ order }) {
           )}
 
           {showBill && order.orderStatus === 'Approved' && (
-            <div className="p-5 rounded-2xl bg-slate-50 border-2 border-blue-100 shadow-inner animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-                <h4 className="font-black text-slate-800 text-[10px] uppercase tracking-widest flex items-center gap-2">
-                  <Receipt size={14} className="text-blue-600" /> Digital Invoice
+            <div className="p-5 rounded-2xl animate-in fade-in slide-in-from-top-2" style={{ background: C.bg, border: `2px solid ${C.border}` }}>
+              <div className="flex items-center justify-between mb-4 pb-2" style={{ borderBottom: `1px solid ${C.border}` }}>
+                <h4 className="font-black text-[10px] uppercase tracking-widest flex items-center gap-2" style={{ color: C.textPrimary }}>
+                  <Receipt size={14} color={C.accent} /> Digital Invoice
                 </h4>
-                <button onClick={() => setShowBill(false)} className="text-[10px] font-bold text-slate-400 hover:text-slate-600">
+                <button onClick={() => setShowBill(false)} className="text-[10px] font-bold border-none cursor-pointer bg-transparent" style={{ color: C.textMuted }}>
                   Close
                 </button>
               </div>
@@ -173,22 +173,22 @@ export default function OrderCard({ order }) {
               <div className="space-y-2 mb-4">
                 {(order.types || []).map((m, idx) => (
                   <div key={idx} className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-slate-700">
-                      {m.name} <span className="text-[9px] text-slate-400 font-medium">x {m.quantity}</span>
+                    <span className="font-bold" style={{ color: C.textPrimary }}>
+                      {m.name} <span className="text-[9px] font-medium" style={{ color: C.textMuted }}>x {m.quantity}</span>
                     </span>
-                    <span className="font-black text-slate-900">Rs. {(m.quantity * m.price).toFixed(2)}</span>
+                    <span className="font-black" style={{ color: C.textPrimary }}>Rs. {(m.quantity * m.price).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
 
-              <div className="flex justify-between items-center pt-3 border-t-2 border-dashed border-slate-200 mb-6">
-                <span className="text-[10px] font-black text-slate-500 uppercase">Total Amount</span>
-                <span className="text-lg font-black text-blue-700">Rs. {(order.total || 0).toFixed(2)}</span>
+              <div className="flex justify-between items-center pt-3 mb-6" style={{ borderTop: `2px dashed ${C.border}` }}>
+                <span className="text-[10px] font-black uppercase" style={{ color: C.textMuted }}>Total Amount</span>
+                <span className="text-lg font-black" style={{ color: C.accent }}>Rs. {(order.total || 0).toFixed(2)}</span>
               </div>
 
               <button
                 onClick={handleGoToCheckout}
-                className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all"
+                className="w-full py-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all border-none cursor-pointer"
               >
                 <ShoppingCart size={16} /> Confirm & Pay Now
               </button>
@@ -196,11 +196,11 @@ export default function OrderCard({ order }) {
           )}
 
           {order.orderStatus === 'Packing' && (
-            <div className="p-3 rounded-xl bg-blue-50 border-2 border-blue-200 flex items-center gap-3 animate-pulse">
-              <Package className="text-blue-600" size={18} />
+            <div className="p-3 rounded-xl flex items-center gap-3 animate-pulse" style={{ background: 'rgba(37,99,235,0.08)', border: '2px solid rgba(37,99,235,0.2)' }}>
+              <Package color={C.accent} size={18} />
               <div className="flex-1">
-                <p className="text-[10px] font-black text-blue-800 uppercase tracking-widest">Medications Packing</p>
-                <p className="text-[9px] text-blue-600 font-bold">Your order is being prepared for delivery.</p>
+                <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.accent }}>Medications Packing</p>
+                <p className="text-[9px] font-bold" style={{ color: C.accentMid }}>Your order is being prepared for delivery.</p>
               </div>
             </div>
           )}
@@ -226,12 +226,12 @@ export default function OrderCard({ order }) {
           )}
 
           {order.orderStatus === 'Delivered' && (
-            <div className="p-4 rounded-xl bg-emerald-100 border-2 border-emerald-500/20 text-center shadow-inner">
+            <div className="p-4 rounded-xl text-center" style={{ background: 'rgba(5,150,105,0.08)', border: '2px solid rgba(5,150,105,0.2)' }}>
               <div className="flex items-center justify-center gap-2 mb-1">
-                <CheckCircle size={20} className="text-emerald-600" />
-                <span className="font-black uppercase tracking-[0.2em] text-[11px] text-emerald-800">Delivered</span>
+                <CheckCircle size={20} color="#059669" />
+                <span className="font-black uppercase tracking-[0.2em] text-[11px]" style={{ color: '#059669' }}>Delivered</span>
               </div>
-              <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest opacity-80">
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-80" style={{ color: '#059669' }}>
                 Medications received successfully
               </p>
             </div>

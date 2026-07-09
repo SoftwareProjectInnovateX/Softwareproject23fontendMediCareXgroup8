@@ -4,6 +4,7 @@ import {
   Trash2, Plus, Lock, Save,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { C, FONT, inputStyle } from '../../components/profile/profileTheme';
 
 const CustomerSettings = () => {
   const navigate     = useNavigate();
@@ -95,10 +96,10 @@ const CustomerSettings = () => {
     <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
 
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 py-2 mb-6 border-b border-slate-100 pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 py-2 mb-6 border-b pb-6" style={{ borderColor: C.border }}>
         <div>
-          <h1 className="text-3xl font-black text-slate-800">Account Settings</h1>
-          <p className="text-slate-500 font-medium text-sm mt-1">Manage your profile, personal goals, and security.</p>
+          <h1 className="text-3xl font-black" style={{ color: C.textPrimary }}>Account Settings</h1>
+          <p className="font-medium text-sm mt-1" style={{ color: C.textMuted }}>Manage your profile, personal goals, and security.</p>
         </div>
       </div>
 
@@ -106,7 +107,7 @@ const CustomerSettings = () => {
 
         {/* Left: Profile avatar card with upload and remove controls */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="card text-center relative border-slate-200 shadow-sm pt-8">
+          <div className="card text-center relative shadow-sm pt-8 pb-8" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16 }}>
             <div className="relative inline-block mb-4">
               {/* Avatar — falls back to ui-avatars.com initials if no image uploaded */}
               <div className="w-24 h-24 rounded-full bg-blue-100 border-4 border-white shadow-md overflow-hidden mx-auto flex items-center justify-center">
@@ -135,8 +136,8 @@ const CustomerSettings = () => {
                 <Camera className="w-3.5 h-3.5" />
               </button>
             </div>
-            <h2 className="text-xl font-black text-slate-800">{profile.name || 'Your Name'}</h2>
-            <p className="text-sm font-medium text-slate-500 mb-4">Customer</p>
+            <h2 className="text-xl font-black" style={{ color: C.textPrimary }}>{profile.name || 'Your Name'}</h2>
+            <p className="text-sm font-medium mb-4" style={{ color: C.textMuted }}>Customer</p>
           </div>
         </div>
 
@@ -144,52 +145,52 @@ const CustomerSettings = () => {
         <div className="lg:col-span-3 space-y-6">
 
           {/* Personal Information form */}
-          <div className="card shadow-sm border border-slate-200 p-0 overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center gap-2">
+          <div className="card shadow-sm p-0 overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16 }}>
+            <div className="p-6 flex items-center gap-2" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
               <User className="w-5 h-5 text-[#0b5ed7]" />
-              <h2 className="text-lg font-black text-slate-800">Personal Information</h2>
+              <h2 className="text-lg font-black" style={{ color: C.textPrimary }}>Personal Information</h2>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Full Name</label>
+                <label className="block text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: C.textMuted }}>Full Name</label>
                 <input
                   type="text" name="name" value={profile.name} onChange={handleProfileChange}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-[#0b5ed7] focus:ring-1 focus:ring-[#0b5ed7] transition-all"
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Email Address</label>
+                <label className="block text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: C.textMuted }}>Email Address</label>
                 <input
                   type="email" name="email" value={profile.email} onChange={handleProfileChange}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-[#0b5ed7] focus:ring-1 focus:ring-[#0b5ed7] transition-all"
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Contact Number</label>
+                <label className="block text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: C.textMuted }}>Contact Number</label>
                 <input
                   type="text" name="contact" value={profile.contact} onChange={handleProfileChange}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-[#0b5ed7] focus:ring-1 focus:ring-[#0b5ed7] transition-all"
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Delivery Address</label>
+                <label className="block text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: C.textMuted }}>Delivery Address</label>
                 <input
                   type="text" name="address" value={profile.address} onChange={handleProfileChange}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-[#0b5ed7] focus:ring-1 focus:ring-[#0b5ed7] transition-all"
+                  style={inputStyle}
                 />
               </div>
             </div>
           </div>
 
           {/* Personal Health Goals — supports add, toggle, and delete */}
-          <div className="card shadow-sm border border-slate-200 p-0 overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center justify-between">
+          <div className="card shadow-sm p-0 overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16 }}>
+            <div className="p-6 flex items-center justify-between" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
               <div className="flex items-center gap-2">
                 <Target className="w-5 h-5 text-purple-600" />
-                <h2 className="text-lg font-black text-slate-800">Personal Health Goals</h2>
+                <h2 className="text-lg font-black" style={{ color: C.textPrimary }}>Personal Health Goals</h2>
               </div>
               {/* Progress counter showing completed vs total goals */}
-              <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 bg-white border border-slate-200 px-2 py-1 rounded">
+              <span className="text-[10px] uppercase font-black tracking-widest px-2 py-1 rounded" style={{ color: C.textMuted, background: C.surface, border: `1px solid ${C.border}` }}>
                 {goals.filter(g => g.completed).length} / {goals.length} Completed
               </span>
             </div>
@@ -198,18 +199,19 @@ const CustomerSettings = () => {
                 {goals.map(goal => (
                   <div
                     key={goal.id}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${goal.completed ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-slate-200 hover:border-slate-300'}`}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${goal.completed ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900/30' : ''}`}
+                    style={goal.completed ? undefined : { background: C.surface, borderColor: C.border }}
                   >
                     {/* Clicking the row toggles the goal's completion state */}
                     <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => toggleGoal(goal.id)}>
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${goal.completed ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300'}`}>
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors ${goal.completed ? 'bg-emerald-500 border-emerald-500' : ''}`} style={goal.completed ? undefined : { borderColor: C.border }}>
                         {goal.completed && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                       </div>
-                      <span className={`font-bold transition-all ${goal.completed ? 'text-emerald-700 line-through opacity-70' : 'text-slate-700'}`}>
+                      <span className={`font-bold transition-all ${goal.completed ? 'text-emerald-700 line-through opacity-70 dark:text-emerald-400' : ''}`} style={goal.completed ? undefined : { color: C.textPrimary }}>
                         {goal.text}
                       </span>
                     </div>
-                    <button onClick={() => deleteGoal(goal.id)} className="text-slate-300 hover:text-red-500 transition-colors p-1">
+                    <button onClick={() => deleteGoal(goal.id)} className="text-slate-400 hover:text-red-500 transition-colors p-1 bg-transparent border-none cursor-pointer">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -217,37 +219,40 @@ const CustomerSettings = () => {
               </div>
               {/* New goal input — press Enter to add */}
               <div className="mt-4 flex items-center gap-3">
-                <div className="w-5 h-5 rounded-full border-2 border-slate-200 flex items-center justify-center shrink-0">
+                <div className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: C.border }}>
                   <Plus className="w-3 h-3 text-slate-400" />
                 </div>
                 <input
                   type="text" value={newGoal} onChange={(e) => setNewGoal(e.target.value)} onKeyDown={addGoal}
                   placeholder="Type a new goal and press Enter..."
-                  className="flex-1 bg-transparent border-none text-sm font-bold text-slate-600 outline-none placeholder:text-slate-400"
+                  className="flex-1 bg-transparent border-none text-sm font-bold outline-none"
+                  style={{ color: C.textPrimary }}
                 />
               </div>
             </div>
           </div>
 
           {/* Account Security — password change fields */}
-          <div className="card shadow-sm border border-slate-200 p-0 overflow-hidden">
-            <div className="bg-slate-50 border-b border-slate-100 p-6 flex items-center gap-2">
+          <div className="card shadow-sm p-0 overflow-hidden" style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16 }}>
+            <div className="p-6 flex items-center gap-2" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
               <Lock className="w-5 h-5 text-amber-500" />
-              <h2 className="text-lg font-black text-slate-800">Account Security</h2>
+              <h2 className="text-lg font-black" style={{ color: C.textPrimary }}>Account Security</h2>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 pb-8">
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">New Password</label>
+                <label className="block text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: C.textMuted }}>New Password</label>
                 <input
                   type="password" name="newPass" value={passwords.newPass} onChange={handlePasswordChange}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono"
+                  style={inputStyle}
+                  className="font-mono"
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Confirm New Password</label>
+                <label className="block text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: C.textMuted }}>Confirm New Password</label>
                 <input
                   type="password" name="confirm" value={passwords.confirm} onChange={handlePasswordChange}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono"
+                  style={inputStyle}
+                  className="font-mono"
                 />
               </div>
             </div>

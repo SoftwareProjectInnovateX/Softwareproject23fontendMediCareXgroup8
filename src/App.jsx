@@ -55,6 +55,7 @@ import Cancel from "./pages/customer/Cancel";
 import CustomerSettings from "./pages/customer/CustomerSettings";
 import ProductDetailPage from './pages/customer/ProductDetailPage';
 import About from "./pages/customer/About";
+import BlogDetail from './pages/customer/BlogDetail';
 
 
 
@@ -83,6 +84,7 @@ import PharmacistExpiringInventory from "./pages/pharmacist/PharmacistExpiringIn
 import PharmacistNewPatients from "./pages/pharmacist/PharmacistNewPatients";
 import PharmacistLowStock from "./pages/pharmacist/PharmacistLowStock";
 import LoyaltyDashboard from "./pages/pharmacist/loyalty/LoyaltyDashboard";
+import PharmacistBlogApproval from "./pages/pharmacist/PharmacistBlogApproval";
 
 export default function App() {
   return (
@@ -150,6 +152,7 @@ export default function App() {
         <Route path="brands" element={<BrandsPage />} />
         <Route path="about" element={<About />} />
         <Route path="contact" element={<ContactPage />} />
+        <Route path="blog/:id" element={<BlogDetail />} />
 
         {/* Protected Routes */}
         <Route element={<ProtectedRoute allowedRoles={["customer"]} />}>
@@ -197,6 +200,7 @@ export default function App() {
         <Route path="new-patients" element={<PharmacistNewPatients />} />
         <Route path="low-stock" element={<PharmacistLowStock />} />
         <Route path="loyalty" element={<LoyaltyDashboard />} />
+        <Route path="blog-approval" element={<PharmacistBlogApproval />} />
       </Route>
 
       {/* 404 */}

@@ -304,30 +304,30 @@ export default function ProductDetailPage() {
   );
 
   return (
-    <div style={{
+    <div className="product-detail-container" style={{
       minHeight: '100vh',
-      background: '#F0F5FF',
+      background: 'var(--bg-primary)',
       fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-      color: '#1E293B',
+      color: 'var(--text-primary)',
     }}>
 
       {/* ── Global Style ── */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-        :root {
+        .product-detail-container {
           --blue:        #2563EB;
           --blue-mid:    #3B82F6;
           --blue-light:  #60A5FA;
           --blue-pale:   #DBEAFE;
           --blue-dim:    rgba(37,99,235,0.08);
           --blue-dim2:   rgba(37,99,235,0.14);
-          --surface:     #FFFFFF;
-          --surface2:    #F8FAFF;
-          --border:      #E2EEFF;
-          --border-mid:  #BFDBFE;
-          --text-primary:   #0F172A;
-          --text-secondary: #475569;
-          --text-dim:       #94A3B8;
+          --surface:     var(--bg-secondary);
+          --surface2:    var(--bg-primary);
+          --border:      var(--navbar-border);
+          --border-mid:  var(--card-border);
+          --text-primary:   var(--text-primary);
+          --text-secondary: var(--text-secondary);
+          --text-dim:       var(--text-secondary);
         }
         .blue-divider { height: 1px; background: linear-gradient(90deg, transparent, var(--blue-mid), transparent); opacity: 0.35; }
         .luxury-input {
@@ -417,13 +417,14 @@ export default function ProductDetailPage() {
               {displayStock === 0 && (
                 <div style={{
                   position: 'absolute', inset: 0,
-                  background: 'rgba(240,245,255,0.85)',
+                  background: 'rgba(15, 23, 42, 0.4)',
+                  backdropFilter: 'blur(4px)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   <span style={{
-                    color: '#94A3B8', fontSize: 13, fontWeight: 700,
-                    letterSpacing: 4, border: '2px solid #CBD5E1',
-                    padding: '10px 28px', borderRadius: 8, background: '#fff',
+                    color: 'var(--text-primary)', fontSize: 13, fontWeight: 700,
+                    letterSpacing: 4, border: '2px solid var(--border)',
+                    padding: '10px 28px', borderRadius: 8, background: 'var(--surface)',
                     fontFamily: "'Sora', sans-serif",
                   }}>OUT OF STOCK</span>
                 </div>
@@ -645,7 +646,7 @@ export default function ProductDetailPage() {
 
             {/* Description */}
             {product.description && (
-              <div style={{ marginBottom: 24, background: '#fff', border: '1.5px solid var(--border)', borderRadius: 16, padding: 24 }} className="card-shadow">
+              <div style={{ marginBottom: 24, background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 16, padding: 24 }} className="card-shadow">
                 <div className="flex items-center gap-3" style={{ marginBottom: 16 }}>
                   <div className="blue-divider" style={{ flex: 1 }} />
                   <span style={{ fontSize: 10, letterSpacing: 3, color: 'var(--blue)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap', fontFamily: "'Sora', sans-serif" }}>
@@ -677,7 +678,7 @@ export default function ProductDetailPage() {
 
             {/* Specifications */}
             {(product.manufacturer || product.expiryDate || product.productCode || product.weight || product.dimensions) && (
-              <div style={{ background: '#fff', border: '1.5px solid var(--border)', borderRadius: 16, padding: 24 }} className="card-shadow">
+              <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 16, padding: 24 }} className="card-shadow">
                 <div className="flex items-center gap-3" style={{ marginBottom: 16 }}>
                   <div className="blue-divider" style={{ flex: 1 }} />
                   <span style={{ fontSize: 10, letterSpacing: 3, color: 'var(--blue)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap', fontFamily: "'Sora', sans-serif" }}>

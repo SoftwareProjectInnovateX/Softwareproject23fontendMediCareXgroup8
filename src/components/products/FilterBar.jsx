@@ -51,7 +51,8 @@ export default function FilterBar({
           {smartResults !== null && (
             <button
               onClick={() => onSmartResults(null)}
-              className="px-3 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 whitespace-nowrap border border-slate-200 rounded-lg"
+              className="px-3 py-2 text-sm font-semibold whitespace-nowrap rounded-lg border transition-colors"
+              style={{ color: C.textSoft, borderColor: C.border, background: C.surface }}
             >
               ← Show All
             </button>

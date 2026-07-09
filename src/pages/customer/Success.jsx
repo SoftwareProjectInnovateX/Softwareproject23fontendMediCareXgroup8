@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom'; 
 import { CheckCircle, Download, AlertCircle } from 'lucide-react';
+import { C, FONT } from '../../components/profile/profileTheme';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -360,18 +361,18 @@ const Success = () => {
     }
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: '#f1f5f9', fontFamily: "'DM Sans', sans-serif" }}>
-            <main className="max-w-md w-full bg-white p-10 rounded-2xl border border-slate-200 text-center" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+        <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: C.bg, fontFamily: FONT.body }}>
+            <main className="max-w-md w-full p-10 rounded-2xl border text-center" style={{ background: C.surface, borderColor: C.border, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
 
                 {/* === ON-SCREEN UI === */}
-                <div style={{ padding: '20px', fontFamily: "'DM Sans', sans-serif" }}>
+                <div style={{ padding: '20px', fontFamily: FONT.body }}>
                     <div style={{ textAlign: 'center', margin: '20px 0' }}>
                         <CheckCircle size={60} color="#22c55e" style={{ margin: '0 auto' }} />
-                        <h2 style={{ color: '#0f172a', fontSize: '24px', marginTop: '16px', fontWeight: '900' }}>Order Successful!</h2>
-                        <p style={{ color: '#64748b', fontSize: '14px', marginTop: '8px' }}>
+                        <h2 style={{ color: C.textPrimary, fontSize: '24px', marginTop: '16px', fontWeight: '900' }}>Order Successful!</h2>
+                        <p style={{ color: C.textMuted, fontSize: '14px', marginTop: '8px' }}>
                             {isCOD ? "Your order has been placed successfully. Please pay at the time of delivery." : "Your payment was processed successfully."}
                         </p>
-                        <p style={{ color: '#0f172a', fontSize: '16px', marginTop: '8px', fontWeight: '600' }}>Order #{displayData.orderId}</p>
+                        <p style={{ color: C.textPrimary, fontSize: '16px', marginTop: '8px', fontWeight: '600' }}>Order #{displayData.orderId}</p>
                     </div>
                 </div>
 

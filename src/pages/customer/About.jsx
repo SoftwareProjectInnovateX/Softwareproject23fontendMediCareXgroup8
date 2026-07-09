@@ -1,11 +1,12 @@
 import React from "react";
 import { ShieldCheck, Truck, HeartPulse, Users, Target, Eye } from "lucide-react";
+import { C } from "../../components/profile/profileTheme";
 
 const FONT = { display: "'Playfair Display', serif", body: "'DM Sans', sans-serif" };
 
 export default function About() {
   return (
-    <div style={{ fontFamily: FONT.body, background: "#f8fbff" }}>
+    <div style={{ fontFamily: FONT.body, background: C.bg }}>
 
       {/* 🔷 HERO */}
       <section style={{
@@ -39,17 +40,17 @@ export default function About() {
       {/* 🔷 ABOUT */}
       <section style={{ padding: "90px 20px", maxWidth: 1000, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 50 }}>
-          <h2 style={{ fontSize: 40, fontWeight: 700, color: "#0f2a5e", marginBottom: 20, letterSpacing: "-0.5px" }}>Who We Are</h2>
+          <h2 style={{ fontSize: 40, fontWeight: 700, color: C.textPrimary, marginBottom: 20, letterSpacing: "-0.5px" }}>Who We Are</h2>
           <div style={{ width: 80, height: 4, background: "linear-gradient(90deg, #1a87e1, #2ba3f5)", margin: "0 auto", borderRadius: 2 }} />
         </div>
 
-        <p style={{ color: "#5a7090", lineHeight: 1.85, fontSize: 16, marginBottom: 20 }}>
-          <strong style={{ color: "#1a87e1", fontSize: 17 }}>MediCareX</strong> is a modern healthcare platform designed to make
+        <p style={{ color: C.textSoft, lineHeight: 1.85, fontSize: 16, marginBottom: 20 }}>
+          <strong style={{ color: "var(--accent-blue)", fontSize: 17 }}>MediCareX</strong> is a modern healthcare platform designed to make
           medicine access simple, safe, and fast. We provide high-quality pharmaceutical
           products, wellness items, and healthcare essentials — all in one place.
         </p>
 
-        <p style={{ marginTop: 18, color: "#5a7090", lineHeight: 1.85, fontSize: 16 }}>
+        <p style={{ marginTop: 18, color: C.textSoft, lineHeight: 1.85, fontSize: 16 }}>
           Our goal is to combine technology with healthcare to give you a seamless
           pharmacy experience from ordering to delivery, ensuring your wellbeing is always our priority.
         </p>
@@ -86,7 +87,7 @@ export default function About() {
       {/* 🔷 WHY US */}
       <section style={{ padding: "90px 20px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ textAlign: "center", marginBottom: 60 }}>
-          <h2 style={{ fontSize: 40, fontWeight: 700, color: "#0f2a5e", marginBottom: 20, letterSpacing: "-0.5px" }}>
+          <h2 style={{ fontSize: 40, fontWeight: 700, color: C.textPrimary, marginBottom: 20, letterSpacing: "-0.5px" }}>
             Why Choose MediCareX?
           </h2>
           <div style={{ width: 80, height: 4, background: "linear-gradient(90deg, #1a87e1, #2ba3f5)", margin: "0 auto", borderRadius: 2 }} />
@@ -106,12 +107,12 @@ export default function About() {
 
       {/* 🔷 SERVICES */}
       <section style={{
-        background: "linear-gradient(135deg, #f5f9ff 0%, #eef5ff 100%)",
+        background: "linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)",
         padding: "90px 20px"
       }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 60 }}>
-            <h2 style={{ fontSize: 40, fontWeight: 700, color: "#0f2a5e", marginBottom: 20, letterSpacing: "-0.5px" }}>
+            <h2 style={{ fontSize: 40, fontWeight: 700, color: C.textPrimary, marginBottom: 20, letterSpacing: "-0.5px" }}>
               Our Services
             </h2>
             <div style={{ width: 80, height: 4, background: "linear-gradient(90deg, #1a87e1, #2ba3f5)", margin: "0 auto", borderRadius: 2 }} />
@@ -175,31 +176,31 @@ export default function About() {
 }
 
 const card = {
-  background: "#fff",
+  background: C.surface,
   padding: 22,
   borderRadius: 12,
   boxShadow: "0 4px 18px rgba(0,0,0,0.05)",
-  color: "#5a7090",
+  color: C.textSoft,
   lineHeight: 1.6
 };
 
 function MissionCard({ icon, title, desc }) {
   return (
     <div style={{
-      background: "#fff",
+      background: C.surface,
       padding: 30,
       borderRadius: 16,
-      border: "2px solid #e0eeff",
+      border: `2px solid ${C.border}`,
       transition: "all 0.3s ease",
       cursor: "pointer"
     }} 
     onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-8px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(26,135,225,0.15)"; }} 
     onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(0,0,0,0.05)"; }}>
-      <div style={{ marginBottom: 16, color: "#1a87e1" }}>
+      <div style={{ marginBottom: 16, color: "var(--accent-blue)" }}>
         {icon}
       </div>
-      <h3 style={{ fontSize: 22, fontWeight: 700, color: "#0f2a5e", marginBottom: 12 }}>{title}</h3>
-      <p style={{ color: "#5a7090", lineHeight: 1.8 }}>
+      <h3 style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary, marginBottom: 12 }}>{title}</h3>
+      <p style={{ color: C.textSoft, lineHeight: 1.8 }}>
         {desc}
       </p>
     </div>
@@ -209,20 +210,20 @@ function MissionCard({ icon, title, desc }) {
 function Feature({ icon, text, desc }) {
   return (
     <div style={{
-      background: "#fff",
+      background: C.surface,
       padding: 28,
       borderRadius: 16,
       textAlign: "center",
       boxShadow: "0 4px 16px rgba(0,0,0,0.05)",
-      border: "1px solid #e0eeff",
+      border: `1px solid ${C.border}`,
       transition: "all 0.3s ease",
       cursor: "pointer"
     }}
-    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(26,135,225,0.12)"; e.currentTarget.style.borderColor = "#1a87e1"; }}
-    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.05)"; e.currentTarget.style.borderColor = "#e0eeff"; }}>
-      <div style={{ marginBottom: 14, color: "#1a87e1" }}>{icon}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: "#0f2a5e", marginBottom: 8 }}>{text}</div>
-      <div style={{ fontSize: 13, color: "#7a8ba8", lineHeight: 1.6 }}>{desc}</div>
+    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(26,135,225,0.12)"; e.currentTarget.style.borderColor = "var(--accent-blue)"; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.05)"; e.currentTarget.style.borderColor = C.border; }}>
+      <div style={{ marginBottom: 14, color: "var(--accent-blue)" }}>{icon}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>{text}</div>
+      <div style={{ fontSize: 13, color: C.textSoft, lineHeight: 1.6 }}>{desc}</div>
     </div>
   );
 }
@@ -230,21 +231,21 @@ function Feature({ icon, text, desc }) {
 function ServiceCard({ icon, text }) {
   return (
     <div style={{
-      background: "#fff",
+      background: C.surface,
       padding: 26,
       borderRadius: 16,
       textAlign: "center",
       fontSize: 16,
       fontWeight: 600,
-      color: "#0f2a5e",
+      color: C.textPrimary,
       boxShadow: "0 4px 16px rgba(0,0,0,0.05)",
-      border: "1px solid #e0eeff",
+      border: `1px solid ${C.border}`,
       transition: "all 0.3s ease",
       cursor: "pointer"
     }}
-    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(26,135,225,0.12)"; e.currentTarget.style.borderColor = "#1a87e1"; e.currentTarget.style.background = "#f5f9ff"; }}
-    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.05)"; e.currentTarget.style.borderColor = "#e0eeff"; e.currentTarget.style.background = "#fff"; }}>
-      <div style={{ marginBottom: 12, color: "#1a87e1" }}>{icon}</div>
+    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-6px)"; e.currentTarget.style.boxShadow = "0 12px 32px rgba(26,135,225,0.12)"; e.currentTarget.style.borderColor = "var(--accent-blue)"; e.currentTarget.style.background = "var(--accent-blue-soft)"; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.05)"; e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.surface; }}>
+      <div style={{ marginBottom: 12, color: "var(--accent-blue)" }}>{icon}</div>
       {text}
     </div>
   );

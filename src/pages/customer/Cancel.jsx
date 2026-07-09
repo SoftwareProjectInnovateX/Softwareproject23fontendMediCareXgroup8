@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCartStore } from '../../stores/cartStore';
 import { XCircle, AlertCircle } from 'lucide-react';
+import { C, FONT } from '../../components/profile/profileTheme';
 
 const UI_CONFIG = {
     ICON_SIZE: 80,
@@ -41,8 +42,8 @@ const Cancel = () => {
         : UI_CONFIG.CHECKOUT_BASE_PATH;
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#f1f5f9', fontFamily: "'DM Sans', sans-serif" }}>
-            <main className="max-w-md w-full bg-white p-10 rounded-2xl border border-slate-200 text-center animate-in zoom-in duration-500" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+        <div className="min-h-screen flex items-center justify-center p-6" style={{ background: C.bg, fontFamily: FONT.body }}>
+            <main className="max-w-md w-full p-10 rounded-2xl border text-center animate-in zoom-in duration-500" style={{ background: C.surface, borderColor: C.border, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
                 <div className="flex justify-center mb-6 relative">
                     <div className="absolute inset-0 bg-red-100 rounded-full scale-150 blur-xl opacity-20"></div>
                     <XCircle 
@@ -52,15 +53,15 @@ const Cancel = () => {
                 </div>
 
                 <header>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-2 mt-4">Order Status</p>
-                    <h1 className="text-2xl font-black text-slate-900 mb-4 tracking-tight">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] mb-2 mt-4" style={{ color: C.textMuted }}>Order Status</p>
+                    <h1 className="text-2xl font-black mb-4 tracking-tight" style={{ color: C.textPrimary }}>
                         {ERROR_MESSAGES.PAYMENT_FAILED_TITLE}
                     </h1>
                 </header>
 
-                <div className="bg-red-50 p-4 rounded-2xl mb-8 flex gap-3 text-left">
+                <div className="p-4 rounded-2xl mb-8 flex gap-3 text-left" style={{ background: C.dangerBg, border: `1px solid ${C.dangerBorder}` }}>
                     <AlertCircle className="text-red-600 shrink-0" size={20} />
-                    <p className="text-red-800 text-sm leading-relaxed">
+                    <p className="text-sm leading-relaxed" style={{ color: C.dangerText }}>
                         {ERROR_MESSAGES.PAYMENT_FAILED_BODY}
                     </p>
                 </div>
@@ -74,7 +75,8 @@ const Cancel = () => {
 
                 <Link 
                     to="/customer" 
-                    className="flex items-center justify-center gap-2 w-full mt-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-[13px] rounded-xl text-[12px] uppercase tracking-wider transition-all"
+                    className="flex items-center justify-center gap-2 w-full mt-3 font-bold py-[13px] rounded-xl text-[12px] uppercase tracking-wider transition-all border border-solid"
+                    style={{ background: C.surface, borderColor: C.border, color: C.textPrimary }}
                 >
                     Back to Home
                 </Link>

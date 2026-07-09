@@ -40,14 +40,14 @@ export function getCategoryIcon(name = "") {
 }
 
 export const C = {
-  bg:          "#f1f5f9",
-  surface:     "#ffffff",
-  border:      "rgba(26,135,225,0.18)",
-  accent:      "#1a87e1",
-  accentDark:  "#0f2a5e",
-  textPrimary: "#1e293b",
-  textMuted:   "#64748b",
-  textSoft:    "#475569",
+  bg:          "var(--bg-primary)",
+  surface:     "var(--bg-secondary)",
+  border:      "var(--navbar-border)",
+  accent:      "var(--accent-blue)",
+  accentDark:  "var(--text-primary)",
+  textPrimary: "var(--text-primary)",
+  textMuted:   "var(--text-secondary)",
+  textSoft:    "var(--text-secondary)",
 };
 
 export const FONT = {

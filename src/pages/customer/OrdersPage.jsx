@@ -200,7 +200,7 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: '#f1f5f9', fontFamily: FONT.body }}>
+    <div className="min-h-screen" style={{ background: C.bg, fontFamily: FONT.body }}>
 
       <PageBanner
         title="My Orders & Prescriptions"
@@ -229,18 +229,18 @@ export default function OrdersPage() {
         {/* ── TOP SUMMARY STRIP ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: 'Cart Orders',        value: summary.totalOrders,          icon: ShoppingCart, color: '#2563eb', bg: '#eff6ff' },
-            { label: 'Prescriptions',      value: summary.totalPrescriptions,   icon: ClipboardList, color: '#7c3aed', bg: '#f5f3ff' },
-            { label: 'Pending Review',     value: summary.pendingPrescriptions, icon: Clock,        color: '#d97706', bg: '#fffbeb' },
-            { label: 'In Progress',        value: summary.activeOrders,         icon: Zap,          color: '#059669', bg: '#ecfdf5' },
+            { label: 'Cart Orders',        value: summary.totalOrders,          icon: ShoppingCart, color: 'var(--accent-blue)', bg: 'var(--accent-blue-soft)' },
+            { label: 'Prescriptions',      value: summary.totalPrescriptions,   icon: ClipboardList, color: '#7c3aed', bg: 'rgba(124,58,237,0.08)' },
+            { label: 'Pending Review',     value: summary.pendingPrescriptions, icon: Clock,        color: '#d97706', bg: 'rgba(217,119,6,0.08)' },
+            { label: 'In Progress',        value: summary.activeOrders,         icon: Zap,          color: '#059669', bg: 'rgba(5,150,105,0.08)' },
           ].map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} className="rounded-2xl p-5 flex items-center gap-4" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <div key={label} className="rounded-2xl p-5 flex items-center gap-4" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: bg }}>
                 <Icon size={18} color={color} />
               </div>
               <div>
-                <p className="text-2xl font-black" style={{ color: '#0f172a' }}>{value}</p>
-                <p className="text-[11px] font-semibold mt-0.5" style={{ color: '#94a3b8' }}>{label}</p>
+                <p className="text-2xl font-black" style={{ color: C.textPrimary }}>{value}</p>
+                <p className="text-[11px] font-semibold mt-0.5" style={{ color: C.textMuted }}>{label}</p>
               </div>
             </div>
           ))}
@@ -250,10 +250,10 @@ export default function OrdersPage() {
         <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
 
           {/* Hero card */}
-          <div className="rounded-2xl p-7" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-1">Dashboard</p>
-            <h2 className="text-2xl font-black text-slate-900 mb-2">Everything in one place</h2>
-            <p className="text-sm text-slate-500 leading-6 max-w-lg">
+          <div className="rounded-2xl p-7" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <p className="text-[10px] font-bold uppercase tracking-[0.3em] mb-1" style={{ color: C.textMuted }}>Dashboard</p>
+            <h2 className="text-2xl font-black mb-2" style={{ color: C.textPrimary }}>Everything in one place</h2>
+            <p className="text-sm leading-6 max-w-lg" style={{ color: C.textMuted }}>
               Browse active orders and prescription requests in separate sections so you can manage your cart and medical authorizations faster.
             </p>
 
@@ -264,10 +264,10 @@ export default function OrdersPage() {
                 { label: 'Pending review',         value: summary.pendingPrescriptions, sub: 'Awaiting approval' },
                 { label: 'In progress',            value: summary.activeOrders,         sub: 'Being prepared or shipped' },
               ].map(({ label, value, sub }) => (
-                <div key={label} className="rounded-xl p-4" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{label}</p>
-                  <p className="text-3xl font-black text-slate-900 mt-2">{value}</p>
-                  <p className="text-xs text-slate-500 mt-1">{sub}</p>
+                <div key={label} className="rounded-xl p-4" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: C.textMuted }}>{label}</p>
+                  <p className="text-3xl font-black mt-2" style={{ color: C.textPrimary }}>{value}</p>
+                  <p className="text-xs mt-1" style={{ color: C.textMuted }}>{sub}</p>
                 </div>
               ))}
             </div>
@@ -297,35 +297,35 @@ export default function OrdersPage() {
         </div>
 
         {/* ── AI INSIGHTS ── */}
-        <div className="rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, #f0f9ff, #eff6ff, #f0fdf4)', border: '1px solid #bfdbfe', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+        <div className="rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, var(--bg-primary), var(--bg-secondary))', border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
-              <Sparkles size={17} className="text-blue-600" />
+            <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center" style={{ background: 'var(--accent-blue-soft)' }}>
+              <Sparkles size={17} className="text-blue-600" style={{ color: 'var(--accent-blue)' }} />
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-500">AI Powered</p>
-              <h3 className="text-xl font-black text-slate-900">Order Intelligence</h3>
+              <h3 className="text-xl font-black" style={{ color: C.textPrimary }}>Order Intelligence</h3>
             </div>
           </div>
-          <p className="text-sm text-slate-500 mb-5 ml-12">Smart analysis of your ordering patterns and personalized recommendations.</p>
+          <p className="text-sm mb-5 ml-12" style={{ color: C.textMuted }}>Smart analysis of your ordering patterns and personalized recommendations.</p>
 
           {/* Metric cards */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
             {[
-              { label: 'Total Spending',  value: `Rs${summary.totalSpending.toLocaleString()}`, sub: 'Across all orders',  icon: TrendingUp, color: '#16a34a', bg: '#f0fdf4' },
-              { label: 'Avg Order',       value: `Rs${summary.avgOrderValue}`,                  sub: 'Per order value',    icon: Zap,        color: '#d97706', bg: '#fffbeb' },
-              { label: 'Frequency',       value: summary.orderFrequency,                        sub: 'Order pattern',      icon: Clock,      color: '#2563eb', bg: '#eff6ff' },
-              { label: 'Delivery ETA',    value: summary.deliveryPrediction,                    sub: 'For active orders',  icon: CheckCircle,color: '#16a34a', bg: '#f0fdf4' },
+              { label: 'Total Spending',  value: `Rs${summary.totalSpending.toLocaleString()}`, sub: 'Across all orders',  icon: TrendingUp, color: '#16a34a', bg: 'rgba(22,163,74,0.08)' },
+              { label: 'Avg Order',       value: `Rs${summary.avgOrderValue}`,                  sub: 'Per order value',    icon: Zap,        color: '#d97706', bg: 'rgba(217,119,6,0.08)' },
+              { label: 'Frequency',       value: summary.orderFrequency,                        sub: 'Order pattern',      icon: Clock,      color: 'var(--accent-blue)', bg: 'var(--accent-blue-soft)' },
+              { label: 'Delivery ETA',    value: summary.deliveryPrediction,                    sub: 'For active orders',  icon: CheckCircle,color: '#16a34a', bg: 'rgba(22,163,74,0.08)' },
             ].map(({ label, value, sub, icon: Icon, color, bg }) => (
-              <div key={label} className="rounded-xl p-4" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <div key={label} className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">{label}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: C.textMuted }}>{label}</p>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: bg }}>
                     <Icon size={13} color={color} />
                   </div>
                 </div>
-                <p className="text-lg font-black text-slate-900 leading-tight">{value}</p>
-                <p className="text-[11px] text-slate-400 mt-1">{sub}</p>
+                <p className="text-lg font-black leading-tight" style={{ color: C.textPrimary }}>{value}</p>
+                <p className="text-[11px] mt-1" style={{ color: C.textMuted }}>{sub}</p>
               </div>
             ))}
           </div>
@@ -334,38 +334,38 @@ export default function OrdersPage() {
           <div className="grid gap-3 lg:grid-cols-3">
 
             {/* Health trends */}
-            <div className="rounded-xl p-5" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+            <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.08)' }}>
                   <Heart size={13} className="text-red-500" />
                 </div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Health Trends</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: C.textMuted }}>Health Trends</p>
               </div>
               {summary.healthTrends.length > 0 ? (
                 <div className="space-y-2">
                   {summary.healthTrends.map((trend, idx) => (
-                    <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: '#f8fafc' }}>
-                      <p className="text-sm font-semibold text-slate-800">{trend.name}</p>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#fee2e2', color: '#b91c1c' }}>{trend.count}x</span>
+                    <div key={idx} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: C.bg }}>
+                      <p className="text-sm font-semibold" style={{ color: C.textPrimary }}>{trend.name}</p>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>{trend.count}x</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-slate-400">Upload prescriptions to track health trends.</p>
+                <p className="text-sm" style={{ color: C.textMuted }}>Upload prescriptions to track health trends.</p>
               )}
             </div>
 
             {/* Next order prediction */}
-            <div className="rounded-xl p-5" style={{ background: '#fff', border: '1px solid #e2e8f0' }}>
+            <div className="rounded-xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-yellow-50 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(234,179,8,0.08)' }}>
                   <Lightbulb size={13} className="text-yellow-500" />
                 </div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Next Order</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: C.textMuted }}>Next Order</p>
               </div>
-              <p className="text-base font-black text-slate-900 mb-3">{summary.nextOrderEstimate}</p>
+              <p className="text-base font-black mb-3" style={{ color: C.textPrimary }}>{summary.nextOrderEstimate}</p>
               {summary.savingsOpportunity > 0 && (
-                <div className="p-3 rounded-xl" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                <div className="p-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-green-700">💰 Save up to</p>
                   <p className="text-xl font-black text-green-700 mt-1">Rs{summary.savingsOpportunity}</p>
                   <p className="text-xs text-green-600 mt-0.5">with bulk orders</p>
@@ -383,22 +383,22 @@ export default function OrdersPage() {
           <div className="space-y-4">
 
             {/* Tab switcher */}
-            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <div className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Order hub</p>
-                  <h3 className="text-xl font-black text-slate-900 mt-0.5">Choose what to review</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: C.textMuted }}>Order hub</p>
+                  <h3 className="text-xl font-black mt-0.5" style={{ color: C.textPrimary }}>Choose what to review</h3>
                 </div>
-                <div className="flex gap-1.5 rounded-xl p-1" style={{ background: '#f1f5f9' }}>
+                <div className="flex gap-1.5 rounded-xl p-1" style={{ background: C.bg }}>
                   {[
                     { key: 'orders',        label: 'Cart Orders' },
                     { key: 'prescriptions', label: 'Prescriptions' },
                   ].map(({ key, label }) => (
                     <button key={key} onClick={() => setActiveTab(key)}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+                      className="px-4 py-2 rounded-lg text-sm font-semibold transition-all border-none cursor-pointer"
                       style={activeTab === key
-                        ? { background: '#0f172a', color: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }
-                        : { color: '#64748b' }
+                        ? { background: 'var(--accent-blue)', color: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }
+                        : { color: C.textMuted, background: 'transparent' }
                       }
                     >
                       {label}
@@ -406,31 +406,31 @@ export default function OrdersPage() {
                   ))}
                 </div>
               </div>
-              <p className="text-sm text-slate-400 mt-3">
+              <p className="text-sm mt-3" style={{ color: C.textMuted }}>
                 Use the tabs to focus on current cart orders or review prescription history without clutter.
               </p>
             </div>
 
             {/* Orders list */}
-            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <div className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               {activeTab === 'orders' ? (
                 <>
                   <div className="flex items-center justify-between mb-1">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Cart orders</p>
-                      <h4 className="text-xl font-black text-slate-900 mt-0.5">Your latest orders</h4>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: C.textMuted }}>Cart orders</p>
+                      <h4 className="text-xl font-black mt-0.5" style={{ color: C.textPrimary }}>Your latest orders</h4>
                     </div>
-                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider" style={{ background: '#f1f5f9', color: '#64748b' }}>
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider" style={{ background: C.bg, color: C.textMuted }}>
                       {visibleOrders.length} items
                     </span>
                   </div>
-                  <p className="text-sm text-slate-400 mb-5">Orders not tied to prescriptions are shown here.</p>
+                  <p className="text-sm mb-5" style={{ color: C.textMuted }}>Orders not tied to prescriptions are shown here.</p>
                   <div className="space-y-4">
                     {visibleOrders.length === 0 ? (
-                      <div className="rounded-xl p-10 text-center" style={{ background: '#f8fafc', border: '1px dashed #e2e8f0' }}>
+                      <div className="rounded-xl p-10 text-center" style={{ background: C.bg, border: `1px dashed ${C.border}` }}>
                         <ShoppingCart size={32} color="#cbd5e1" className="mx-auto mb-3" />
-                        <p className="text-sm font-bold text-slate-600">No cart orders yet</p>
-                        <p className="text-xs text-slate-400 mt-1">Place a new order and it will appear here.</p>
+                        <p className="text-sm font-bold" style={{ color: C.textPrimary }}>No cart orders yet</p>
+                        <p className="text-xs mt-1" style={{ color: C.textMuted }}>Place a new order and it will appear here.</p>
                       </div>
                     ) : visibleOrders.map((item) => (
                       <OrderCard key={item.id} order={item} />
@@ -441,20 +441,20 @@ export default function OrdersPage() {
                 <>
                   <div className="flex items-center justify-between mb-1">
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400">Prescriptions</p>
-                      <h4 className="text-xl font-black text-slate-900 mt-0.5">Prescription history</h4>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: C.textMuted }}>Prescriptions</p>
+                      <h4 className="text-xl font-black mt-0.5" style={{ color: C.textPrimary }}>Prescription history</h4>
                     </div>
-                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider" style={{ background: '#f1f5f9', color: '#64748b' }}>
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider" style={{ background: C.bg, color: C.textMuted }}>
                       {prescriptions.length} submitted
                     </span>
                   </div>
-                  <p className="text-sm text-slate-400 mb-5">Check uploads, approval status, and payment steps from one place.</p>
+                  <p className="text-sm mb-5" style={{ color: C.textMuted }}>Check uploads, approval status, and payment steps from one place.</p>
                   <div className="space-y-4">
                     {prescriptions.length === 0 ? (
-                      <div className="rounded-xl p-10 text-center" style={{ background: '#f8fafc', border: '1px dashed #e2e8f0' }}>
+                      <div className="rounded-xl p-10 text-center" style={{ background: C.bg, border: `1px dashed ${C.border}` }}>
                         <ClipboardList size={32} color="#cbd5e1" className="mx-auto mb-3" />
-                        <p className="text-sm font-bold text-slate-600">No prescriptions submitted</p>
-                        <p className="text-xs text-slate-400 mt-1">Upload a prescription to begin tracking it here.</p>
+                        <p className="text-sm font-bold" style={{ color: C.textPrimary }}>No prescriptions submitted</p>
+                        <p className="text-xs mt-1" style={{ color: C.textMuted }}>Upload a prescription to begin tracking it here.</p>
                       </div>
                     ) : prescriptions.map((item) => (
                       <OrderCard key={item.id} order={item} />
@@ -469,14 +469,14 @@ export default function OrdersPage() {
           <aside className="space-y-4 self-start lg:sticky lg:top-24">
 
             {/* Order progress */}
-            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-0.5">Summary</p>
-              <h3 className="text-lg font-black text-slate-900 mb-4">Order progress</h3>
+            <div className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] mb-0.5" style={{ color: C.textMuted }}>Summary</p>
+              <h3 className="text-lg font-black mb-4" style={{ color: C.textPrimary }}>Order progress</h3>
               <div className="space-y-2.5">
                 {[
-                  { label: 'Orders in progress',     value: summary.activeOrders,          color: '#2563eb', bg: '#eff6ff' },
-                  { label: 'Pending approval',        value: summary.pendingPrescriptions,  color: '#d97706', bg: '#fffbeb' },
-                  { label: 'Approved prescriptions',  value: summary.approvedPrescriptions, color: '#16a34a', bg: '#f0fdf4' },
+                  { label: 'Orders in progress',     value: summary.activeOrders,          color: 'var(--accent-blue)', bg: 'var(--accent-blue-soft)' },
+                  { label: 'Pending approval',        value: summary.pendingPrescriptions,  color: '#d97706', bg: 'rgba(217,119,6,0.08)' },
+                  { label: 'Approved prescriptions',  value: summary.approvedPrescriptions, color: '#16a34a', bg: 'rgba(22,163,74,0.08)' },
                 ].map(({ label, value, color, bg }) => (
                   <div key={label} className="flex items-center justify-between px-4 py-3 rounded-xl" style={{ background: bg }}>
                     <p className="text-xs font-semibold" style={{ color }}>{label}</p>
@@ -487,45 +487,46 @@ export default function OrdersPage() {
             </div>
 
             {/* Recent prescriptions */}
-            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <div className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Quick review</p>
-                  <h3 className="text-lg font-black text-slate-900 mt-0.5">Recent prescriptions</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: C.textMuted }}>Quick review</p>
+                  <h3 className="text-lg font-black mt-0.5" style={{ color: C.textPrimary }}>Recent prescriptions</h3>
                 </div>
                 <button onClick={() => setActiveTab('prescriptions')}
-                  className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 transition"
+                  className="text-[11px] font-semibold transition border-none cursor-pointer bg-transparent"
+                  style={{ color: C.textMuted }}
                 >
                   View all
                 </button>
               </div>
               <div className="space-y-2">
                 {prescriptions.slice(0, 3).map((item) => (
-                  <div key={item.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                    <p className="text-xs font-bold text-slate-800">#{item.id.slice(-6)}</p>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                  <div key={item.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+                    <p className="text-xs font-bold" style={{ color: C.textPrimary }}>#{item.id.slice(-6)}</p>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'var(--accent-blue-soft)', color: 'var(--accent-blue)' }}>
                       {item.orderStatus}
                     </span>
                   </div>
                 ))}
                 {prescriptions.length === 0 && (
-                  <p className="text-xs text-slate-400">No recent prescriptions. Upload one to track it here.</p>
+                  <p className="text-xs" style={{ color: C.textMuted }}>No recent prescriptions. Upload one to track it here.</p>
                 )}
               </div>
             </div>
 
             {/* Tips */}
-            <div className="rounded-2xl p-5" style={{ background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400 mb-0.5">Tips</p>
-              <h3 className="text-lg font-black text-slate-900 mb-4">Order smarter</h3>
+            <div className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] mb-0.5" style={{ color: C.textMuted }}>Tips</p>
+              <h3 className="text-lg font-black mb-4" style={{ color: C.textPrimary }}>Order smarter</h3>
               <ul className="space-y-3">
                 {[
                   'Keep your delivery details up to date for faster checkout.',
                   'Upload clear prescriptions so pharmacist review is faster.',
                   'Use status badges to know when payment or delivery is next.',
                 ].map((tip, i) => (
-                  <li key={i} className="flex gap-3 text-sm text-slate-500 leading-5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-800 flex-shrink-0 mt-1.5" />
+                  <li key={i} className="flex gap-3 text-sm leading-5" style={{ color: C.textMuted }}>
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ background: C.textPrimary }} />
                     {tip}
                   </li>
                 ))}

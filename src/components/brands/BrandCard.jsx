@@ -1,12 +1,12 @@
 import { Star, Package, Globe, ShieldCheck, Calendar } from "lucide-react";
 
 const C = {
-  surface: "#ffffff",
-  border: "rgba(148,163,184,0.18)",
-  accent: "#2563EB",
-  textPrimary: "#0F172A",
-  textMuted: "#64748B",
-  textSoft: "#475569",
+  surface: "var(--bg-secondary)",
+  border: "var(--navbar-border)",
+  accent: "var(--accent-blue)",
+  textPrimary: "var(--text-primary)",
+  textMuted: "var(--text-secondary)",
+  textSoft: "var(--text-secondary)",
 };
 
 export default function BrandCard({ brand }) {
@@ -55,14 +55,14 @@ export default function BrandCard({ brand }) {
             { icon: Calendar, value: brand.established },
             { icon: Globe, value: brand.country },
           ].map(({ icon: Icon, value }, i) => (
-            <div key={i} className="text-[10px] text-slate-500">
+            <div key={i} className="text-[10px]" style={{ color: C.textMuted }}>
               <Icon size={14} color={C.textMuted} className="mx-auto mb-1" />
               <p className="font-semibold">{value}</p>
             </div>
           ))}
         </div>
 
-        <p className="text-[13px] leading-5 text-slate-600 line-clamp-3">
+        <p className="text-[13px] leading-5 line-clamp-3" style={{ color: C.textSoft }}>
           {brand.description}
         </p>
       </div>
