@@ -194,7 +194,7 @@ export const resetSystemData = async () => {
 
 export async function getPendingBlog() {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(`http://localhost:5000/api/customer/blogs/admin/pending`, {
+  const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/admin/pending`, {
     headers: { ...authHeaders }
   });
   if (!res.ok) throw new Error(`Failed to fetch pending blog: ${res.statusText}`);
@@ -204,7 +204,7 @@ export async function getPendingBlog() {
 
 export async function approveBlog(id) {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(`http://localhost:5000/api/customer/blogs/admin/approve/${id}`, { 
+  const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/admin/approve/${id}`, { 
     method: 'POST',
     headers: { ...authHeaders }
   });
@@ -214,7 +214,7 @@ export async function approveBlog(id) {
 
 export async function rejectAndRegenerateBlog(id) {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(`http://localhost:5000/api/customer/blogs/admin/reject/${id}`, { 
+  const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/admin/reject/${id}`, { 
     method: 'POST',
     headers: { ...authHeaders }
   });
