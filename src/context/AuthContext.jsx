@@ -309,6 +309,17 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Reset password — sends a Firebase password reset email
+  const resetPassword = async (email) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { success: true };
+    } catch (error) {
+      console.error('Reset password error:', error.code, error.message);
+      throw error; // re-throw so callers can read error.code
+    }
+  };
+
   // Logout user
   const logout = async () => {
     try {
@@ -457,6 +468,7 @@ export function AuthProvider({ children }) {
     login,
     loginWithGoogle,
     logout,
+    resetPassword,
     getCurrentUserData,
     getSupplierProfile
   };
