@@ -122,7 +122,7 @@ const BlogDetail = () => {
     setHasLiked(true);
     setLikes(prev => prev + 1);
     try {
-      await fetch(`http://localhost:5000/api/customer/blogs/${id}/like`, { method: 'POST' });
+      await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/${id}/like`, { method: 'POST' });
     } catch (error) {
       console.error("Error liking blog", error);
     }
@@ -134,7 +134,7 @@ const BlogDetail = () => {
     setIsSubmitting(true);
     const userName = sessionStorage.getItem('userName') || 'Guest Reader';
     try {
-      const res = await fetch(`http://localhost:5000/api/customer/blogs/${id}/comments`, {
+      const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/${id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, text: newComment })
