@@ -4,6 +4,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Sparkles, Lightbulb, Target } from 'lucide-react';
 
+const API_BASE = 'https://backendg08innovatex-production.up.railway.app';
+
 const LoyaltyDashboard = () => {
   const [customers, setCustomers] = useState([]);
   const [analytics, setAnalytics] = useState({});
@@ -35,7 +37,7 @@ const LoyaltyDashboard = () => {
   const apiFetch = async (path) => {
     const token = await getToken();
     if (!token) throw new Error('Not authenticated');
-    const res = await fetch(path, {
+    const res = await fetch(`${API_BASE}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
