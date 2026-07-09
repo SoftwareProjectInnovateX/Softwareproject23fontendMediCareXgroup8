@@ -41,7 +41,7 @@ const BlogDetail = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:5000/api/customer/blogs/${id}`);
+        const response = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/${id}`);
         if (!response.ok) {
           setBlog(null);
           setLoading(false);
@@ -53,7 +53,7 @@ const BlogDetail = () => {
 
         // Fetch comments
         try {
-          const commentsRes = await fetch(`http://localhost:5000/api/customer/blogs/${id}/comments`);
+          const commentsRes = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/${id}/comments`);
           if (commentsRes.ok) {
             const commentsData = await commentsRes.json();
             setComments(commentsData);
@@ -61,7 +61,7 @@ const BlogDetail = () => {
         } catch(e) { console.error("Error fetching comments", e); }
 
         // Fetch related blogs
-        const latestResponse = await fetch(`http://localhost:5000/api/customer/blogs/latest`);
+        const latestResponse = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/latest`);
         if (latestResponse.ok) {
           const latestData = await latestResponse.json();
           if (Array.isArray(latestData)) {
