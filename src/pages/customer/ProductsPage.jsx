@@ -5,7 +5,7 @@ import ProductCard from '../../components/products/ProductCard';
 import { C, FONT } from '../../components/profile/profileTheme';
 import { Tag } from 'lucide-react';
 
-const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
 
 export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('all');

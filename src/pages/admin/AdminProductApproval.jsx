@@ -4,7 +4,7 @@ import PageLayout from '../../components/PageLayout';
 import ResponsiveTable from '../../components/ResponsiveTable';
 import { auth } from '../../services/firebase';
 
-const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
 
 const getAuthHeaders = async () => {
   const user = auth.currentUser;

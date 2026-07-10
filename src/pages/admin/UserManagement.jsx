@@ -15,7 +15,7 @@ import {
 import PageLayout from "../../components/PageLayout";
 import ResponsiveTable from "../../components/ResponsiveTable";
 
-const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
 
 // Generate a stable pastel color from a string (used for avatar backgrounds)
 const stringToColor = (str = "") => {

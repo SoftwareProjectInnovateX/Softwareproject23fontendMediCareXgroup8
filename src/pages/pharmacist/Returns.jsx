@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 
 // Base URL for all pharmacist return API calls
-const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api/pharmacist/returns`;
+const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/pharmacist/returns`;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {

@@ -598,7 +598,7 @@ export default function Orders() {
     setOrders(o => o.map(x => x.id === orderId ? { ...x, paymentStatus: "paid" } : x));
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api/customer-orders/${orderId}/settle-payment`,
+        `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/customer-orders/${orderId}/settle-payment`,
         { method: "PUT", headers: { "Content-Type": "application/json" } }
       );
       if (!res.ok) throw new Error(await res.text());

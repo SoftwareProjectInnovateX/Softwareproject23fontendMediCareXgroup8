@@ -21,7 +21,7 @@ import {
 } from "../../components/utils/constants";
 
 // Base URL for all API calls — falls back to localhost in development
-const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
 
 export default function CustomerProfilePage() {
   const navigate = useNavigate();
