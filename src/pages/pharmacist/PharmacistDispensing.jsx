@@ -8,7 +8,7 @@ import {
   MessageSquare, Tag
 } from "lucide-react";
 
-const API_BASE = "https://backendg08innovatex-production.up.railway.app/api";
+const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
 
 const C = {
   bg:          "#f8fafc",

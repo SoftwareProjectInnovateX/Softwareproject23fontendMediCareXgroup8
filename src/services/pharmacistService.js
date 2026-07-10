@@ -1,6 +1,6 @@
 import { getAuthHeaders } from './firebase';
 
-const API_BASE_URL = 'https://backendg08innovatex-production.up.railway.app/api/pharmacist';
+const API_BASE_URL = `${import.meta.env.VITE_API_URL_RAILWAY}/api/pharmacist`;
 
 const handleResponse = async (response) => {
   if (!response.ok) {
@@ -79,11 +79,12 @@ export const updatePatient = async (id, data) => {
 /* ================= PRESCRIPTIONS ================= */
 
 export const getPrescriptions = async () => {
-  return handleResponse(await fetch(`https://backendg08innovatex-production.up.railway.app/api/prescriptions`));
+  return handleResponse(await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/prescriptions`)
+);
 };
 
 export const addPrescription = async (data) => {
-  return handleResponse(await fetch(`https://backendg08innovatex-production.up.railway.app/api/prescriptions`, {
+  return handleResponse(await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/prescriptions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -91,7 +92,7 @@ export const addPrescription = async (data) => {
 };
 
 export const updatePrescription = async (id, data) => {
-  return handleResponse(await fetch(`https://backendg08innovatex-production.up.railway.app/api/prescriptions/${id}`, {
+  return handleResponse(await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/prescriptions/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -194,7 +195,7 @@ export const resetSystemData = async () => {
 
 export async function getPendingBlog() {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/admin/pending`, {
+  const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/customer/blogs/admin/pending`, {
     headers: { ...authHeaders }
   });
   if (!res.ok) throw new Error(`Failed to fetch pending blog: ${res.statusText}`);
@@ -204,7 +205,7 @@ export async function getPendingBlog() {
 
 export async function approveBlog(id) {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/admin/approve/${id}`, { 
+  const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/customer/blogs/admin/approve/${id}`, { 
     method: 'POST',
     headers: { ...authHeaders }
   });
@@ -214,7 +215,7 @@ export async function approveBlog(id) {
 
 export async function rejectAndRegenerateBlog(id) {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/customer/blogs/admin/reject/${id}`, { 
+  const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/customer/blogs/admin/reject/${id}`, { 
     method: 'POST',
     headers: { ...authHeaders }
   });

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-const PHARMACIST_API = "https://backendg08innovatex-production.up.railway.app/api/products";
+const PHARMACIST_API = `${import.meta.env.VITE_API_URL_RAILWAY}/api/products`;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = `

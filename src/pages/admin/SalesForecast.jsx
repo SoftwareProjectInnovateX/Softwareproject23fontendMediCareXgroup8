@@ -327,8 +327,13 @@ export default function SalesForecast() {
     setAiInsightError(null);
 
     try {
-      const res = await fetch(`https://backendg08innovatex-production.up.railway.app/api/forecast/insight/${selected.productId}`);
-      if (!res.ok) throw new Error(`Server error: HTTP ${res.status}`);
+            const res = await fetch(
+        `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api/forecast/insight/${selected.productId}`
+      );
+
+      if (!res.ok) {
+        throw new Error(`Server error: HTTP ${res.status}`);
+      }
 
       const json = await res.json();
       const text = json.insight ?? "";

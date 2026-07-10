@@ -3,7 +3,7 @@ import { Pill, Globe, Tag, CheckCircle, Search, Bot, Verified, Lightbulb, Extern
 import PageBanner from "../../components/profile/PageBanner";
 import BrandCard from "../../components/brands/BrandCard";
 
-const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app'}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
 
 const C = {
   bg: 'var(--bg-primary)',

@@ -7,7 +7,7 @@ import {
 import { C, FONT } from "../../components/profile/profileTheme";
 
 // Base URL for all API calls — falls back to localhost in development
-const API_BASE = `${import.meta.env.VITE_API_URL || 'https://backendg08innovatex-production.up.railway.app'}/api`;
+const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
 
 // Predefined return reasons shown in the per-item reason dropdown
 const RETURN_REASONS = [

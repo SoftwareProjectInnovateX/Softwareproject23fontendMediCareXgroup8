@@ -4,7 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Sparkles, Lightbulb, Target } from 'lucide-react';
 
-const API_BASE = 'https://backendg08innovatex-production.up.railway.app';
+const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
 
 const LoyaltyDashboard = () => {
   const [customers, setCustomers] = useState([]);

@@ -76,7 +76,7 @@ function UploadForm({ onUploaded, userId }) {
     if (userId) fd.append('userId', userId);
 
     try {
-      const res = await fetch('https://backendg08innovatex-production.up.railway.app/api/prescriptions/upload', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/prescriptions/upload`, {
         method: 'POST',
         body: fd,
       });

@@ -23,7 +23,7 @@ jest.mock('./ProductsPage', () => {
   const ProductCard                              = require('../../components/products/ProductCard').default;
 
   // Same fallback the real file uses when VITE_API_URL is not set
-  const API_BASE = 'https://backendg08innovatex-production.up.railway.app/api';
+  const API_BASE = `${import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL_RAILWAY}/api`;
 
   function ProductsPage() {
     const [selectedCategory, setSelectedCategory] = useState('all');

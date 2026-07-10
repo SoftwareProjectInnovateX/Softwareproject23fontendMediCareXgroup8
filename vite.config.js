@@ -8,7 +8,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'https://backendg08innovatex-production.up.railway.app/',
+        target: env.VITE_API_URL_RAILWAY,
         changeOrigin: true,
       },
     },
