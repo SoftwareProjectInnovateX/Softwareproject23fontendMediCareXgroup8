@@ -174,7 +174,7 @@ function VisibilitySelector({ value, onChange }) {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PHARMACIST_API = "http://localhost:5000/api/products";
+const PHARMACIST_API = `${import.meta.env.VITE_API_URL_RAILWAY}/api/products`;
 const MARKUP_RATE    = 1.2;
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ export default function AddProductForm() {
     if (!form.name) { showToast("Please enter a product name first.", "error"); return; }
     setAiLoading(true);
     try {
-      const res  = await fetch("http://localhost:5000/api/ai/describe", {
+      const res  = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/ai/describe`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ name: form.name, category: form.category || "medicine" }),
@@ -270,7 +270,7 @@ export default function AddProductForm() {
     if (!form.name) { showToast("Please enter a product name first.", "error"); return; }
     setImageLoading(true);
     try {
-      const res  = await fetch("http://localhost:5000/api/ai/generate-image", {
+      const res  = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/ai/generate-image`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ name: form.name, category: form.category }),

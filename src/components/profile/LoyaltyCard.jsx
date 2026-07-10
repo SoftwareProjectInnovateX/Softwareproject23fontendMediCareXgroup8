@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Star, Copy, CheckCircle, Gift, Zap, Trophy } from "lucide-react";
+import { Star, Copy, CheckCircle, Gift, Zap, Trophy, Award } from "lucide-react";
 import { C, FONT } from "./profileTheme";
 
 // Level thresholds — must match backend calculateLevel() in loyalty.service.ts
@@ -10,21 +10,21 @@ const LEVELS = {
     color: "#94A3B8",
     gradient: "linear-gradient(135deg, #CBD5E1 0%, #94A3B8 100%)",
     glow: "rgba(148,163,184,0.4)",
-    icon: "🥈",
+    icon: <Star size={14} color="#fff" />,
   },
   Gold: {
     min: 2000, max: 5000, next: "Platinum",
     color: "#F59E0B",
     gradient: "linear-gradient(135deg, #FDE68A 0%, #F59E0B 100%)",
     glow: "rgba(245,158,11,0.4)",
-    icon: "🥇",
+    icon: <Trophy size={14} color="#fff" />,
   },
   Platinum: {
     min: 5000, max: 5000, next: null,
     color: "#8B5CF6",
     gradient: "linear-gradient(135deg, #C4B5FD 0%, #7C3AED 100%)",
     glow: "rgba(139,92,246,0.4)",
-    icon: "💎",
+    icon: <Award size={14} color="#fff" />,
   },
 };
 
@@ -184,7 +184,9 @@ export default function LoyaltyCard({ user }) {
               <span style={{ fontSize: 11, fontWeight: 600, color: "#64748B" }}>
                 {ptsToNext > 0
                   ? <><strong style={{ color: lvl.color }}>{ptsToNext.toLocaleString()}</strong> pts to {lvl.next}</>
-                  : <span style={{ color: lvl.color }}>🎉 {lvl.next} unlocked!</span>
+                  : <span style={{ color: lvl.color, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle size={14} /> <span>{lvl.next} unlocked!</span>
+                    </span>
                 }
               </span>
             </div>

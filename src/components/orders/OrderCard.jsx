@@ -6,7 +6,7 @@ import {
   Truck, Receipt, Clock, ShoppingCart
 } from 'lucide-react';
 import { C, FONT } from '../profile/profileTheme';
-import { StatusBadge } from './orderStatusUtils';
+import { StatusBadge } from './Orderstatusutils';
 import Card from '../Card';
 
 // Renders a single customer order as a styled card.

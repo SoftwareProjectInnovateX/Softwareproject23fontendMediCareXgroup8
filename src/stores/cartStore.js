@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-const API = "http://localhost:5000/api/cart";
+const API = `${import.meta.env.VITE_API_URL_RAILWAY}/api/cart`;
 
 // ==============================
 // Reads Firebase UID from sessionStorage

@@ -19,7 +19,7 @@ import {
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
@@ -32,7 +32,7 @@ const db   = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const API_BASE   = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
+const API_BASE   = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
 const STAR_LABEL = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 
 function formatDate(iso) {

@@ -41,7 +41,7 @@ const BlogDetail = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:5000/api/customer/blogs/${id}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/customer/blogs/${id}`);
         if (!response.ok) {
           setBlog(null);
           setLoading(false);
@@ -53,7 +53,7 @@ const BlogDetail = () => {
 
         // Fetch comments
         try {
-          const commentsRes = await fetch(`http://localhost:5000/api/customer/blogs/${id}/comments`);
+          const commentsRes = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/customer/blogs/${id}/comments`);
           if (commentsRes.ok) {
             const commentsData = await commentsRes.json();
             setComments(commentsData);
@@ -61,7 +61,7 @@ const BlogDetail = () => {
         } catch(e) { console.error("Error fetching comments", e); }
 
         // Fetch related blogs
-        const latestResponse = await fetch(`http://localhost:5000/api/customer/blogs/latest`);
+        const latestResponse = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/customer/blogs/latest`);
         if (latestResponse.ok) {
           const latestData = await latestResponse.json();
           if (Array.isArray(latestData)) {
@@ -122,7 +122,7 @@ const BlogDetail = () => {
     setHasLiked(true);
     setLikes(prev => prev + 1);
     try {
-      await fetch(`http://localhost:5000/api/customer/blogs/${id}/like`, { method: 'POST' });
+      await fetch(`${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/customer/blogs/${id}/like`, { method: 'POST' });
     } catch (error) {
       console.error("Error liking blog", error);
     }
@@ -134,7 +134,7 @@ const BlogDetail = () => {
     setIsSubmitting(true);
     const userName = sessionStorage.getItem('userName') || 'Guest Reader';
     try {
-      const res = await fetch(`http://localhost:5000/api/customer/blogs/${id}/comments`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/customer/blogs/${id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, text: newComment })

@@ -4,6 +4,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { Sparkles, Lightbulb, Target } from 'lucide-react';
 
+const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
+
 const LoyaltyDashboard = () => {
   const [customers, setCustomers] = useState([]);
   const [analytics, setAnalytics] = useState({});
@@ -35,7 +37,7 @@ const LoyaltyDashboard = () => {
   const apiFetch = async (path) => {
     const token = await getToken();
     if (!token) throw new Error('Not authenticated');
-    const res = await fetch(path, {
+    const res = await fetch(`${API_BASE}${path}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) {
@@ -56,9 +58,9 @@ const LoyaltyDashboard = () => {
       try {
         setLoading(true);
         const [analyticsData, customersData, campaignData] = await Promise.allSettled([
-          apiFetch('/api/loyalty/analytics'),
-          apiFetch('/api/loyalty/top-customers'),
-          apiFetch('/api/loyalty/campaign-ideas'),
+          apiFetch('/loyalty/analytics'),
+          apiFetch('/loyalty/top-customers'),
+          apiFetch('/loyalty/campaign-ideas'),
         ]);
 
         if (analyticsData.status === 'fulfilled') setAnalytics(analyticsData.value);
@@ -84,7 +86,7 @@ const LoyaltyDashboard = () => {
   const generatePersonalizedOffers = async (customerUid) => {
     setLoadingAI(true);
     try {
-      const data = await apiFetch(`/api/loyalty/customer/${customerUid}/offers`);
+      const data = await apiFetch(`/loyalty/customer/${customerUid}/offers`);
       setPersonalizedOffers(data.offers || []);
     } catch (error) {
       console.error('Error generating offers:', error);
@@ -96,7 +98,7 @@ const LoyaltyDashboard = () => {
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
     try {
-      const customer = await apiFetch(`/api/loyalty/customer/${searchTerm}`);
+      const customer = await apiFetch(`/loyalty/customer/${searchTerm}`);
       setSelectedCustomer(customer);
     } catch (error) {
       console.error('Error searching customer:', error);

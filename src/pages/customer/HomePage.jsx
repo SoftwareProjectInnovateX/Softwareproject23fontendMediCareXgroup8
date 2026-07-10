@@ -29,7 +29,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchBlogs = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/customer/blogs/latest`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/customer/blogs/latest`);
         if (!response.ok) throw new Error(`Server error: ${response.status}`);
         const data = await response.json();
         setBlogPosts(Array.isArray(data) ? data : []);

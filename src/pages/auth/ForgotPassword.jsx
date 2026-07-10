@@ -43,6 +43,7 @@ const ForgotPassword = () => {
       console.log('resetPassword success!');
       setEmailSent(true);
     } catch (error) {
+      console.error('Reset password error:', error.code, error.message, error);
       switch (error.code) {
         case 'auth/user-not-found':
           setError('This email is not registered');

@@ -9,7 +9,7 @@ import { C, FONT, inputStyle }                        from '../../components/pro
 import { SectionCard, SectionLabel, Field,
          SuccessBanner }                              from '../../components/profile/ProfileUI';
 import PageBanner from '../../components/profile/PageBanner';
-import { StatusBadge, getStatusColor } from '../../components/orders/orderStatusUtils';
+import { StatusBadge, getStatusColor } from '../../components/orders/Orderstatusutils';
 import Card                                           from '../../components/Card';
 
 // ── Drop zone ─────────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ function UploadForm({ onUploaded, userId }) {
     if (userId) fd.append('userId', userId);
 
     try {
-      const res = await fetch('http://localhost:5000/api/prescriptions/upload', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/prescriptions/upload`, {
         method: 'POST',
         body: fd,
       });

@@ -50,7 +50,7 @@ Before running the app, make sure you have:
 Create or update a `.env` file in the `frontend` folder with the following variables:
 
 ```env
-VITE_API_URL=http://localhost:5000
+VITE_API_URL_RAILWAY=https://backendg08innovatex-production.up.railway.app/
 VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=
 VITE_FIREBASE_PROJECT_ID=

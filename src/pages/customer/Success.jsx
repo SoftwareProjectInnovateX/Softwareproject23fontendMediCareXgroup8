@@ -46,7 +46,7 @@ const Success = () => {
                 return;
             }
             try {
-                const res = await fetch(`http://localhost:5000/api/customer-orders/details/${urlOrderId}`);
+                const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/customer-orders/details/${urlOrderId}`);
                 if (res.ok) {
                     const data = await res.json();
                     if (data) {

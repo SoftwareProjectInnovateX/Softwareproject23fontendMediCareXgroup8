@@ -327,9 +327,13 @@ export default function SalesForecast() {
     setAiInsightError(null);
 
     try {
-      const res = await fetch(`/api/forecast/insight/${selected.productId}`);
+            const res = await fetch(
+        `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/forecast/insight/${selected.productId}`
+      );
 
-      if (!res.ok) throw new Error(`Server error: HTTP ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`Server error: HTTP ${res.status}`);
+      }
 
       const json = await res.json();
       const text = json.insight ?? "";

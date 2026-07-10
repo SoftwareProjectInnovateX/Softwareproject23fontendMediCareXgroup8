@@ -23,13 +23,22 @@ export default function NewArrivals() {
     const q = query(
       collection(db, "pharmacistProducts"),
       where("tags", "array-contains", "newArrival"),
-      where("deleted", "==", false)
+     // where("deleted", "==", false)
+     
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        
+        setProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      (error) => {
+        console.error("NewArrivals fetch error:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsub();
   }, []);

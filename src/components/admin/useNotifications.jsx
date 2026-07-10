@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
 // API_BASE owns the /api prefix — individual paths must NOT repeat it.
-// .env: VITE_API_URL=http://localhost:5000
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api`;
 
+const RAW_API_URL = import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000';
+const API_BASE = `${RAW_API_URL.replace(/\/$/, '')}/api`;
 const apiFetch = async (url, options = {}) => {
   const res = await fetch(`${API_BASE}${url}`, options);
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
