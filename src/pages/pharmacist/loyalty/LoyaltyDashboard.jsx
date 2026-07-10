@@ -58,9 +58,9 @@ const LoyaltyDashboard = () => {
       try {
         setLoading(true);
         const [analyticsData, customersData, campaignData] = await Promise.allSettled([
-          apiFetch('/api/loyalty/analytics'),
-          apiFetch('/api/loyalty/top-customers'),
-          apiFetch('/api/loyalty/campaign-ideas'),
+          apiFetch('/loyalty/analytics'),
+          apiFetch('/loyalty/top-customers'),
+          apiFetch('/loyalty/campaign-ideas'),
         ]);
 
         if (analyticsData.status === 'fulfilled') setAnalytics(analyticsData.value);
@@ -86,7 +86,7 @@ const LoyaltyDashboard = () => {
   const generatePersonalizedOffers = async (customerUid) => {
     setLoadingAI(true);
     try {
-      const data = await apiFetch(`/api/loyalty/customer/${customerUid}/offers`);
+      const data = await apiFetch(`/loyalty/customer/${customerUid}/offers`);
       setPersonalizedOffers(data.offers || []);
     } catch (error) {
       console.error('Error generating offers:', error);
@@ -98,7 +98,7 @@ const LoyaltyDashboard = () => {
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
     try {
-      const customer = await apiFetch(`/api/loyalty/customer/${searchTerm}`);
+      const customer = await apiFetch(`/loyalty/customer/${searchTerm}`);
       setSelectedCustomer(customer);
     } catch (error) {
       console.error('Error searching customer:', error);
