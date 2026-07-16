@@ -21,8 +21,13 @@ export const OrderTable = ({ loading, orders, onView }) => {
         <tbody>
           {orders.map((order) => (
             <tr key={order.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors duration-150">
-              <td className="px-4 py-4 font-mono font-semibold text-blue-600 text-sm">
-                {order.poId || order.productId}
+              <td className="px-4 py-4">
+                <p className="font-mono font-semibold text-blue-600 text-sm m-0">
+                  {order.productCode || order.poId || order.productId}
+                </p>
+                <p className="text-[11px] text-slate-400 font-mono mt-0.5 m-0">
+                  {order.poId || order.productId}
+                </p>
               </td>
               <td className="px-4 py-4">
                 <p className="font-semibold text-slate-800 text-sm m-0">{order.productName || order.product}</p>
