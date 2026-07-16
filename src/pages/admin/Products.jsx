@@ -176,6 +176,7 @@ export default function Products() {
         poId,
         product:              selectedProduct.productName,
         productId:            selectedProduct.productId,
+        productCode:          selectedProduct.productCode || null,
         adminProductId:       selectedProduct.id,
         category:             selectedProduct.category,
         quantity:             qty,
@@ -212,6 +213,7 @@ export default function Products() {
         poId,
         adminProductId: selectedProduct.id,
         productId:      selectedProduct.productId,
+        productCode:    selectedProduct.productCode || null,
         productName:    selectedProduct.productName,
         quantity:       qty,
         totalAmount,
@@ -461,6 +463,7 @@ export default function Products() {
               <div className="bg-slate-50 rounded-lg border border-slate-100 overflow-hidden mb-4">
                 {[
                   { label: "Product",            value: selectedProduct.productName },
+                  { label: "Product code",       value: selectedProduct.productCode || "—" },
                   { label: "Supplier",           value: selectedProduct.supplierName },
                   { label: "Admin stock",        value: `${selectedProduct.stock} units` },
                   { label: "Supplier remaining", value: `${selectedProduct.minStock ?? 0} units` },

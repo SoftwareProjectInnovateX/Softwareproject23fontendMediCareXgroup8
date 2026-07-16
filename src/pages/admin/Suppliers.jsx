@@ -7,6 +7,87 @@ import PageLayout from "../../components/PageLayout";
 
 const SUPPLIERS_PER_PAGE = 6;
 
+// Builds a Daraz-style page list with ellipses, e.g. [1,2,3,4,5,'dots-right',12]
+const getPageNumbers = (current, total) => {
+  const pages = [];
+  const siblings = 1;
+  const shouldShowLeftDots = current - siblings > 2;
+  const shouldShowRightDots = current + siblings < total - 1;
+
+  pages.push(1);
+
+  if (shouldShowLeftDots) pages.push('dots-left');
+
+  for (
+    let i = Math.max(2, current - siblings);
+    i <= Math.min(total - 1, current + siblings);
+    i++
+  ) {
+    pages.push(i);
+  }
+
+  if (shouldShowRightDots) pages.push('dots-right');
+
+  if (total > 1) pages.push(total);
+
+  return pages;
+};
+
+// Pagination bar — numbered pages with prev/next arrows, matches app's blue/white theme
+const Pagination = ({ page, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  const pageNumbers = getPageNumbers(page, totalPages);
+
+  return (
+    <div className="flex items-center justify-center gap-2 flex-wrap">
+      <button
+        onClick={() => onPageChange(Math.max(1, page - 1))}
+        disabled={page === 1}
+        className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500
+                   hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed
+                   disabled:hover:bg-white transition-colors"
+        aria-label="Previous page"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+        </svg>
+      </button>
+
+      {pageNumbers.map((p, i) =>
+        typeof p === 'number' ? (
+          <button
+            key={p}
+            onClick={() => onPageChange(p)}
+            className={`h-9 min-w-9 px-2.5 flex items-center justify-center rounded-lg text-sm font-semibold border transition-colors
+              ${p === page
+                ? 'bg-blue-600 border-blue-600 text-white'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+          >
+            {p}
+          </button>
+        ) : (
+          <span key={p + i} className="h-9 w-9 flex items-center justify-center text-slate-400 text-sm select-none">
+            …
+          </span>
+        )
+      )}
+
+      <button
+        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+        disabled={page === totalPages}
+        className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500
+                   hover:bg-slate-50 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed
+                   disabled:hover:bg-white transition-colors"
+        aria-label="Next page"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+      </button>
+    </div>
+  );
+};
+
 export default function Suppliers() {
   const [suppliers, setSuppliers]               = useState([]);
   const [orders, setOrders]                     = useState([]);       // purchase orders for the selected supplier
@@ -14,7 +95,7 @@ export default function Suppliers() {
   const [loading, setLoading]                   = useState(true);
   const [selectedSupplier, setSelectedSupplier] = useState(null);     // null = list view, object = detail view
   const [adminRating, setAdminRating]           = useState(0);        // current rating for the selected supplier
-  const [currentPage, setCurrentPage]           = useState(0);        // pagination index for the supplier grid
+  const [currentPage, setCurrentPage]           = useState(1);        // pagination index for the supplier grid (1-based)
 
   // Fetch all suppliers from Firestore on mount; filtering is done client-side
   useEffect(() => {
@@ -93,18 +174,15 @@ export default function Suppliers() {
   // Reset to the first page whenever the search term changes, so a new
   // search never lands the user on a page that's now out of range
   useEffect(() => {
-    setCurrentPage(0);
+    setCurrentPage(1);
   }, [search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSuppliers.length / SUPPLIERS_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages - 1);
+  const safePage = Math.min(currentPage, totalPages);
   const paginatedSuppliers = filteredSuppliers.slice(
-    safePage * SUPPLIERS_PER_PAGE,
-    safePage * SUPPLIERS_PER_PAGE + SUPPLIERS_PER_PAGE
+    (safePage - 1) * SUPPLIERS_PER_PAGE,
+    (safePage - 1) * SUPPLIERS_PER_PAGE + SUPPLIERS_PER_PAGE
   );
-
-  const goToPrevPage = () => setCurrentPage((p) => Math.max(0, p - 1));
-  const goToNextPage = () => setCurrentPage((p) => Math.min(totalPages - 1, p + 1));
 
   // Loading state — shown while initial supplier fetch is in progress
   if (loading)
@@ -165,34 +243,14 @@ export default function Suppliers() {
 
             {/* Pagination controls */}
             {totalPages > 1 && (
-              <div className="flex justify-between items-center mt-8 pt-6 border-t border-slate-200">
+              <div className="flex flex-col items-center gap-3 mt-8 pt-6 border-t border-slate-200">
                 <p className="text-sm text-slate-500">
-                  Showing {safePage * SUPPLIERS_PER_PAGE + 1}
-                  –{Math.min(safePage * SUPPLIERS_PER_PAGE + SUPPLIERS_PER_PAGE, filteredSuppliers.length)}
+                  Showing {(safePage - 1) * SUPPLIERS_PER_PAGE + 1}
+                  –{Math.min((safePage - 1) * SUPPLIERS_PER_PAGE + SUPPLIERS_PER_PAGE, filteredSuppliers.length)}
                   {" "}of {filteredSuppliers.length} suppliers
                 </p>
 
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={goToPrevPage}
-                    disabled={safePage === 0}
-                    className="px-4 py-2 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 transition-all duration-200 hover:border-indigo-500 hover:text-indigo-500 disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-600 disabled:cursor-not-allowed"
-                  >
-                    &lt;&lt;
-                  </button>
-
-                  <span className="text-sm font-medium text-slate-500">
-                    Page {safePage + 1} of {totalPages}
-                  </span>
-
-                  <button
-                    onClick={goToNextPage}
-                    disabled={safePage >= totalPages - 1}
-                    className="px-4 py-2 rounded-xl bg-indigo-500 text-white text-sm font-semibold transition-all duration-200 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-indigo-500 disabled:cursor-not-allowed"
-                  >
-                    &gt;&gt;
-                  </button>
-                </div>
+                <Pagination page={safePage} totalPages={totalPages} onPageChange={setCurrentPage} />
               </div>
             )}
           </>
