@@ -12,6 +12,22 @@ import CompletedDeliveryCard from '../../components/CompletedDeliveryCard';
 const STATUS_FLOW  = ['APPROVED', 'PACKED', 'IN DELIVERY', 'DELIVERED'];
 const ALL_STATUSES = [...STATUS_FLOW, 'COMPLETED'];
 
+const COURIERS = [
+  { id: 'citypak', name: 'Citypak',       trackUrl: (tn) => `https://track.citypak.lk/?awb=${tn}` },
+  { id: 'domex',   name: 'Domex Express', trackUrl: (tn) => `https://domex.lk/track?ref=${tn}` },
+  { id: 'other',   name: 'Other / Manual', trackUrl: null },
+];
+
+/* ── Backend API helper (same pattern as useNotifications.js) ── */
+const RAW_API_URL = import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000';
+const API_BASE = `${RAW_API_URL.replace(/\/$/, '')}/api`;
+const apiFetch = async (url, options = {}) => {
+  const res = await fetch(`${API_BASE}${url}`, options);
+  const data = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
+  if (!res.ok) throw new Error(data?.message || 'Request failed');
+  return data;
+};
+
 const formatDateOnly = (ts) => {
   if (!ts) return '—';
   try {
@@ -62,6 +78,8 @@ const Toast = ({ toasts, onDismiss }) => {
 /* ── Tracking Number Modal (replaces window.prompt) ── */
 const TrackingModal = ({ onConfirm, onCancel }) => {
   const [value, setValue] = useState('');
+  const [courierId, setCourierId] = useState(COURIERS[0].id);
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 p-6 mx-4">
@@ -76,12 +94,25 @@ const TrackingModal = ({ onConfirm, onCancel }) => {
             <p className="text-xs text-slate-500 mt-0.5">Required before marking as In Delivery</p>
           </div>
         </div>
+
+        <label className="block text-xs font-medium text-slate-500 mb-1.5">Courier</label>
+        <select
+          value={courierId}
+          onChange={(e) => setCourierId(e.target.value)}
+          className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 mb-4"
+        >
+          {COURIERS.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+
+        <label className="block text-xs font-medium text-slate-500 mb-1.5">Tracking Number</label>
         <input
           autoFocus
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && value.trim()) onConfirm(value.trim()); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && value.trim()) onConfirm(value.trim(), courierId); }}
           placeholder="e.g. TRK-20240101-001"
           className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 mb-4"
         />
@@ -94,7 +125,7 @@ const TrackingModal = ({ onConfirm, onCancel }) => {
           </button>
           <button
             disabled={!value.trim()}
-            onClick={() => value.trim() && onConfirm(value.trim())}
+            onClick={() => value.trim() && onConfirm(value.trim(), courierId)}
             className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             Confirm
@@ -197,17 +228,45 @@ const UpdateDelivery = () => {
     return () => unsub();
   }, [supplierId]);
 
-  const updateDeliveryStatus = async (deliveryId, newStatus, trackingNumber = '') => {
+  const updateDeliveryStatus = async (deliveryId, newStatus, trackingNumber = '', courierId = '') => {
     try {
       setUpdatingId(deliveryId);
       const payload = { status: newStatus, updatedAt: new Date() };
 
+      const courier = COURIERS.find((c) => c.id === courierId);
+      const trackingUrl = (courier && courier.trackUrl && trackingNumber)
+        ? courier.trackUrl(trackingNumber)
+        : '';
+
       if (trackingNumber)              payload.trackingNumber = trackingNumber;
+      if (courierId)                   payload.courierId      = courierId;
+      if (trackingUrl)                 payload.trackingUrl    = trackingUrl;
       if (newStatus === 'PACKED')      payload.packedAt       = new Date();
       if (newStatus === 'IN DELIVERY') payload.shippedAt      = new Date();
       if (newStatus === 'DELIVERED')   payload.deliveredAt    = new Date();
 
       await updateDoc(doc(db, 'purchaseOrders', deliveryId), payload);
+
+      if (newStatus === 'IN DELIVERY' && trackingNumber) {
+        const delivery = deliveries.find((d) => d.id === deliveryId);
+        try {
+          await apiFetch('/notifications/order-shipped', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId: deliveryId,
+              poId: delivery?.poId,
+              supplierName: delivery?.supplierName,
+              courier: courier?.name || courierId,
+              trackingNumber,
+              trackingUrl,
+            }),
+          });
+        } catch (notifErr) {
+          addToast('Status updated, but failed to notify admin: ' + notifErr.message, 'warning');
+        }
+      }
+
       addToast(`Status updated to ${newStatus}`, 'success');
     } catch (err) {
       addToast('Failed to update delivery: ' + err.message, 'error');
@@ -245,8 +304,8 @@ const UpdateDelivery = () => {
 
       {trackingModal && (
         <TrackingModal
-          onConfirm={(tn) => {
-            updateDeliveryStatus(trackingModal.delivery.id, trackingModal.newStatus, tn);
+          onConfirm={(tn, courierId) => {
+            updateDeliveryStatus(trackingModal.delivery.id, trackingModal.newStatus, tn, courierId);
             setTrackingModal(null);
           }}
           onCancel={() => setTrackingModal(null)}
