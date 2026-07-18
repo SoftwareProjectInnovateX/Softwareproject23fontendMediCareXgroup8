@@ -94,9 +94,9 @@ export default function ResponsiveTable({
             <div key={row[keyField] ?? idx} className="p-4">
               {/* Title + badge */}
               <div className="flex items-start justify-between gap-2 mb-2">
-                <p className="font-semibold text-slate-800 text-sm flex-1 truncate">
+                <div className="font-semibold text-slate-800 text-sm flex-1 truncate">
                   {renderCell(columns.find((c) => c.key === titleKey) || columns[0], row)}
-                </p>
+                </div>
                 {cardBadge && (
                   <div className="shrink-0">
                     {renderCell(columns.find((c) => c.key === cardBadge), row)}
