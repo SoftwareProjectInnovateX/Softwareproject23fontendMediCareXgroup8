@@ -30,6 +30,19 @@ export const NotificationCard = ({ notification, onClick, onMarkRead }) => {
             {notification.quantity && ` • Qty: ${notification.quantity}`}
           </p>
         )}
+        {notification.type === 'ORDER_SHIPPED' && notification.trackingNumber && (
+          <p className="text-[13px] text-slate-500 mt-1 m-0 flex items-center gap-1.5 flex-wrap">
+            <span>
+              {notification.courier ? `${notification.courier} • ` : ''}
+              Tracking: <span className="font-semibold text-slate-700">{notification.trackingNumber}</span>
+            </span>
+            {notification.trackingUrl && (
+              <a href={notification.trackingUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-600 font-medium hover:underline">
+                Track →
+              </a>
+            )}
+          </p>
+        )}
       </div>
 
       {unread && (
