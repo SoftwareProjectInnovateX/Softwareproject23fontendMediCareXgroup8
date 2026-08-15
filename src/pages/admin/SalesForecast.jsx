@@ -265,7 +265,7 @@ export default function SalesForecast() {
         );
 
         const [productsSnap, ordersSnap] = await Promise.all([
-          getDocs(collection(db, "adminProducts")),
+          getDocs(collection(db, "products")),
           getDocs(
             query(
               collection(db, "CustomerOrders"),
@@ -362,7 +362,7 @@ export default function SalesForecast() {
       <p className="text-red-600 font-semibold text-sm mb-1">Failed to load forecast</p>
       <p className="text-red-500 text-xs">{error}</p>
       <p className="text-slate-500 text-xs mt-2">
-        Ensure Firestore rules allow reads on <code className="font-mono">adminProducts</code> and{" "}
+        Ensure Firestore rules allow reads on <code className="font-mono">products</code> and{" "}
         <code className="font-mono">CustomerOrders</code>.
       </p>
     </div>
