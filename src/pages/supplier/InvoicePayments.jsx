@@ -9,6 +9,7 @@ import {
   MdCheckCircle, MdHourglassEmpty,
   MdWarning, MdVisibility, MdDownload,
   MdLocalShipping, MdClose, MdError, MdInfo,
+  MdChevronLeft, MdChevronRight,
 } from 'react-icons/md';
 import Card from '../../components/Card';
 
@@ -60,6 +61,10 @@ const InvoicePayments = () => {
   const [paymentMethod, setPaymentMethod]       = useState('Bank Transfer');
   const [paymentNote, setPaymentNote]           = useState('');
   const [messages, setMessages]                 = useState([]);
+
+  /* ── Pagination ── */
+  const ITEMS_PER_PAGE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
 
   const showToast = (message, type = 'info') => {
     const id = Date.now() + Math.random();
@@ -117,6 +122,9 @@ const InvoicePayments = () => {
   };
 
   useEffect(() => { fetchInvoices(); }, [filterStatus, supplierId]);
+
+  /* Reset to page 1 whenever the filter changes or the invoice list is refreshed */
+  useEffect(() => { setCurrentPage(1); }, [filterStatus, invoices.length]);
 
   const recordPayment = async () => {
     if (!selectedInvoice || !paymentAmount) { showToast('Please enter payment amount', 'warning'); return; }
@@ -257,6 +265,19 @@ const InvoicePayments = () => {
     }
   };
 
+  /* ── Pagination derived values (last 10 payments per page) ── */
+  const totalPages = Math.max(1, Math.ceil(invoices.length / ITEMS_PER_PAGE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedInvoices = invoices.slice(
+    (safeCurrentPage - 1) * ITEMS_PER_PAGE,
+    safeCurrentPage * ITEMS_PER_PAGE
+  );
+
+  const goToPage = (page) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  };
+
   return (
     <div className="p-6 bg-slate-100 min-h-screen">
       <MessageCard messages={messages} removeMessage={removeMessage} />
@@ -317,77 +338,119 @@ const InvoicePayments = () => {
             <p className="text-[13px] text-slate-400">Invoices will appear here once generated</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[900px]">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  {['Invoice #', 'Product', 'Order ID', 'Type', 'Invoice Date', 'Due Date', 'Amount', 'Status', 'Delivery', 'Actions'].map((h) => (
-                    <th key={h} className="px-5 py-3.5 text-left text-[11.5px] font-bold text-slate-400 uppercase tracking-widest">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {invoices.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-blue-50/30 transition-colors duration-150 group">
-                    <td className="px-5 py-4">
-                      <span className="text-[13.5px] font-bold text-blue-600">{invoice.invoiceNumber}</span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <p className="text-[13.5px] font-semibold text-slate-800 leading-snug">
-                        {invoice.productName || invoice.items?.[0]?.productName || invoice.items?.[0]?.name || '—'}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="text-[13px] text-slate-500 font-mono">{invoice.orderId}</span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex px-2.5 py-1 rounded-lg text-[11.5px] font-bold ${getInvoiceTypeBadge(invoice.invoiceType)}`}>
-                        {invoice.invoiceLabel || invoice.invoiceType || '—'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-[13px] text-slate-500">{invoice.invoiceDate}</td>
-                    <td className="px-5 py-4 text-[13px] text-slate-500">{invoice.dueDate}</td>
-                    <td className="px-5 py-4">
-                      <span className="text-[13.5px] font-bold text-slate-800">Rs.{Number(invoice.totalAmount).toFixed(2)}</span>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-semibold ${getStatusBadge(invoice.paymentStatus)}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(invoice.paymentStatus)}`} />
-                        {invoice.paymentStatus}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      {invoice.invoiceType === 'INITIAL' ? (
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-semibold
-                          ${invoice.paymentStatus === 'Paid'
-                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
-                            : 'bg-slate-100 text-slate-500'}`}>
-                          <MdLocalShipping size={13} />
-                          {invoice.paymentStatus === 'Paid' ? 'Unlocked' : 'Locked'}
-                        </span>
-                      ) : <span className="text-[12px] text-slate-400">—</span>}
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button
-                          title="View Details"
-                          onClick={() => setSelectedInvoice(invoice)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 transition-all duration-200 cursor-pointer"
-                        ><MdVisibility size={15} /></button>
-                        <button
-                          title="Download PDF"
-                          onClick={() => generatePDF(invoice)}
-                          className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-200 hover:border-emerald-600 transition-all duration-200 cursor-pointer"
-                        ><MdDownload size={15} /></button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse min-w-[900px]">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {['Invoice #', 'Product', 'Order ID', 'Type', 'Invoice Date', 'Due Date', 'Amount', 'Status', 'Delivery', 'Actions'].map((h) => (
+                      <th key={h} className="px-5 py-3.5 text-left text-[11.5px] font-bold text-slate-400 uppercase tracking-widest">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedInvoices.map((invoice) => (
+                    <tr key={invoice.id} className="hover:bg-blue-50/30 transition-colors duration-150 group">
+                      <td className="px-5 py-4">
+                        <span className="text-[13.5px] font-bold text-blue-600">{invoice.invoiceNumber}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="text-[13.5px] font-semibold text-slate-800 leading-snug">
+                          {invoice.productName || invoice.items?.[0]?.productName || invoice.items?.[0]?.name || '—'}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="text-[13px] text-slate-500 font-mono">{invoice.orderId}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex px-2.5 py-1 rounded-lg text-[11.5px] font-bold ${getInvoiceTypeBadge(invoice.invoiceType)}`}>
+                          {invoice.invoiceLabel || invoice.invoiceType || '—'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-[13px] text-slate-500">{invoice.invoiceDate}</td>
+                      <td className="px-5 py-4 text-[13px] text-slate-500">{invoice.dueDate}</td>
+                      <td className="px-5 py-4">
+                        <span className="text-[13.5px] font-bold text-slate-800">Rs.{Number(invoice.totalAmount).toFixed(2)}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-semibold ${getStatusBadge(invoice.paymentStatus)}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(invoice.paymentStatus)}`} />
+                          {invoice.paymentStatus}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        {invoice.invoiceType === 'INITIAL' ? (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-semibold
+                            ${invoice.paymentStatus === 'Paid'
+                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                              : 'bg-slate-100 text-slate-500'}`}>
+                            <MdLocalShipping size={13} />
+                            {invoice.paymentStatus === 'Paid' ? 'Unlocked' : 'Locked'}
+                          </span>
+                        ) : <span className="text-[12px] text-slate-400">—</span>}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                          <button
+                            title="View Details"
+                            onClick={() => setSelectedInvoice(invoice)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white border border-blue-200 hover:border-blue-600 transition-all duration-200 cursor-pointer"
+                          ><MdVisibility size={15} /></button>
+                          <button
+                            title="Download PDF"
+                            onClick={() => generatePDF(invoice)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-200 hover:border-emerald-600 transition-all duration-200 cursor-pointer"
+                          ><MdDownload size={15} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Pagination controls ── */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 px-5 py-5 border-t border-slate-100">
+                <button
+                  onClick={() => goToPage(safeCurrentPage - 1)}
+                  disabled={safeCurrentPage === 1}
+                  className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-all duration-200 cursor-pointer
+                    ${safeCurrentPage === 1
+                      ? 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600'}`}
+                >
+                  <MdChevronLeft size={18} />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => goToPage(page)}
+                    className={`w-9 h-9 flex items-center justify-center rounded-xl text-[13px] font-semibold border transition-all duration-200 cursor-pointer
+                      ${page === safeCurrentPage
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600'}`}
+                  >
+                    {page}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          </div>
+
+                <button
+                  onClick={() => goToPage(safeCurrentPage + 1)}
+                  disabled={safeCurrentPage === totalPages}
+                  className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-all duration-200 cursor-pointer
+                    ${safeCurrentPage === totalPages
+                      ? 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                      : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600'}`}
+                >
+                  <MdChevronRight size={18} />
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 

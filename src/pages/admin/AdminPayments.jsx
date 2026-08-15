@@ -37,6 +37,7 @@ const AdminPayments = () => {
   const [loading, setLoading]                 = useState(true);
   const [statusFilter, setStatusFilter]       = useState('All');
   const [searchTerm, setSearchTerm]           = useState('');
+  const [currentPage, setCurrentPage]         = useState(1);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [messages, setMessages]               = useState([]);
   const [receiptFile, setReceiptFile]         = useState(null);
@@ -113,6 +114,24 @@ const AdminPayments = () => {
       payment.productName?.toLowerCase().includes(searchTerm.toLowerCase());
     return matchStatus && matchSearch;
   });
+
+  // ── Pagination: show 10 payments per page, newest first ──
+  const paymentsPerPage = 10;
+  const totalPages = Math.ceil(filteredPayments.length / paymentsPerPage);
+  const startIndex = (currentPage - 1) * paymentsPerPage;
+  const paginatedPayments = filteredPayments.slice(startIndex, startIndex + paymentsPerPage);
+
+  // Go back to page 1 whenever search/filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, searchTerm]);
+
+  // Keep current page valid if payment count changes after refresh/update
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
 
   const stats = {
     total:        payments.length,
@@ -243,9 +262,9 @@ const AdminPayments = () => {
     { label: 'Pending',        value: stats.pending },
     { label: 'Paid',           value: stats.paid },
     { label: 'Overdue',        value: stats.overdue },
-    { label: 'Total Amount',   value: `Rs. ${stats.totalAmount.toFixed(2)}` },
-    { label: 'Total Paid',     value: `Rs. ${stats.totalPaid.toFixed(2)}` },
-    { label: 'Total Pending',  value: `Rs. ${stats.totalPending.toFixed(2)}` },
+    { label: 'Total Amount',   value: `Rs. ${Math.round(stats.totalAmount).toLocaleString('en-US')}` },
+    { label: 'Total Paid',     value: `Rs. ${Math.round(stats.totalPaid).toLocaleString('en-US')}` },
+    { label: 'Total Pending',  value: `Rs. ${Math.round(stats.totalPending).toLocaleString('en-US')}` },
   ];
 
   return (
@@ -283,7 +302,7 @@ const AdminPayments = () => {
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         <ResponsiveTable
           columns={columns}
-          data={filteredPayments}
+          data={paginatedPayments}
           keyField="id"
           cardTitle="orderId"
           cardBadge="status"
@@ -304,6 +323,48 @@ const AdminPayments = () => {
             </div>
           )}
         />
+
+        {/* Pagination — 10 payments per page */}
+        {!loading && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 px-4 py-5 border-t border-slate-100">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              aria-label="Previous page"
+              className={`w-11 h-11 flex items-center justify-center rounded-xl border text-xl transition-all
+                ${currentPage === 1
+                  ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
+                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 cursor-pointer'}`}
+            >
+              ‹
+            </button>
+
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map(page => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                className={`w-11 h-11 flex items-center justify-center rounded-xl border text-base font-medium transition-all cursor-pointer
+                  ${currentPage === page
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+              >
+                {page}
+              </button>
+            ))}
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              aria-label="Next page"
+              className={`w-11 h-11 flex items-center justify-center rounded-xl border text-xl transition-all
+                ${currentPage === totalPages
+                  ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
+                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 cursor-pointer'}`}
+            >
+              ›
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Payment Detail Modal */}

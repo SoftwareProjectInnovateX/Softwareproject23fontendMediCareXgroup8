@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import Card from "../../components/Card";
 import PageLayout from "../../components/PageLayout";
-import ResponsiveTable from "../../components/ResponsiveTable";
 import {
   BarChart,
   Bar,
@@ -48,16 +47,18 @@ const CustomBarTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const CustomPieTooltip = ({ active, payload }) => {
+const CustomTierPieTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const d = payload[0].payload;
     return (
       <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm">
-        <p className="text-gray-600 font-semibold mb-1">{d.category}</p>
+        <p className="text-gray-600 font-semibold mb-1">{d.tier} Cost</p>
         <p style={{ color: payload[0].fill }} className="font-bold">
-          Rs. {d.profit.toLocaleString()}
+          Rs. {d.amount.toLocaleString()}
         </p>
-        <p className="text-gray-400 text-xs mt-0.5">Margin: {d.margin}%</p>
+        <p className="text-gray-400 text-xs mt-0.5">
+          {d.count} payment{d.count !== 1 ? "s" : ""} · {d.pct.toFixed(1)}% of total cost
+        </p>
       </div>
     );
   }
@@ -77,11 +78,13 @@ export default function FinancialAnalytics() {
         const [productsSnap, customerSnap, paymentsSnap] = await Promise.all([
           getDocs(collection(db, "products")),
           getDocs(collection(db, "CustomerOrders")),
-          getDocs(collection(db, "payments")),
+          // Only PAID payments count as actual cost — pending/partial-unpaid
+          // payment docs (if any exist as separate records) are excluded here.
+          getDocs(query(collection(db, "payments"), where("status", "==", "PAID"))),
         ]);
         setProducts(productsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
         setCustomerOrders(customerSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-        setPayments(paymentsSnap.docs.map((d) => d.data()));
+        setPayments(paymentsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       } catch (err) {
         console.error("Fetch error:", err);
       } finally {
@@ -102,62 +105,79 @@ export default function FinancialAnalytics() {
     );
 
   /* ─────────────────────────────────────────────────────
-     CATEGORY COST
-     Source: products collection
-     Logic : wholesalePrice × stock  (inventory value per product)
-             grouped by product.category
+     TOTAL COST
+     Source: payments collection (status === "PAID")
+     Logic : sum of amount across all paid payments.
+             (payments don't reliably carry a category field,
+             so cost is no longer grouped by category — see
+             the price-tier breakdown further down instead)
   ───────────────────────────────────────────────────── */
-  const costByCategory = {};
-  products.forEach((p) => {
-    const cat  = p.category || "Uncategorised";
-    const cost = (p.wholesalePrice || 0) * (p.stock || 0);
-    costByCategory[cat] = (costByCategory[cat] || 0) + cost;
-  });
-
-  /* ─────────────────────────────────────────────────────
-     CATEGORY REVENUE
-     Source: CustomerOrders collection
-     Logic : sum totalAmount grouped by order.category
-             (you add a "category" field to each order doc)
-  ───────────────────────────────────────────────────── */
-  const revenueByCategory = {};
-  customerOrders.forEach((order) => {
-    const cat    = order.category || "Uncategorised";
-    const amount = order.totalAmount || 0;
-    revenueByCategory[cat] = (revenueByCategory[cat] || 0) + amount;
-  });
-
-  /* ─────────────────────────────────────────────────────
-     MERGE: all unique categories from both sources
-  ───────────────────────────────────────────────────── */
-  const allCategories = [
-    ...new Set([
-      ...Object.keys(costByCategory),
-      ...Object.keys(revenueByCategory),
-    ]),
-  ].filter(Boolean).sort();
-
-  const categoryData = allCategories.map((cat) => {
-    const cost    = costByCategory[cat]    || 0;
-    const revenue = revenueByCategory[cat] || 0;
-    const profit  = revenue - cost;
-    const margin  = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : "0.0";
-    return { category: cat, cost, revenue, profit, margin };
-  });
+  const totalCost = payments.reduce((s, p) => s + (p.amount || 0), 0);
 
   /* ─────────────────────────────────────────────────────
      OVERALL SUMMARY
   ───────────────────────────────────────────────────── */
-  const totalCost    = categoryData.reduce((s, c) => s + c.cost, 0);
-  const totalRevenue = categoryData.reduce((s, c) => s + c.revenue, 0);
+  const totalRevenue = customerOrders.reduce((s, o) => s + (o.totalAmount || 0), 0);
   const profit       = totalRevenue - totalCost;
   const margin       = totalRevenue > 0
     ? ((profit / totalRevenue) * 100).toFixed(1)
     : "0.0";
 
   /* ─────────────────────────────────────────────────────
+     COST BY PRICE TIER  (High / Medium / Low)
+     Source: payments collection
+     Logic : classify each paid payment into a tier based on
+             where its amount falls relative to the tercile
+             boundaries (33rd / 66th percentile) of all paid
+             amounts — a data-driven High/Medium/Low split
+             instead of a category, since payments don't
+             reliably carry category. Each tier also keeps
+             its top-paid entries so you can see which
+             products/suppliers received the largest payments.
+  ───────────────────────────────────────────────────── */
+  const percentile = (sortedArr, p) => {
+    if (!sortedArr.length) return 0;
+    const idx   = (sortedArr.length - 1) * p;
+    const lower = Math.floor(idx);
+    const upper = Math.ceil(idx);
+    if (lower === upper) return sortedArr[lower];
+    return sortedArr[lower] + (sortedArr[upper] - sortedArr[lower]) * (idx - lower);
+  };
+
+  const sortedAmounts = payments.map((p) => p.amount || 0).sort((a, b) => a - b);
+  const lowBoundary  = percentile(sortedAmounts, 1 / 3);
+  const highBoundary = percentile(sortedAmounts, 2 / 3);
+
+  const getTier = (amount) => {
+    if (amount <= lowBoundary) return "Low";
+    if (amount <= highBoundary) return "Medium";
+    return "High";
+  };
+
+  const tierBuckets = { High: [], Medium: [], Low: [] };
+  payments.forEach((p) => {
+    tierBuckets[getTier(p.amount || 0)].push(p);
+  });
+
+  const TIER_COLORS = { High: "#ef4444", Medium: "#f59e0b", Low: "#10b981" };
+
+  const tierData = ["High", "Medium", "Low"].map((tier) => {
+    const items  = tierBuckets[tier];
+    const amount = items.reduce((s, p) => s + (p.amount || 0), 0);
+    return {
+      tier,
+      amount,
+      count: items.length,
+      pct: totalCost > 0 ? (amount / totalCost) * 100 : 0,
+      topItems: [...items].sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 3),
+    };
+  });
+
+  /* ─────────────────────────────────────────────────────
      MONTHLY TREND  (payments collection for cost,
                      CustomerOrders for revenue)
+     payments is already pre-filtered to status === "PAID"
+     in the fetch above, so no extra filtering needed here.
   ───────────────────────────────────────────────────── */
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -190,103 +210,33 @@ export default function FinancialAnalytics() {
   ];
 
   /* ─────────────────────────────────────────────────────
-     ResponsiveTable column defs (category breakdown)
-     Note: a synthetic "Total" row is appended to the data
-     passed into ResponsiveTable to replicate the old
-     <tfoot> totals row, since ResponsiveTable has no
-     footer concept.
+     COST ANALYSIS BY PAYMENT TYPE
+     Source: payments collection
+     Groups paid amounts by paymentType (e.g. ADVANCE,
+     FINAL) instead of by supplier — shows the *structure*
+     of spending (how much is upfront vs. final settlement)
+     which is more useful for financial analysis than a
+     flat list of who was paid.
   ───────────────────────────────────────────────────── */
-  const categoryColumns = [
-    {
-      key: "category",
-      label: "Category",
-      render: (_v, row) => {
-        if (row.isTotal) {
-          return <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total</span>;
-        }
-        const i = categoryData.indexOf(row);
-        return (
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}
-            />
-            <span className="font-medium text-gray-800 capitalize">{row.category}</span>
-          </div>
-        );
-      },
-    },
-    {
-      key: "cost",
-      label: "Total Cost",
-      render: (_v, row) => (
-        <span className={`font-mono text-red-500 text-[13px] ${row.isTotal ? "font-bold" : "font-medium"}`}>
-          Rs. {row.cost.toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: "revenue",
-      label: "Total Revenue",
-      render: (_v, row) => (
-        <span className={`font-mono text-emerald-600 text-[13px] ${row.isTotal ? "font-bold" : "font-medium"}`}>
-          Rs. {row.revenue.toLocaleString()}
-          {!row.isTotal && row.revenue === 0 && (
-            <span className="ml-1.5 text-[10px] text-amber-400 font-sans">no orders</span>
-          )}
-        </span>
-      ),
-    },
-    {
-      key: "profit",
-      label: "Net Profit",
-      render: (_v, row) => (
-        <span className={`font-mono text-blue-700 text-[13px] ${row.isTotal ? "font-bold" : "font-semibold"}`}>
-          Rs. {row.profit.toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: "margin",
-      label: "Margin",
-      render: (_v, row) => {
-        if (row.isTotal) {
-          return (
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
-              {row.margin}%
-            </span>
-          );
-        }
-        const marginNum  = parseFloat(row.margin);
-        const marginColor =
-          marginNum >= 30 ? "text-emerald-600 bg-emerald-50"
-          : marginNum >= 15 ? "text-amber-600 bg-amber-50"
-          : "text-red-500 bg-red-50";
-        const barColor =
-          marginNum >= 30 ? "bg-emerald-400"
-          : marginNum >= 15 ? "bg-amber-400"
-          : "bg-red-400";
-        return (
-          <div className="flex items-center gap-2.5">
-            <div className="w-16 h-1.5 rounded-full bg-gray-100">
-              <div
-                className={`h-full rounded-full ${barColor}`}
-                style={{ width: `${Math.min(Math.max(marginNum, 0), 100)}%` }}
-              />
-            </div>
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${marginColor}`}>
-              {row.margin}%
-            </span>
-          </div>
-        );
-      },
-    },
-  ];
+  const paymentTypeTotals = {};
+  payments.forEach((p) => {
+    const type = p.paymentType || "OTHER";
+    if (!paymentTypeTotals[type]) paymentTypeTotals[type] = { amount: 0, count: 0 };
+    paymentTypeTotals[type].amount += p.amount || 0;
+    paymentTypeTotals[type].count  += 1;
+  });
 
-  const categoryTableData = [
-    ...categoryData,
-    { category: "__total__", isTotal: true, cost: totalCost, revenue: totalRevenue, profit, margin },
-  ];
+  const paymentTypeData = Object.entries(paymentTypeTotals)
+    .map(([type, d]) => ({
+      type,
+      amount: d.amount,
+      count: d.count,
+      pct: totalCost > 0 ? (d.amount / totalCost) * 100 : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const avgPayment    = payments.length ? totalCost / payments.length : 0;
+  const largestPayment = payments.length ? Math.max(...payments.map((p) => p.amount || 0)) : 0;
 
   /* ─────────────────────────────────────────────────────
      RENDER
@@ -341,50 +291,46 @@ export default function FinancialAnalytics() {
           </ResponsiveContainer>
         </div>
 
-        {/* Donut Chart - profit by category */}
+        {/* Donut Chart - cost by price tier */}
         <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h3 className="text-base font-semibold text-gray-800">Profit by Category</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Distribution across categories</p>
+              <h3 className="text-base font-semibold text-gray-800">Cost by Price Tier</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Paid amounts split into High / Medium / Low</p>
             </div>
             <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
               Donut
             </span>
           </div>
 
-          {/* Show message if no revenue data yet */}
-          {categoryData.every((c) => c.revenue === 0) ? (
+          {/* Show message if no payment data yet */}
+          {totalCost === 0 ? (
             <div className="flex flex-col items-center justify-center h-[270px] gap-2">
               <p className="text-sm text-gray-400 text-center">
-                No revenue data yet.
+                No paid payments yet.
               </p>
               <p className="text-xs text-gray-300 text-center">
-                Add a <span className="font-semibold">category</span> field to CustomerOrders to see this chart.
+                Payments with <span className="font-semibold">status: PAID</span> will show up here.
               </p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={270}>
               <PieChart>
                 <Pie
-                  data={categoryData.filter((c) => c.profit > 0)}
-                  dataKey="profit"
-                  nameKey="category"
+                  data={tierData.filter((t) => t.amount > 0)}
+                  dataKey="amount"
+                  nameKey="tier"
                   innerRadius={68}
                   outerRadius={105}
                   paddingAngle={3}
                 >
-                  {categoryData
-                    .filter((c) => c.profit > 0)
-                    .map((_, index) => (
-                      <Cell
-                        key={index}
-                        fill={CHART_COLORS[index % CHART_COLORS.length]}
-                        stroke="transparent"
-                      />
+                  {tierData
+                    .filter((t) => t.amount > 0)
+                    .map((t) => (
+                      <Cell key={t.tier} fill={TIER_COLORS[t.tier]} stroke="transparent" />
                     ))}
                 </Pie>
-                <Tooltip content={<CustomPieTooltip />} />
+                <Tooltip content={<CustomTierPieTooltip />} />
                 <Legend wrapperStyle={{ paddingTop: 14, fontSize: 12, color: "#64748b" }} />
               </PieChart>
             </ResponsiveContainer>
@@ -392,29 +338,142 @@ export default function FinancialAnalytics() {
         </div>
       </div>
 
-      {/* Category Breakdown Table */}
-      <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6">
+      {/* Cost by Price Tier */}
+      <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6 mb-6">
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h3 className="text-base font-semibold text-gray-800">Category Breakdown</h3>
+            <h3 className="text-base font-semibold text-gray-800">Cost by Price Tier</h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              Cost from products inventory · Revenue from CustomerOrders
+              Payments grouped High / Medium / Low by amount paid (status: PAID)
             </p>
           </div>
           <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
-            {categoryData.length} Categories
+            {payments.length} Payments
           </span>
         </div>
 
-        <ResponsiveTable
-          columns={categoryColumns}
-          data={categoryTableData}
-          keyField="category"
-          loading={false}
-          emptyMessage="No category data available"
-          cardTitle="category"
-          cardBadge="margin"
-        />
+        {payments.length === 0 ? (
+          <div className="flex items-center justify-center py-10">
+            <p className="text-slate-400 text-sm">No payments recorded</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {tierData.map((t) => (
+              <div key={t.tier} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: TIER_COLORS[t.tier] }} />
+                    <span className="font-semibold text-gray-800 text-sm">{t.tier} Cost</span>
+                    <span className="text-[10px] text-gray-400">
+                      {t.count} payment{t.count !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="font-mono text-sm font-bold text-gray-800">
+                      Rs. {t.amount.toLocaleString()}
+                    </span>
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded-md"
+                      style={{ color: TIER_COLORS[t.tier], background: `${TIER_COLORS[t.tier]}1a` }}
+                    >
+                      {t.pct.toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden mb-3">
+                  <div className="h-full rounded-full" style={{ width: `${t.pct}%`, background: TIER_COLORS[t.tier] }} />
+                </div>
+
+                {t.topItems.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                      Top paid
+                    </p>
+                    {t.topItems.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-600 truncate max-w-[60%]">
+                          {item.productName || "N/A"}{" "}
+                          <span className="text-gray-400">· {item.supplierName || "N/A"}</span>
+                        </span>
+                        <span className="font-mono font-medium text-gray-700">
+                          Rs. {(item.amount || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Cost Analysis by Payment Type */}
+      <div className="bg-white rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.07)] p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <h3 className="text-base font-semibold text-gray-800">Cost Analysis by Payment Type</h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              How paid cost breaks down by advance vs. final settlement (status: PAID)
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
+            {payments.length} Payments
+          </span>
+        </div>
+
+        {payments.length === 0 ? (
+          <div className="flex items-center justify-center py-10">
+            <p className="text-slate-400 text-sm">No payments recorded</p>
+          </div>
+        ) : (
+          <>
+            {/* Quick stats */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="rounded-xl bg-slate-50 p-3 text-center">
+                <p className="text-[11px] text-gray-400 mb-1">Total Paid</p>
+                <p className="text-sm font-bold text-gray-800 font-mono">Rs. {totalCost.toLocaleString()}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 text-center">
+                <p className="text-[11px] text-gray-400 mb-1">Average Payment</p>
+                <p className="text-sm font-bold text-gray-800 font-mono">
+                  Rs. {avgPayment.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 text-center">
+                <p className="text-[11px] text-gray-400 mb-1">Largest Payment</p>
+                <p className="text-sm font-bold text-gray-800 font-mono">Rs. {largestPayment.toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* Ranked bars by payment type */}
+            <div className="space-y-4">
+              {paymentTypeData.map((pt, i) => (
+                <div key={pt.type} className="flex items-center gap-4">
+                  <div className="w-28 shrink-0">
+                    <span className="text-xs font-semibold text-gray-700 capitalize">{pt.type.toLowerCase()}</span>
+                    <p className="text-[10px] text-gray-400">
+                      {pt.count} payment{pt.count !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${pt.pct}%`, background: CHART_COLORS[i % CHART_COLORS.length] }}
+                    />
+                  </div>
+                  <div className="w-28 text-right shrink-0">
+                    <span className="text-xs font-mono font-semibold text-gray-700">
+                      Rs. {pt.amount.toLocaleString()}
+                    </span>
+                    <p className="text-[10px] text-gray-400">{pt.pct.toFixed(1)}%</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
     </PageLayout>
