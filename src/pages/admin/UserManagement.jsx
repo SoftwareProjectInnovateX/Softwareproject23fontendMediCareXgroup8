@@ -91,8 +91,11 @@ export default function UserManagement() {
   }, []);
 
   // Orders are matched to a user by EMAIL (CustomerOrders stores `email`, not userId)
-  const getUserOrders = (email) =>
-    orders.filter((o) => (o.email || "").toLowerCase() === (email || "").toLowerCase());
+  const getUserOrders = (email) => {
+    if (!email) return [];
+    const normalizedEmail = email.toLowerCase();
+    return orders.filter((o) => (o.email || "").toLowerCase() === normalizedEmail);
+  };
 
   const getTotalPurchases = (email) =>
     getUserOrders(email).reduce((sum, o) => sum + (o.totalAmount || 0), 0);
