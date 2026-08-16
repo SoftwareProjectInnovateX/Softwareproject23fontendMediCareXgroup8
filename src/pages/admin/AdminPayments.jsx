@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   collection, query, orderBy, getDocs, doc, updateDoc,
-  Timestamp, where, addDoc,
+  Timestamp, addDoc,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import Card from '../../components/Card';
@@ -33,7 +33,7 @@ const MessageCard = ({ messages, removeMessage }) => (
 );
 
 const AdminPayments = () => {
-  const [payments, setPayments]               = useState([]);
+  const [payments, setPayments]               = useState([]); // now sourced from `invoices`
   const [loading, setLoading]                 = useState(true);
   const [statusFilter, setStatusFilter]       = useState('All');
   const [searchTerm, setSearchTerm]           = useState('');
@@ -84,18 +84,27 @@ const AdminPayments = () => {
     document.body.appendChild(link); link.click(); link.remove();
   };
 
+  /* ── Normalize a raw `invoices` doc into the row shape the UI expects ── */
+  const normalizeInvoice = (data) => {
+    const isPaid = String(data.paymentStatus || '').toLowerCase() === 'paid';
+    const dueDate = data.dueDate;
+    const dueDateObj = dueDate ? (dueDate.toDate ? dueDate.toDate() : new Date(dueDate)) : null;
+    const isOverdue = !isPaid && dueDateObj && dueDateObj < new Date();
+
+    return {
+      ...data,
+      status: isPaid ? 'PAID' : isOverdue ? 'OVERDUE' : 'PENDING',
+      paymentLabel: data.invoiceType === 'INITIAL' ? 'Initial (50%)' : 'Final (50%)',
+      paymentType: data.invoiceType, // keep the INITIAL/FINAL badge logic working
+    };
+  };
+
+  /* ── Fetch directly from `invoices`; `purchaseOrders` is only touched on write ── */
   const fetchPayments = async () => {
     try {
       setLoading(true);
-      const snapshot = await getDocs(query(collection(db, 'payments'), orderBy('createdAt', 'desc')));
-      const paymentsData = snapshot.docs.map(d => {
-        const data = { id: d.id, ...d.data() };
-        if (data.status === 'PENDING' && data.dueDate) {
-          const dueDate = data.dueDate.toDate ? data.dueDate.toDate() : new Date(data.dueDate);
-          if (dueDate < new Date()) { updateDoc(doc(db, 'payments', d.id), { status: 'OVERDUE' }); data.status = 'OVERDUE'; }
-        }
-        return data;
-      });
+      const snapshot = await getDocs(query(collection(db, 'invoices'), orderBy('createdAt', 'desc')));
+      const paymentsData = snapshot.docs.map(d => normalizeInvoice({ id: d.id, ...d.data() }));
       setPayments(paymentsData);
     } catch (error) {
       showMessage('Failed to load payments: ' + error.message, 'error');
@@ -143,38 +152,51 @@ const AdminPayments = () => {
     totalPending: payments.filter(p => p.status === 'PENDING' || p.status === 'OVERDUE').reduce((sum, p) => sum + (p.amount || 0), 0),
   };
 
-  const findAndUpdateInvoice = async (payment, invoiceType, extraFields = {}) => {
-    const tryQuery = async (...constraints) => {
-      try { const snap = await getDocs(query(collection(db, 'invoices'), ...constraints)); return snap.docs; } catch { return []; }
-    };
-    let docs = [];
-    if (payment.purchaseOrderId) docs = await tryQuery(where('purchaseOrderId', '==', payment.purchaseOrderId), where('invoiceType', '==', invoiceType));
-    if (!docs.length && payment.orderId) docs = await tryQuery(where('orderId', '==', payment.orderId), where('invoiceType', '==', invoiceType));
-    if (!docs.length && payment.orderId) docs = await tryQuery(where('poId', '==', payment.orderId), where('invoiceType', '==', invoiceType));
-    if (docs.length > 0) {
-      await updateDoc(doc(db, 'invoices', docs[0].id), { paymentStatus: 'Paid', paidAmount: payment.amount, paidDate: Timestamp.now(), paymentMethod: 'Bank Transfer', updatedAt: Timestamp.now(), ...extraFields });
-      return true;
-    }
-    return false;
-  };
-
-  const markAsPaid = async (paymentId) => {
-    const payment = payments.find(p => p.id === paymentId);
+  /* ── Mark an invoice as paid, cascade to purchaseOrders + notify supplier ── */
+  const markAsPaid = async (invoiceId) => {
+    const payment = payments.find(p => p.id === invoiceId);
     if (!payment) return;
     if (!receiptBase64) { showMessage('Please upload a bank receipt before marking as paid.', 'warning'); return; }
     try {
       setUploading(true);
       const receiptFields = { receiptBase64, receiptName: receiptFile.name, receiptType: receiptFile.type, receiptSize: receiptFile.size };
-      await updateDoc(doc(db, 'payments', paymentId), { status: 'PAID', paidDate: Timestamp.now(), updatedAt: Timestamp.now(), ...receiptFields });
-      await findAndUpdateInvoice(payment, payment.paymentType === 'INITIAL' ? 'INITIAL' : 'FINAL', receiptFields);
+
+      // Update the invoice itself — this IS the payment record now
+      await updateDoc(doc(db, 'invoices', invoiceId), {
+        paymentStatus: 'Paid',
+        paidAmount: payment.amount,
+        paidDate: Timestamp.now(),
+        paymentMethod: 'Bank Transfer',
+        updatedAt: Timestamp.now(),
+        ...receiptFields,
+      });
+
       if (payment.paymentType === 'INITIAL') {
-        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), { initialPaymentStatus: 'PAID', initialPaymentDate: Timestamp.now(), updatedAt: Timestamp.now() });
-        await addDoc(collection(db, 'notifications'), { type: 'INITIAL_PAYMENT_PAID', recipientId: payment.supplierId, recipientType: 'supplier', purchaseOrderId: payment.purchaseOrderId, poId: payment.orderId, supplierId: payment.supplierId, supplierName: payment.supplierName, productName: payment.productName, message: `Initial payment of 50% has been made for order ${payment.orderId}. Please proceed with delivery.`, read: false, createdAt: Timestamp.now() });
+        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
+          initialPaymentStatus: 'PAID', initialPaymentDate: Timestamp.now(), updatedAt: Timestamp.now(),
+        });
+        await addDoc(collection(db, 'notifications'), {
+          type: 'INITIAL_PAYMENT_PAID', recipientId: payment.supplierId, recipientType: 'supplier',
+          purchaseOrderId: payment.purchaseOrderId, poId: payment.orderId, supplierId: payment.supplierId,
+          supplierName: payment.supplierName, productName: payment.productName,
+          message: `Initial payment of 50% has been made for order ${payment.orderId}. Please proceed with delivery.`,
+          read: false, createdAt: Timestamp.now(),
+        });
       }
       if (payment.paymentType === 'FINAL') {
-        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), { finalPaymentStatus: 'PAID', finalPaymentDate: Timestamp.now(), paymentStatus: 'COMPLETED', orderStatus: 'COMPLETED', updatedAt: Timestamp.now() });
-        await addDoc(collection(db, 'notifications'), { type: 'FINAL_PAYMENT_PAID', recipientId: payment.supplierId, recipientType: 'supplier', purchaseOrderId: payment.purchaseOrderId, poId: payment.orderId, supplierId: payment.supplierId, supplierName: payment.supplierName, productName: payment.productName, message: `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`, read: false, createdAt: Timestamp.now() });
+        await updateDoc(doc(db, 'purchaseOrders', payment.purchaseOrderId), {
+          finalPaymentStatus: 'PAID', finalPaymentDate: Timestamp.now(),
+          paymentStatus: 'COMPLETED', orderStatus: 'COMPLETED', updatedAt: Timestamp.now(),
+        });
+        await addDoc(collection(db, 'notifications'), {
+          type: 'FINAL_PAYMENT_PAID', recipientId: payment.supplierId, recipientType: 'supplier',
+          purchaseOrderId: payment.purchaseOrderId, poId: payment.orderId, supplierId: payment.supplierId,
+          supplierName: payment.supplierName, productName: payment.productName,
+          message: `Final payment of 50% has been made for order ${payment.orderId}. All payments are now complete.`,
+          read: false, createdAt: Timestamp.now(),
+        });
       }
+
       showMessage(payment.paymentType === 'INITIAL' ? 'Initial payment marked as paid! Supplier notified.' : 'Final payment marked as paid! Order complete.', 'success');
       clearReceipt(); fetchPayments(); setSelectedPayment(null);
     } catch (error) {
@@ -298,7 +320,7 @@ const AdminPayments = () => {
         </div>
       </div>
 
-      {/* Payments Table — ResponsiveTable handles desktop/mobile automatically */}
+      {/* Payments Table — ResponsiveTable handles desktop/mobile automatically, incl. scrolling */}
       <div className="bg-white rounded-xl overflow-hidden shadow-sm">
         <ResponsiveTable
           columns={columns}
