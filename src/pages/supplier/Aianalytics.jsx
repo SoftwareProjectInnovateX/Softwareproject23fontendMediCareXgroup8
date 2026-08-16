@@ -151,6 +151,8 @@ const AiAnalyticsDashboard = () => {
   const [demandData, setDemandData]   = useState([]);
   const [paymentRisk, setPaymentRisk] = useState([]);
   const [restockData, setRestockData] = useState([]);
+  const [businessAdvisor, setBusinessAdvisor] = useState(null);
+  const [advisorError, setAdvisorError] = useState(null);
 
   const [loadingAI, setLoadingAI] = useState(false);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
@@ -205,6 +207,8 @@ const AiAnalyticsDashboard = () => {
     setDemandData([]);
     setPaymentRisk([]);
     setRestockData([]);
+    setBusinessAdvisor(null);
+    setAdvisorError(null);
     showToast('Running AI analysis…', 'info');
 
     try {
@@ -251,10 +255,47 @@ const AiAnalyticsDashboard = () => {
         restockRes.json(),
       ]);
 
-      setSupplyRecs(supplyJson.recommendations || []);
-      setDemandData(demandJson.forecasts || []);
-      setPaymentRisk(riskJson.risks || []);
-      setRestockData(restockJson.suggestions || []);
+      const recommendations = supplyJson.recommendations || [];
+      const forecasts = demandJson.forecasts || [];
+      const risks = riskJson.risks || [];
+      const suggestions = restockJson.suggestions || [];
+
+      setSupplyRecs(recommendations);
+      setDemandData(forecasts);
+      setPaymentRisk(risks);
+      setRestockData(suggestions);
+
+      // Groq is used only as an explanation/advisor layer.
+      // Existing statistical and rule-based analytics above remain unchanged.
+      try {
+        const advisorRes = await fetch(`${API_BASE}/ai/business-advisor`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            supplierId,
+            invoiceCount: invoices.length,
+            supplyRecommendations: recommendations,
+            demandForecast: forecasts,
+            paymentRisk: risks,
+            restockSuggestions: suggestions,
+          }),
+        });
+
+        if (!advisorRes.ok) {
+          let message = `HTTP ${advisorRes.status}`;
+          try {
+            const errorJson = await advisorRes.json();
+            message = errorJson.message || message;
+          } catch (_) {}
+          throw new Error(message);
+        }
+
+        const advisorJson = await advisorRes.json();
+        setBusinessAdvisor(advisorJson);
+      } catch (advisorErr) {
+        console.error('Groq business advisor failed:', advisorErr);
+        setAdvisorError(advisorErr.message);
+      }
 
       setAnalysisRan(true);
       setLastRun(new Date());
@@ -629,6 +670,83 @@ const AiAnalyticsDashboard = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Groq AI Business Advisor ── */}
+      {analysisRan && !loadingAI && (
+        <div className="bg-white border border-violet-200 rounded-2xl shadow-sm p-5 mb-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
+              <MdAutoAwesome size={19} />
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-slate-900 leading-none">Groq AI Business Advisor</h2>
+              <p className="text-[12px] text-slate-400 mt-1">
+                AI explanation of the statistical analytics above
+              </p>
+            </div>
+          </div>
+
+          {businessAdvisor ? (
+            <div className="space-y-4">
+              <div className="bg-violet-50/60 border border-violet-100 rounded-xl p-4">
+                <p className="text-[13px] text-slate-700 leading-relaxed m-0">
+                  {businessAdvisor.summary}
+                </p>
+              </div>
+
+              {businessAdvisor.priorityActions?.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Priority Actions
+                  </p>
+                  <div className="space-y-2">
+                    {businessAdvisor.priorityActions.map((action, index) => (
+                      <div key={index} className="flex items-start gap-2.5 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3">
+                        <span className="w-5 h-5 shrink-0 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                          {index + 1}
+                        </span>
+                        <p className="text-[12.5px] text-slate-600 leading-relaxed m-0">{action}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {businessAdvisor.watchItems?.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Watch Items
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {businessAdvisor.watchItems.map((item, index) => (
+                      <span key={index} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 text-[12px] font-medium">
+                        <MdWarning size={14} />
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[10.5px] text-slate-400 m-0">
+                Provider: {businessAdvisor.provider} · Model: {businessAdvisor.model}
+              </p>
+            </div>
+          ) : advisorError ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-[12.5px] font-semibold text-amber-800 m-0">
+                Groq advisor is unavailable, but the statistical analytics above completed successfully.
+              </p>
+              <p className="text-[11.5px] text-amber-700 mt-1 mb-0">{advisorError}</p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[12.5px] text-slate-400">
+              <span className="w-4 h-4 border-2 border-violet-300 border-t-transparent rounded-full animate-spin" />
+              Generating Groq business advice…
+            </div>
+          )}
         </div>
       )}
 
