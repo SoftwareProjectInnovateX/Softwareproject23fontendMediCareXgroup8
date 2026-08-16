@@ -1,6 +1,13 @@
 import { create } from "zustand";
 
-const API = `${import.meta.env.VITE_API_URL_RAILWAY}/api/cart`;
+const getBaseUrl = () => {
+  const railway = import.meta.env.VITE_API_URL_RAILWAY;
+  const local = import.meta.env.VITE_API_URL;
+  if (railway && railway !== 'undefined') return railway;
+  if (local && local !== 'undefined') return local;
+  return 'http://localhost:5000';
+};
+const API = `${getBaseUrl()}/api/cart`;
 
 // ==============================
 // Reads Firebase UID from sessionStorage

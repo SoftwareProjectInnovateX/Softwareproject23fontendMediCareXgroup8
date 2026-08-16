@@ -229,7 +229,7 @@ const PharmacistReports = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-10 print:m-0 print:p-0 print:max-w-full">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10 print:m-0 print:p-0 print:max-w-full">
       
       {/* Top PharmacistHeader */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-2 border-b border-slate-100 pb-6 print:hidden">

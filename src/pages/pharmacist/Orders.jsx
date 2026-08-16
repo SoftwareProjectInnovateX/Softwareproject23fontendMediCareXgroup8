@@ -70,7 +70,7 @@ function Badge({ label, style: s }) {
       border: `1px solid ${s.border}`,
       display: "inline-flex", alignItems: "center", gap: "4px",
       whiteSpace: "nowrap", letterSpacing: "0.02em",
-      fontFamily: FONT.body,
+      fontFamily: 'inherit',
     }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
       {label}
@@ -96,8 +96,8 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
         <Icon size={19} color={color} strokeWidth={2} />
       </div>
       <div>
-        <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body }}>{label}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: C.textPrimary, lineHeight: 1.15, marginTop: 2, fontFamily: FONT.display }}>{value}</div>
+        <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: 'inherit' }}>{label}</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: C.textPrimary, lineHeight: 1.15, marginTop: 2, fontFamily: 'inherit' }}>{value}</div>
       </div>
     </div>
   );
@@ -128,8 +128,8 @@ function WeeklyChart({ orders }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body }}>Orders this week</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.textPrimary, lineHeight: 1.2, marginTop: 2, fontFamily: FONT.display }}>{orders.length} total</div>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: 'inherit' }}>Orders this week</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.textPrimary, lineHeight: 1.2, marginTop: 2, fontFamily: 'inherit' }}>{orders.length} total</div>
         </div>
         <div style={{ width: 34, height: 34, borderRadius: 9, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <TrendingUp size={16} color="#2563eb" />
@@ -155,7 +155,7 @@ function WeeklyChart({ orders }) {
             <span style={{
               fontSize: 9, fontWeight: 700, textTransform: "uppercase",
               color: isToday ? "#2563eb" : "#94a3b8",
-              fontFamily: FONT.body,
+              fontFamily: 'inherit',
             }}>{day}</span>
           </div>
         ))}
@@ -211,7 +211,7 @@ function PaymentChart({ orders }) {
       border: `1px solid ${C.border}`, padding: "18px 20px",
       boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
     }}>
-      <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body, marginBottom: 14 }}>Payment overview</div>
+      <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: 'inherit', marginBottom: 14 }}>Payment overview</div>
       <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
         <canvas ref={canvasRef} width={80} height={80} style={{ flexShrink: 0 }} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -221,11 +221,11 @@ function PaymentChart({ orders }) {
             { dot: "#3b82f6", label: "Online paid",  val: onlinePaid },
           ].map((r, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 7, fontFamily: FONT.body }}>
+              <span style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 7, fontFamily: 'inherit' }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: r.dot, flexShrink: 0 }} />
                 {r.label}
               </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: r.dot, fontFamily: FONT.display }}>{r.val}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: r.dot, fontFamily: 'inherit' }}>{r.val}</span>
             </div>
           ))}
         </div>
@@ -248,7 +248,7 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
         color: disabled ? "#94a3b8" : color,
         border: `1px solid ${disabled ? "#e2e8f0" : border}`,
         cursor: disabled ? "not-allowed" : "pointer",
-        fontFamily: FONT.body,
+        fontFamily: 'inherit',
         transition: "opacity 0.15s, transform 0.1s",
         opacity: disabled ? 0.6 : 1,
       }}
@@ -305,7 +305,7 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
         {/* Customer */}
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>
               {order.customerName || "—"}
             </span>
             {isCOD && (
@@ -326,19 +326,19 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
               </span>
             )}
           </div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: FONT.body }}>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: 'inherit' }}>
             <Phone size={10} /> {order.phone || "—"}
           </div>
-          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontFamily: FONT.body }}>
+          <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontFamily: 'inherit' }}>
             <MapPin size={10} /> {order.address || "—"}
           </div>
         </div>
 
         {/* Date */}
-        <div style={{ fontSize: 11, color: C.textSoft, fontFamily: FONT.body }}>{createdAt}</div>
+        <div style={{ fontSize: 11, color: C.textSoft, fontFamily: 'inherit' }}>{createdAt}</div>
 
         {/* Items */}
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>
           {order.types?.length ?? 0} item{order.types?.length !== 1 ? "s" : ""}
         </div>
 
@@ -363,7 +363,7 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
             border: `1px solid ${expanded ? "#bfdbfe" : C.border}`,
             color: expanded ? "#1d4ed8" : C.textSoft,
             cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
-            fontFamily: FONT.body, transition: "all 0.15s",
+            fontFamily: 'inherit', transition: "all 0.15s",
           }}
         >
           {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -386,7 +386,7 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
               background: "#f0fdf4", border: "1px solid #bbf7d0",
             }}>
               <BadgeCheck size={15} color="#15803d" />
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#15803d", fontFamily: FONT.body }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#15803d", fontFamily: 'inherit' }}>
                 Cash payment has been settled for this order
               </span>
             </div>
@@ -395,7 +395,7 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
           {/* Order items */}
           {order.types && order.types.length > 0 && (
             <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontFamily: FONT.body }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontFamily: 'inherit' }}>
                 Order items
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -413,16 +413,16 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
                         }} />
                       )}
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{item.name || "—"}</div>
-                        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Code: {item.id || "—"}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{item.name || "—"}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Code: {item.id || "—"}</div>
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", fontFamily: FONT.display }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", fontFamily: 'inherit' }}>
                         {item.quantity ? `×${item.quantity}` : ""}
                       </div>
                       {item.price && (
-                        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Rs. {item.price}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Rs. {item.price}</div>
                       )}
                     </div>
                   </div>
@@ -438,7 +438,7 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
                 background: C.surface, border: `1px solid ${C.border}`,
                 borderRadius: 9, padding: "7px 14px",
                 fontSize: 13, fontWeight: 600, color: "#2563eb",
-                fontFamily: FONT.body,
+                fontFamily: 'inherit',
               }}>
                 Total items: {order.totalnumber}
               </div>
@@ -451,10 +451,10 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
               background: "#f8fbff", border: "1px solid #dbeafe",
               borderRadius: 9, padding: "10px 14px", marginBottom: 14,
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontFamily: FONT.body }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontFamily: 'inherit' }}>
                 Customer feedback
               </div>
-              <div style={{ fontSize: 13, color: C.textSoft, fontFamily: FONT.body }}>{order.feedback}</div>
+              <div style={{ fontSize: 13, color: C.textSoft, fontFamily: 'inherit' }}>{order.feedback}</div>
             </div>
           )}
 
@@ -513,7 +513,7 @@ function Toast({ message, type, onClose }) {
       padding: "12px 18px", borderRadius: 12,
       background: type === "success" ? "#15803d" : "#b91c1c",
       color: "#fff", fontSize: 13, fontWeight: 600,
-      fontFamily: FONT.body, minWidth: 260,
+      fontFamily: 'inherit', minWidth: 260,
       boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
       animation: "slideInUp 0.22s ease",
     }}>
@@ -534,7 +534,7 @@ function FilterBtn({ active, label, onClick, accentColor, accentBg, accentBorder
         border: `1px solid ${active ? accentBorder : C.border}`,
         background: active ? accentBg : C.surface,
         color: active ? accentColor : C.textSoft,
-        cursor: "pointer", fontFamily: FONT.body,
+        cursor: "pointer", fontFamily: 'inherit',
         transition: "all 0.15s",
       }}
     >
@@ -565,7 +565,7 @@ export default function Orders() {
 
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 30000);
+    const interval = setInterval(fetchAll, 300000); // 5 minutes instead of 30s to save Firebase limit
     return () => clearInterval(interval);
   }, [fetchAll]);
 
@@ -598,7 +598,7 @@ export default function Orders() {
     setOrders(o => o.map(x => x.id === orderId ? { ...x, paymentStatus: "paid" } : x));
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/customer-orders/${orderId}/settle-payment`,
+        `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api/customer-orders/${orderId}/settle-payment`,
         { method: "PUT", headers: { "Content-Type": "application/json" } }
       );
       if (!res.ok) throw new Error(await res.text());
@@ -660,16 +660,7 @@ export default function Orders() {
   ];
 
   return (
-    <div style={{ fontFamily: FONT.body, minHeight: "100vh", background: C.bg }}>
-      <style>{`
-        @keyframes slideInUp {
-          from { transform: translateY(16px); opacity: 0; }
-          to   { transform: translateY(0);    opacity: 1; }
-        }
-        * { box-sizing: border-box; }
-      `}</style>
-
-      <div style={{ maxWidth: 1160, margin: "0 auto", padding: "28px 24px" }}>
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
 
         {/* ── Header ── */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -683,7 +674,7 @@ export default function Orders() {
               padding: "8px 14px", borderRadius: 10,
               background: "#eff6ff", border: "1px solid #bfdbfe",
               fontSize: 12, fontWeight: 600, color: "#1d4ed8",
-              fontFamily: FONT.body,
+              fontFamily: 'inherit',
             }}>
               <div style={{
                 width: 12, height: 12, borderRadius: "50%",
@@ -733,7 +724,7 @@ export default function Orders() {
               marginLeft: "auto", padding: "7px 12px",
               fontSize: 12, borderRadius: 8, outline: "none",
               border: `1px solid ${C.border}`, background: C.surface,
-              color: C.textPrimary, fontFamily: FONT.body, width: 220,
+              color: C.textPrimary, fontFamily: 'inherit', width: 220,
             }}
           />
         </div>
@@ -749,7 +740,7 @@ export default function Orders() {
           borderBottom: "none",
         }}>
           {["Customer", "Date", "Items", "Payment", "Status", ""].map((h, i) => (
-            <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body }}>
+            <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: 'inherit' }}>
               {h}
             </div>
           ))}
@@ -765,8 +756,8 @@ export default function Orders() {
               borderRadius: "0 0 12px 12px",
             }}>
               <Package size={40} color={C.textMuted} style={{ margin: "0 auto 12px" }} />
-              <div style={{ fontSize: 15, fontWeight: 600, color: C.textSoft, fontFamily: FONT.body }}>No orders found</div>
-              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, fontFamily: FONT.body }}>Try changing your filter or search query</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.textSoft, fontFamily: 'inherit' }}>No orders found</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, fontFamily: 'inherit' }}>Try changing your filter or search query</div>
             </div>
           ) : (
             visible.map(order => (
@@ -783,15 +774,14 @@ export default function Orders() {
 
         {/* ── Footer ── */}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>
             <RefreshCw size={11} />
             Auto-refreshes every 30 seconds
           </div>
-          <div style={{ fontSize: 12, color: C.textMuted, fontFamily: FONT.body }}>
+          <div style={{ fontSize: 12, color: C.textMuted, fontFamily: 'inherit' }}>
             Showing <strong style={{ color: "#2563eb" }}>{visible.length}</strong> of <strong style={{ color: C.textPrimary }}>{total}</strong> orders
           </div>
         </div>
-      </div>
 
       {/* ── Toast ── */}
       {toast && (

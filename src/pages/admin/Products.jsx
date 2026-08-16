@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   collection,
   getDocs,
@@ -57,8 +58,9 @@ function Toast({ toasts, removeToast }) {
 }
 
 export default function Products() {
+  const location = useLocation();
   const [products, setProducts]               = useState([]);
-  const [search, setSearch]                   = useState("");
+  const [search, setSearch]                   = useState(location.state?.searchTarget || "");
   const [category, setCategory]               = useState("all");
   const [pendingOrders, setPendingOrders]     = useState({});
   const [showOrderForm, setShowOrderForm]     = useState(false);
@@ -80,6 +82,15 @@ export default function Products() {
     const unsub = subscribeToOrders();
     return () => unsub && unsub();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.searchTarget) {
+      setSearch(location.state.searchTarget);
+      const stateObj = { ...location.state };
+      delete stateObj.searchTarget;
+      window.history.replaceState(stateObj, document.title);
+    }
+  }, [location]);
 
   const loadProducts = async () => {
     const snap = await getDocs(collection(db, "adminProducts"));

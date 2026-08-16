@@ -3,7 +3,7 @@ import { initializeApp } from "firebase/app";
 
 // Firebase services
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getStorage } from "firebase/storage";          // ← added
 
@@ -38,8 +38,21 @@ isSupported().then((supported) => {
   }
 });
 
+let authInitialized = false;
+let authPromise = new Promise((resolve) => {
+  const unsub = onAuthStateChanged(auth, (user) => {
+    authInitialized = true;
+    resolve(user);
+    unsub();
+  });
+});
+
 export const getAuthHeaders = async () => {
-  const user = auth.currentUser;
+  let user = auth.currentUser;
+  if (!authInitialized && !user) {
+    user = await authPromise;
+  }
+  
   if (!user) return {};
   try {
     const token = await user.getIdToken(true); // true = force refresh token with latest claims

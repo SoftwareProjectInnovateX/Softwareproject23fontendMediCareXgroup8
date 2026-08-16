@@ -161,7 +161,7 @@ export default function Inventory() {
   }
 
   return (
-    <div className="font-['DM_Sans',sans-serif]">
+    <div className="">
 
       <div className="mb-6">
         <h1 className="text-3xl font-black text-slate-800">
@@ -208,7 +208,7 @@ export default function Inventory() {
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`text-[12px] font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer font-['DM_Sans',sans-serif] transition-all duration-150 border ${
+            className={`text-[12px] font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer  transition-all duration-150 border ${
               filter === f.key
                 ? "bg-[rgba(26,135,225,0.12)] text-[#1a87e1] border-[rgba(26,135,225,0.35)]"
                 : "bg-white text-[#475569] border-[rgba(26,135,225,0.18)]"
@@ -222,7 +222,7 @@ export default function Inventory() {
           placeholder="Search by name, code, category..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="ml-auto bg-white border border-[rgba(26,135,225,0.18)] rounded-lg px-3 py-[7px] text-[12px] text-[#1e293b] font-['DM_Sans',sans-serif] outline-none w-60"
+          className="ml-auto bg-white border border-[rgba(26,135,225,0.18)] rounded-lg px-3 py-[7px] text-[12px] text-[#1e293b]  outline-none w-60"
         />
       </div>
 
@@ -273,7 +273,7 @@ export default function Inventory() {
                   {p.name || "—"}
                 </div>
 
-                <div className="text-[12px] text-[#475569] font-mono">
+                <div className="text-[12px] text-[#475569] ">
                   {p.productCode || "—"}
                 </div>
 

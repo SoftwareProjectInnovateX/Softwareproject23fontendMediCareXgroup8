@@ -328,7 +328,7 @@ export default function SalesForecast() {
 
     try {
             const res = await fetch(
-        `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/forecast/insight/${selected.productId}`
+        `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api/forecast/insight/${selected.productId}`
       );
 
       if (!res.ok) {

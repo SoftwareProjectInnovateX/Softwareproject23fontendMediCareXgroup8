@@ -39,7 +39,7 @@ const PharmacistBlogApproval = () => {
       setBlog(data);
     } catch (err) {
       console.error(err);
-      setError("Failed to fetch pending blog.");
+      setError(`Failed to fetch pending blog: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -83,7 +83,7 @@ const PharmacistBlogApproval = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] -m-6 relative overflow-hidden">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10 relative overflow-hidden">
       {/* Loading Overlay when generating new article */}
       {isGenerating && (
         <div className="absolute inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex flex-col items-center justify-center">
@@ -98,8 +98,8 @@ const PharmacistBlogApproval = () => {
       )}
 
       {/* Scrollable Content Area */}
-      <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-8 h-full">
-        <div className="max-w-[1000px] mx-auto">
+      <div className="w-full">
+        <div className="w-full">
           
           {/* Header */}
           <div className="flex items-center gap-4 mb-8">

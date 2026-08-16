@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { auth } from '../../services/firebase';
 import { C, FONT } from './categoryConfig';
 
-const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
+const API_BASE = `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api`;
 function ProductImage({ imageUrl, name, height = 200, iconSize = 48 }) {
   return imageUrl ? (
     <img src={imageUrl} alt={name} className="w-full object-cover" style={{ height }} />

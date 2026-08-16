@@ -230,7 +230,7 @@ const PharmacistSettings = () => {
   if (isLoading) return <div className="p-10 text-center text-slate-500 font-bold">Loading settings...</div>;
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
       
       {/* Page Header Area */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 py-2 mb-6 border-b border-slate-100 pb-6">
@@ -279,7 +279,7 @@ const PharmacistSettings = () => {
               <h2 className="text-xl font-black text-slate-800">{profile.name}</h2>
               <p className="text-sm font-medium text-slate-500 mb-4">{profile.role}</p>
               
-              <div className="bg-slate-100 text-slate-600 font-mono text-[10px] uppercase font-black tracking-widest py-1.5 px-3 rounded inline-block mb-6 border border-slate-200">
+              <div className="bg-slate-100 text-slate-600  text-[10px] uppercase font-black tracking-widest py-1.5 px-3 rounded inline-block mb-6 border border-slate-200">
                  Reg No: {profile.slmc}
               </div>
 
@@ -348,7 +348,7 @@ const PharmacistSettings = () => {
                         name="slmc"
                         value={profile.slmc}
                         onChange={handleProfileChange}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-600 font-mono font-bold outline-none cursor-not-allowed"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-600  font-bold outline-none cursor-not-allowed"
                         readOnly
                      />
                      <p className="text-[10px] text-slate-400 font-bold mt-1">Contact system admin to change license number.</p>
@@ -439,7 +439,7 @@ const PharmacistSettings = () => {
                         value={passwords.current}
                         onChange={handlePasswordChange}
                         placeholder="Current Password"
-                        className="w-full md:w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none font-mono"
+                        className="w-full md:w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none "
                         readOnly
                      />
                   </div>
@@ -450,7 +450,7 @@ const PharmacistSettings = () => {
                         name="newPass"
                         value={passwords.newPass}
                         onChange={handlePasswordChange}
-                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono"
+                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all "
                      />
                   </div>
                   <div>
@@ -460,32 +460,12 @@ const PharmacistSettings = () => {
                         name="confirm"
                         value={passwords.confirm}
                         onChange={handlePasswordChange}
-                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono"
+                        className="w-full bg-white border border-slate-300 rounded-lg px-4 py-2.5 text-slate-800 font-bold outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all "
                      />
                   </div>
                </div>
            </div>
 
-           {/* Section 4: Danger Zone */}
-           <div className="card shadow-sm border border-red-200 p-0 overflow-hidden bg-red-50/30">
-               <div className="bg-red-50 border-b border-red-100 p-6 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-500" />
-                  <h2 className="text-lg font-black text-red-800">System Danger Zone</h2>
-               </div>
-               
-               <div className="p-6">
-                  <h3 className="font-bold text-slate-800">Factory Reset System</h3>
-                  <p className="text-sm text-slate-600 mb-4 mt-1">
-                     Wipe all operational data (dispensing history, daily revenue, and active prescriptions) from the database to start a fresh simulation. The system will automatically inject 24 new mock pending prescriptions once reset.
-                  </p>
-                  <button 
-                     onClick={handleFactoryReset} 
-                     className="bg-red-100 hover:bg-red-600 hover:text-white text-red-600 border border-red-200 font-black text-sm px-6 py-2.5 rounded-xl shadow-sm transition-all"
-                  >
-                     Reset System Now
-                  </button>
-               </div>
-           </div>
 
            {/* Bottom Action Bar */}
            <div className="flex justify-end pt-4 pb-10">

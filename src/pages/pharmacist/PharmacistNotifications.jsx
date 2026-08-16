@@ -15,6 +15,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { AlertContext } from '../../layouts/PharmacistLayout';
 import { getInventory, getPrescriptions, getOnlineOrders } from '../../services/pharmacistService';
+import { db } from '../../lib/firebase';
+import { doc, getDoc, setDoc, arrayUnion } from 'firebase/firestore';
 
 const PharmacistNotifications = () => {
   const navigate = useNavigate();
@@ -29,6 +31,16 @@ const PharmacistNotifications = () => {
          const inventory = await getInventory();
          const prescriptions = await getPrescriptions();
          const onlineOrders = await getOnlineOrders();
+         
+         // Fetch dismissed IDs from Firestore
+         let dismissedIds = [];
+         const configRef = doc(db, 'pharmacistConfig', 'notifications');
+         const configSnap = await getDoc(configRef);
+         if (configSnap.exists()) {
+             dismissedIds = configSnap.data().dismissedIds || [];
+         } else {
+             await setDoc(configRef, { dismissedIds: [] });
+         }
 
          let newNotifs = [];
 
@@ -134,7 +146,10 @@ const PharmacistNotifications = () => {
          // Sort by date (newest first)
          newNotifs.sort((a,b) => b.date - a.date);
          
-         setNotifications(newNotifs);
+         // Filter out any that were already dismissed
+         const filteredNotifs = newNotifs.filter(n => !dismissedIds.includes(n.id));
+         
+         setNotifications(filteredNotifs);
          setIsLoading(false);
       } catch (error) {
          console.error("Error generating notifications:", error);
@@ -146,11 +161,23 @@ const PharmacistNotifications = () => {
   }, []);
 
   useEffect(() => {
-    setUnreadAlerts(notifications.length);
-  }, [notifications, setUnreadAlerts]);
+    if (!isLoading) {
+       setUnreadAlerts(0);
+       localStorage.setItem('pharmacist_notif_viewed_at', Date.now().toString());
+    }
+  }, [isLoading, setUnreadAlerts]);
 
-  const dismissNotification = (id) => {
-    setNotifications(notifications.filter(n => n.id !== id));
+  const dismissNotification = async (id) => {
+    // Add to local state
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    
+    // Add to Firestore persistent storage
+    try {
+      const configRef = doc(db, 'pharmacistConfig', 'notifications');
+      await setDoc(configRef, { dismissedIds: arrayUnion(id) }, { merge: true });
+    } catch (error) {
+      console.error("Error dismissing notification:", error);
+    }
   };
 
   const handleAction = (type, linkId) => {
@@ -178,7 +205,7 @@ const PharmacistNotifications = () => {
       
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto px-6 lg:px-8 py-8 h-full">
-        <div className="max-w-[1400px] mx-auto">
+        <div className="max-w-7xl mx-auto">
           
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -195,10 +222,10 @@ const PharmacistNotifications = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="flex flex-col gap-8">
             
-            {/* Left Column: Notifications List */}
-            <div className="xl:col-span-2 space-y-4">
+            {/* Notifications List */}
+            <div className="space-y-4">
               
               {isLoading ? (
                   <div className="text-center p-8 text-slate-400">Loading notifications...</div>
@@ -234,52 +261,14 @@ const PharmacistNotifications = () => {
                            <button onClick={() => handleAction(notif.type, notif.linkId)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-2 rounded-md flex items-center gap-2 transition-colors shadow-sm">
                              Review Action
                            </button>
-                           <button onClick={() => dismissNotification(notif.id)} className="bg-white border border-slate-200 text-slate-600 font-bold text-sm px-5 py-2 rounded-md hover:bg-slate-50 transition-colors shadow-sm">
-                             Dismiss
+                           <button onClick={() => dismissNotification(notif.id)} className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-sm px-5 py-2 rounded-md hover:bg-emerald-100 flex items-center gap-2 transition-colors shadow-sm">
+                             <CheckCircle2 size={16} /> Mark as Resolved
                            </button>
                         </div>
                      </div>
                    );
                 })
               )}
-            </div>
-
-            {/* Right Column: Inventory Quick Actions */}
-            <div className="space-y-6">
-               
-               <div>
-                 <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                   <Bell className="w-5 h-5 text-blue-600" /> Action Center
-                 </h2>
-                 <p className="text-xs font-medium text-slate-400 mt-1">Manage external systems and deliveries.</p>
-               </div>
-
-               <div className="space-y-4">
-                 
-                 <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Pending Shipments</span>
-                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                    </div>
-                    <h3 className="font-bold text-slate-800 mt-2">MediPharma Delivery</h3>
-                    <p className="text-xs font-medium text-slate-400">Status: En Route</p>
-                    
-                    <button onClick={() => alert("Tracking pending")} className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded-md font-bold text-sm transition-colors shadow-sm flex items-center justify-center gap-2">
-                      Track Order <ArrowRight className="w-4 h-4" />
-                    </button>
-                 </div>
-
-                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Supplier Connect</span>
-                    </div>
-                    <h3 className="font-bold text-slate-800 mt-2">Contact Suppliers</h3>
-                    <p className="text-xs font-medium text-slate-400">Negotiate rates or request emergency restock.</p>
-
-                    <button onClick={() => navigate('/pharmacist/inventory')} className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md font-bold text-sm transition-colors shadow-sm">Open Inventory</button>
-                 </div>
-               </div>
-
             </div>
           </div>
         </div>

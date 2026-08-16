@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "react-scripts start",
+    "start": "vite",
     "dev": "vite",
-    "build": "react-scripts build",
+    "build": "vite build",
     "vite-build": "vite build",
     "test": "react-scripts test",
     "preview": "vite preview",

@@ -23,7 +23,7 @@ import {
 
 const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const navigate = useNavigate();
-  const { unreadAlerts, pendingRxCount } = useContext(AlertContext);
+  const { unreadAlerts, unreadMessages, pendingRxCount } = useContext(AlertContext);
   const { logout } = useAuth();
 
   const handleLogout = async () => {
@@ -54,7 +54,7 @@ const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     { path: '/pharmacist/brands',        name: 'Add Brand',      icon: Tag },
     { path: '/pharmacist/my-products',   name: 'My Products',    icon: Layers },
     { path: '/pharmacist/blog-approval', name: 'Blog Approval',  icon: FileText },
-    { path: '/pharmacist/messages',      name: 'Messages',       icon: MessageSquare, dot: false },
+    { path: '/pharmacist/messages',      name: 'Messages',       icon: MessageSquare, dot: unreadMessages > 0 },
   ];
 
   const NavItem = ({ item }) => (

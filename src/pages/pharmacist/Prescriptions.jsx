@@ -254,7 +254,7 @@ const handleSelectRx = async (p) => {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-[calc(100vh-120px)] gap-6 font-['Inter',sans-serif]">
+    <div className="flex h-[calc(100vh-120px)] gap-6 ">
 
       {/* ── Left Sidebar ─────────────────────────────────────────────────── */}
       <div className="w-[380px] flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">

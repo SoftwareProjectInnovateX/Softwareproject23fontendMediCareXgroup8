@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { updatePatient } from '../../services/pharmacistService';
+import { updatePatient, getDispensedHistory } from '../../services/pharmacistService';
 import { db } from '../../lib/firebase';
-import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { 
   Search, 
   UserPlus, 
@@ -19,10 +19,13 @@ const PharmacistPatients = () => {
   const navigate = useNavigate();
 
   const [patients, setPatients] = useState([]);
+  const [dispensedHistory, setDispensedHistory] = useState([]);
   const [activePatientId, setActivePatientId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    getDispensedHistory().then(setDispensedHistory).catch(console.error);
+
     setIsLoading(true);
     const q = query(collection(db, 'users'), where('role', '==', 'customer'));
     
@@ -40,25 +43,16 @@ const PharmacistPatients = () => {
           address: d2.address || '—',
           gender: d2.gender || '—',
           physician: 'Walk-in POS',
-          status: d2.status || 'active',
+          status: d2.isOnline ? 'active' : 'inactive',
           registrationSource: d2.registrationSource || 'app',
           lastVisit: d2.lastVisit || null,
-          medications: (d2.medications || []).map(m => ({
-            name: m.name || 'Unknown',
-            form: m.category === 'rx' ? `Qty: ${m.qty}` : 'OTC/General',
-            sig: `Qty: ${m.qty} · Rs. ${Number(m.price || 0).toFixed(2)} each`,
-            date: m.date || '—',
-            timestamp: m.timestamp || 0,
-            prescriber: m.dispensedAt || 'Walk-in POS',
-            status: 'Active',
-            paymentMethod: m.paymentMethod || '—',
-          })),
-          activeCount: (d2.medications || []).length,
+          lastLogin: d2.lastLogin && typeof d2.lastLogin.toDate === 'function' ? d2.lastLogin.toDate().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : (d2.lastLogin || 'Unknown'),
+          lastVisit: d2.lastVisit || null,
           fading: false,
           avatarColor: d2.registrationSource === 'walkin' ? '047857' : '1d4ed8',
           avatarBg:    d2.registrationSource === 'walkin' ? 'd1fae5' : 'dbeafe',
           timestamp: d2.createdAt?.toMillis?.() || 0,
-          notes: [],
+          notes: d2.notes || [],
         };
       })
       .sort((a, b) => b.timestamp - a.timestamp);
@@ -99,7 +93,30 @@ const PharmacistPatients = () => {
 
   const activePatient = patients.find(p => p.id === activePatientId) || null;
 
-  const processedPatients = [...patients]
+  let activePatientMeds = [];
+  if (activePatient) {
+    const records = dispensedHistory.filter(r => r.patientId === activePatient.id || r.patientId === activePatient.customerId);
+    activePatientMeds = records.flatMap(r => {
+      const meds = r.medicines || r.orderItems || [];
+      return meds.map(m => ({
+        name: m.name || 'Unknown',
+        form: r.type === 'prescription' ? `Qty: ${m.qty}` : 'OTC/General',
+        sig: `Qty: ${m.qty} · Rs. ${Number(m.price || 0).toFixed(2)} each`,
+        date: r.dispensedDate || r.date || '—',
+        timestamp: r.timestamp || 0,
+        prescriber: r.dispensedAt || 'Walk-in POS',
+        status: r.paymentStatus === 'Paid' ? 'Active' : 'Past',
+        paymentMethod: r.paymentMethod || '—'
+      }));
+    }).sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  const processedPatients = patients.map(p => {
+    const records = dispensedHistory.filter(r => r.patientId === p.id || r.patientId === p.customerId);
+    let count = 0;
+    records.forEach(r => { count += (r.medicines || r.orderItems || []).length; });
+    return { ...p, activeCount: count };
+  })
     .filter(p =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -113,40 +130,44 @@ const PharmacistPatients = () => {
       return 0;
     });
 
-  const handleAddPatient = () => {
+  const handleAddPatient = async () => {
     if (!newPatient.firstName) return;
-    const newId = `#PT-${Date.now().toString().slice(-6)}`;
-    const p = {
-      id: newId,
-      name: `${newPatient.firstName} ${newPatient.lastName}`,
-      dob: newPatient.dob || 'Jan 01, 1990',
-      age: 34,
-      gender: 'Unknown',
-      phone: newPatient.phone,
-      email: newPatient.email,
-      address: newPatient.address,
-      insurance: 'N/A',
-      insuranceId: 'N/A',
-      physician: 'N/A',
-      activeCount: 0,
-      fading: false,
-      avatarColor: '0ea5e9',
-      avatarBg: 'e0f2fe',
-      timestamp: Date.now(),
-      medications: [],
-      notes: []
-    };
     
-    // Optimistic update
-    setPatients([p, ...patients]);
-    setActivePatientId(newId);
-    setIsAddingPatient(false);
-    setNewPatient({ firstName: '', lastName: '', dob: '', phone: '', email: '', address: '' });
-    
-    // Save to Firebase
-    addPatient(p).then(savedP => {
-      // replace mock with real ID if necessary, but we used custom ID `#XXXXX` so it's fine.
-    }).catch(console.error);
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      let maxNum = 0;
+      usersSnap.forEach(d => {
+        const data = d.data();
+        if (data.customerId) {
+          const num = parseInt(data.customerId.replace('C', ''));
+          if (num > maxNum) maxNum = num;
+        }
+      });
+      const customerId = `C${String(maxNum + 1).padStart(3, '0')}`;
+      const docRef = doc(collection(db, 'users')); 
+      
+      const userData = {
+        customerId,
+        fullName: `${newPatient.firstName} ${newPatient.lastName}`.trim(),
+        email: newPatient.email || '',
+        phone: newPatient.phone || '',
+        address: newPatient.address || '',
+        role: 'customer',
+        status: 'active',
+        registrationSource: 'walkin',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        notes: []
+      };
+      
+      await setDoc(docRef, userData);
+      
+      setIsAddingPatient(false);
+      setNewPatient({ firstName: '', lastName: '', phone: '', email: '', address: '' });
+      setActivePatientId(docRef.id);
+    } catch (error) {
+      console.error("Error adding patient to Firebase:", error);
+    }
   };
 
   const handleAddNote = () => {
@@ -165,8 +186,8 @@ const PharmacistPatients = () => {
 
     // Save to Firebase
     const target = updatedPatients.find(p => p.id === activePatientId);
-    if(target && target.firebaseId) {
-        updatePatient(target.firebaseId, { notes: target.notes }).catch(console.error);
+    if(target && target.id) {
+        updatePatient(target.id, { notes: target.notes }).catch(console.error);
     }
   };
 
@@ -206,10 +227,7 @@ const PharmacistPatients = () => {
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Last Name</label>
                 <input type="text" value={newPatient.lastName} onChange={e => setNewPatient({...newPatient, lastName: e.target.value})} placeholder="Doe" className="w-full bg-slate-50 border-2 border-slate-200 rounded-lg py-3 px-4 text-sm outline-none focus:border-blue-500 focus:bg-white transition-all font-medium" />
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Date of Birth</label>
-                <input type="date" value={newPatient.dob} onChange={e => setNewPatient({...newPatient, dob: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-200 rounded-lg py-3 px-4 text-sm outline-none focus:border-blue-500 focus:bg-white transition-all font-medium" />
-              </div>
+
               <div>
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Phone *</label>
                 <input type="tel" value={newPatient.phone} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} placeholder="(555) 000-0000" className="w-full bg-slate-50 border-2 border-slate-200 rounded-lg py-3 px-4 text-sm outline-none focus:border-blue-500 focus:bg-white transition-all font-medium" />
@@ -302,12 +320,7 @@ const PharmacistPatients = () => {
                     <h3 className={`font-bold text-sm leading-tight truncate ${isActive ? 'text-blue-900' : 'text-slate-900'}`}>{patient.name}</h3>
                     <p className={`text-xs mt-1 ${isActive ? 'text-blue-600' : 'text-slate-500'} truncate`}>{patient.phone || 'No phone'}</p>
                   </div>
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
-                    isActive ? 'bg-blue-600 text-white' :
-                    patient.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                  }`}>
-                    {patient.status || 'active'}
-                  </span>
+
                 </div>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex gap-2 flex-wrap">
@@ -383,10 +396,7 @@ const PharmacistPatients = () => {
                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Full Name</label>
                    <input type="text" value={editedPatient?.name || ''} onChange={e => setEditedPatient({...editedPatient, name: e.target.value})} className="w-full bg-white border-2 border-slate-300 rounded-lg py-2.5 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 transition-all" />
                  </div>
-                 <div>
-                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Date of Birth</label>
-                   <input type="text" value={editedPatient?.dob || ''} onChange={e => setEditedPatient({...editedPatient, dob: e.target.value})} className="w-full bg-white border-2 border-slate-300 rounded-lg py-2.5 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 transition-all" />
-                 </div>
+
                   <div>
                     <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Phone</label>
                     <input type="text" value={editedPatient?.phone || ''} onChange={e => setEditedPatient({...editedPatient, phone: e.target.value})} className="w-full bg-white border-2 border-slate-300 rounded-lg py-2.5 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 transition-all" />
@@ -395,18 +405,12 @@ const PharmacistPatients = () => {
                     <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Email</label>
                     <input type="text" value={editedPatient?.email || ''} onChange={e => setEditedPatient({...editedPatient, email: e.target.value})} className="w-full bg-white border-2 border-slate-300 rounded-lg py-2.5 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 transition-all" />
                   </div>
-                 <div>
-                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Gender</label>
-                   <input type="text" value={editedPatient?.gender || ''} onChange={e => setEditedPatient({...editedPatient, gender: e.target.value})} className="w-full bg-white border-2 border-slate-300 rounded-lg py-2.5 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 transition-all" />
-                 </div>
+
                  <div>
                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Address</label>
                    <input type="text" value={editedPatient?.address || ''} onChange={e => setEditedPatient({...editedPatient, address: e.target.value})} className="w-full bg-white border-2 border-slate-300 rounded-lg py-2.5 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 transition-all" />
                  </div>
-                 <div>
-                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Insurance</label>
-                   <input type="text" value={editedPatient?.insurance || ''} onChange={e => setEditedPatient({...editedPatient, insurance: e.target.value})} className="w-full bg-white border-2 border-slate-300 rounded-lg py-2.5 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 transition-all" />
-                 </div>
+
                  <div>
                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block mb-2">Primary Physician</label>
                    <input type="text" value={editedPatient?.physician || ''} onChange={e => setEditedPatient({...editedPatient, physician: e.target.value})} className="w-full bg-white border-2 border-slate-300 rounded-lg py-2.5 px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-medium text-slate-700 transition-all" />
@@ -423,9 +427,9 @@ const PharmacistPatients = () => {
                      const updatedPatients = patients.map(p => p.id === activePatient.id ? editedPatient : p);
                      setPatients(updatedPatients);
                      setIsEditingProfile(false);
-                     if (activePatient.firebaseId) {
+                     if (activePatient.id) {
                        try {
-                         await updatePatient(activePatient.firebaseId, editedPatient);
+                         await updatePatient(activePatient.id, editedPatient);
                        } catch (e) {
                          console.error("Error updating patient in Firebase:", e);
                        }
@@ -437,28 +441,10 @@ const PharmacistPatients = () => {
             </div>
           ) : (
             <div className="space-y-4 animate-in fade-in duration-300">
-               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-white border-2 border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow">
-                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Age</span>
-                     <span className="text-2xl font-bold text-slate-900">{activePatient.age !== '—' ? activePatient.age : '—'}</span>
-                  </div>
-                  <div className="bg-white border-2 border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow">
-                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-2">DOB</span>
-                     <span className="text-sm font-bold text-slate-700">{activePatient.dob}</span>
-                  </div>
+               <div className="grid grid-cols-1 gap-4">
                   <div className="bg-white border-2 border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow">
                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Phone</span>
                      <span className="text-sm font-bold text-slate-700 break-all">{activePatient.phone}</span>
-                  </div>
-                  <div className="bg-white border-2 border-slate-100 rounded-xl p-4 hover:shadow-md transition-shadow">
-                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Status</span>
-                     <span className={`text-sm font-bold px-3 py-1 rounded-full inline-block ${
-                       activePatient.status === 'active' 
-                         ? 'bg-emerald-100 text-emerald-700' 
-                         : 'bg-slate-100 text-slate-600'
-                     }`}>
-                       {activePatient.status || 'active'}
-                     </span>
                   </div>
                </div>
 
@@ -471,21 +457,13 @@ const PharmacistPatients = () => {
                      <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Address</span>
                      <p className="font-medium text-slate-700">{activePatient.address}</p>
                   </div>
-                  <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-5">
-                     <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Gender</span>
-                     <p className="font-medium text-slate-700">{activePatient.gender || '—'}</p>
-                  </div>
-                  <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-5">
-                     <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Insurance</span>
-                     <p className="font-medium text-slate-700">{activePatient.insurance || '—'}</p>
-                  </div>
                </div>
 
                <div className="flex gap-4">
                   <div className="flex-1 bg-slate-50 border-2 border-slate-200 rounded-xl p-5">
-                     <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Last Visit</span>
-                     <p className={`font-bold text-lg ${activePatient.lastVisit ? 'text-slate-900' : 'text-slate-400'}`}>
-                       {activePatient.lastVisit || 'No visits yet'}
+                     <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Last Visit / Online</span>
+                     <p className={`font-bold text-lg ${activePatient.lastLogin !== 'Unknown' || activePatient.lastVisit ? 'text-slate-900' : 'text-slate-400'}`}>
+                       {activePatient.lastLogin !== 'Unknown' ? activePatient.lastLogin : (activePatient.lastVisit || 'No visits yet')}
                      </p>
                   </div>
                   <div className="flex-1 bg-gradient-to-br from-blue-100 to-blue-50 border-2 border-blue-300 rounded-xl p-5">
@@ -531,7 +509,7 @@ const PharmacistPatients = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {(activePatient.medications || [])
+                      {activePatientMeds
                         .filter(med => medFilter === 'All PharmacistPrescriptions' || (medFilter === 'Active PharmacistPrescriptions' && med.status === 'Active') || (medFilter === 'Past PharmacistPrescriptions' && med.status === 'Past'))
                         .map((med, idx) => (
                           <tr key={idx} className={`hover:bg-slate-50 transition-colors ${med.status === 'Past' ? 'opacity-60' : ''}`}>
@@ -552,7 +530,7 @@ const PharmacistPatients = () => {
                             </td>
                           </tr>
                       ))}
-                      {(activePatient.medications || [])
+                      {activePatientMeds
                         .filter(med => medFilter === 'All PharmacistPrescriptions' || (medFilter === 'Active PharmacistPrescriptions' && med.status === 'Active') || (medFilter === 'Past PharmacistPrescriptions' && med.status === 'Past'))
                         .length === 0 && (
                           <tr><td colSpan="4" className="text-center text-slate-400 text-sm py-10 font-medium">No {medFilter.toLowerCase()} found for this patient.</td></tr>

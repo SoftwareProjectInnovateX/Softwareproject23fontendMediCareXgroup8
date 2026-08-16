@@ -374,7 +374,7 @@ export default function AddProductForm() {
   };
 
   return (
-    <div className="flex flex-col gap-6 font-['DM_Sans',sans-serif]">
+    <div className="flex flex-col gap-6 ">
 
       {/* ── Toast container ────────────────────────────────────────────────── */}
       <Toast toasts={toasts} />
