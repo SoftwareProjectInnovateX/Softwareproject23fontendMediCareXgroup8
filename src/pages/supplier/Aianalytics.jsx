@@ -201,6 +201,10 @@ const AiAnalyticsDashboard = () => {
   const runAIAnalysis = async () => {
     if (!invoices.length) { showToast('No invoice data available to analyse.', 'warning'); return; }
     setLoadingAI(true);
+    setSupplyRecs([]);
+    setDemandData([]);
+    setPaymentRisk([]);
+    setRestockData([]);
     showToast('Running AI analysis…', 'info');
 
     try {
@@ -228,17 +232,29 @@ const AiAnalyticsDashboard = () => {
         fetch(`${API_BASE}/ai/restock-suggestions`,    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
       ]);
 
+      const responses = [
+        { name: 'Supply recommendations', response: supplyRes },
+        { name: 'Demand forecast', response: demandRes },
+        { name: 'Payment risk', response: riskRes },
+        { name: 'Restock suggestions', response: restockRes },
+      ];
+
+      const failed = responses.filter(({ response }) => !response.ok);
+      if (failed.length) {
+        throw new Error(`${failed.map(({ name, response }) => `${name} (HTTP ${response.status})`).join(', ')} failed`);
+      }
+
       const [supplyJson, demandJson, riskJson, restockJson] = await Promise.all([
-        supplyRes.ok  ? supplyRes.json()  : null,
-        demandRes.ok  ? demandRes.json()  : null,
-        riskRes.ok    ? riskRes.json()    : null,
-        restockRes.ok ? restockRes.json() : null,
+        supplyRes.json(),
+        demandRes.json(),
+        riskRes.json(),
+        restockRes.json(),
       ]);
 
-      if (supplyJson)  setSupplyRecs(supplyJson.recommendations || []);
-      if (demandJson)  setDemandData(demandJson.forecasts || []);
-      if (riskJson)    setPaymentRisk(riskJson.risks || []);
-      if (restockJson) setRestockData(restockJson.suggestions || []);
+      setSupplyRecs(supplyJson.recommendations || []);
+      setDemandData(demandJson.forecasts || []);
+      setPaymentRisk(riskJson.risks || []);
+      setRestockData(restockJson.suggestions || []);
 
       setAnalysisRan(true);
       setLastRun(new Date());
@@ -314,7 +330,11 @@ const AiAnalyticsDashboard = () => {
       ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
       : 'bg-white text-slate-500 border border-slate-200 hover:border-blue-300 hover:text-blue-600';
 
-  const hasResults = supplyRecs.length || demandData.length || paymentRisk.length || restockData.length;
+  const hasResults =
+  supplyRecs.length > 0 ||
+  demandData.length > 0 ||
+  paymentRisk.length > 0 ||
+  restockData.length > 0;
 
   return (
     <div className="p-4 sm:p-6 bg-slate-100 min-h-screen">
@@ -389,7 +409,7 @@ const AiAnalyticsDashboard = () => {
       </div>
 
       {/* ── Info banner before first run ── */}
-      {!hasResults && !loadingAI && (
+      {!analysisRan && !loadingAI && (
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 mb-6">
           <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
             <MdInfo size={18} className="text-blue-600" />
@@ -401,7 +421,7 @@ const AiAnalyticsDashboard = () => {
       )}
 
       {/* ── Tabs ── */}
-      {(hasResults || loadingAI) && (
+      {(analysisRan || loadingAI) && (
         <div className="bg-white border border-slate-200 rounded-2xl px-5 py-4 mb-5 flex items-center gap-2 flex-wrap shadow-sm">
           <span className="text-[12px] font-semibold text-slate-400 uppercase tracking-widest mr-2">View</span>
           {TABS.map(({ id, label, icon: Icon }) => (
@@ -468,7 +488,7 @@ const AiAnalyticsDashboard = () => {
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm mb-5">
             <SectionHeader icon={MdTrendingUp} title="Demand Forecast" subtitle="Projected invoice volume and value for the next period based on historical trends" color="violet" />
             {demandData.length === 0 ? (
-              <EmptyState message="Not enough data to generate demand forecasts. At least 3 invoices per product are needed." />
+              <EmptyState message="Not enough data to generate demand forecasts. At least 3 months of history per product are needed." />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse min-w-[700px]">
@@ -542,7 +562,7 @@ const AiAnalyticsDashboard = () => {
                     <div className="grid grid-cols-2 gap-2 mb-2">
                       <Stat label="Invoice Amount" value={fmtRs(risk.amount)} />
                       <Stat label="Due Date"       value={risk.dueDate} />
-                      <Stat label="Days Overdue"   value={risk.daysOverdue ? `${risk.daysOverdue}d` : 'N/A'} />
+                      <Stat label="Days Overdue"   value={risk.daysOverdue != null ? `${risk.daysOverdue}d` : 'N/A'} />
                       <Stat label="Risk Score"     value={`${risk.riskScore}%`} />
                     </div>
                     <div className="h-1.5 bg-white/70 rounded-full overflow-hidden mt-3">

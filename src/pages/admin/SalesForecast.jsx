@@ -33,7 +33,7 @@ function buildForecastData(product, salesMap) {
 
   const dailyAvg = totalSold30 > 0
     ? Math.max(1, Math.round(totalSold30 / 30))
-    : Math.max(1, Math.round((product.stock ?? 0) / 30));
+    : 0;
 
   const forecast7d        = dailyAvg * 7;
   const forecast30d       = dailyAvg * 30;
