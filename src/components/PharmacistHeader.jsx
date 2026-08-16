@@ -46,13 +46,17 @@ const PharmacistHeader = ({ setIsMobileOpen }) => {
 
       try {
         // Fetch from Firestore directly
+        
+        // Prefix search queries to prevent Quota Exceeded error
+        const endQ = q + '\uf8ff';
         const [pSnap, rxSnap, prodSnap, adminProdSnap, pharmProdSnap] = await Promise.all([
-          getDocs(query(collection(db, 'users'), where('role', '==', 'customer'))),
-          getDocs(collection(db, 'prescriptions')),
-          getDocs(collection(db, 'products')),
-          getDocs(collection(db, 'adminProducts')),
-          getDocs(collection(db, 'pharmacistProducts'))
+          getDocs(query(collection(db, 'users'), where('role', '==', 'customer'), limit(10))), // Limit user search for now
+          getDocs(query(collection(db, 'prescriptions'), limit(10))), // Limit prescriptions
+          getDocs(query(collection(db, 'products'), where('name', '>=', q), where('name', '<=', endQ), limit(10))),
+          getDocs(query(collection(db, 'adminProducts'), where('name', '>=', q), where('name', '<=', endQ), limit(10))),
+          getDocs(query(collection(db, 'pharmacistProducts'), where('name', '>=', q), where('name', '<=', endQ), limit(10)))
         ]);
+  
 
         const pList = pSnap.docs.map(doc => {
           const data = doc.data();
