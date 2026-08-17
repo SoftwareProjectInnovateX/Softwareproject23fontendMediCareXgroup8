@@ -240,9 +240,12 @@ const PharmacistDashboard = () => {
          inOneWeek.setDate(inOneWeek.getDate() + 7);
          
          const expiringList = inv.filter(item => {
-            const dateStr = item.expiryDate ?? item.expireDate ?? item.expiry ?? item.expirationDate;
-            if (!dateStr) return false;
-            const expDate = new Date(dateStr);
+            let rawDate = item.expiryDate ?? item.expireDate ?? item.expiry ?? item.expirationDate;
+            if (!rawDate) return false;
+            let expDate = new Date(rawDate);
+            if (rawDate._seconds) expDate = new Date(rawDate._seconds * 1000);
+            if (typeof rawDate.toDate === 'function') expDate = rawDate.toDate();
+            if (isNaN(expDate.getTime())) return false;
             expDate.setHours(0, 0, 0, 0);
             return expDate <= inOneWeek;
          });
