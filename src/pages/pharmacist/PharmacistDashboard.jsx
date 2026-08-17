@@ -520,11 +520,14 @@ const PharmacistDashboard = () => {
                   {expiringItems.length > 0 ? (
                     <>
                       <div className="flex gap-1.5 flex-wrap mb-1">
-                        {expiringItems.slice(0, 4).map((item, idx) => (
-                          <span key={idx} className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center text-[10px] font-bold text-red-500 border border-red-100 flex-shrink-0" title={item.name || item.productName || item.itemName || 'Unknown'}>
-                            {(item.name || item.productName || item.itemName || '?').charAt(0).toUpperCase()}
-                          </span>
-                        ))}
+                        {expiringItems.slice(0, 4).map((item, idx) => {
+                          const itemName = item.name || item.productName || item.itemName || item.medicineName || item.title || item.productCode || 'Unknown';
+                          return (
+                            <span key={idx} className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center text-[10px] font-bold text-red-500 border border-red-100 flex-shrink-0" title={itemName}>
+                              {itemName.charAt(0).toUpperCase()}
+                            </span>
+                          );
+                        })}
                         {expiringItems.length > 4 && (
                           <span className="text-[10px] text-slate-400 font-bold self-center">+{expiringItems.length - 4}</span>
                         )}
