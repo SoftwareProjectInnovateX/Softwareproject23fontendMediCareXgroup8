@@ -211,7 +211,12 @@ export default function AccountRequests() {
             </button>
             <button onClick={() => handleReject(request)} disabled={isProcessing}
               className="flex-1 py-2.5 rounded-xl bg-red-50 border-2 border-red-200 text-red-600 text-sm font-bold hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-              ✕ Reject
+              {isProcessing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-3 h-3 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                  Rejecting...
+                </span>
+              ) : '✕ Reject'}
             </button>
           </div>
         )}
