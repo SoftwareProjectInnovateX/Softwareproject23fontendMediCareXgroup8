@@ -142,28 +142,30 @@ const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       </div>
 
       {/* Footer Settings & Logout */}
-      <div className="p-4 border-t border-white/10 shrink-0 mt-auto flex items-center gap-2">
+      <div className="px-5 py-4 border-t border-white/10 shrink-0 mt-auto flex items-center justify-between">
         <NavLink
           to="/pharmacist/settings"
           className={({ isActive }) =>
-            `flex flex-1 items-center justify-center gap-2 p-2 rounded-lg transition-all duration-200 ${
+            `flex items-center gap-3 py-2 px-3 -ml-3 rounded-lg transition-all duration-200 ${
               isActive
-                ? 'bg-white/20 text-white shadow-sm'
-                : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                ? 'bg-[#06357a] text-white shadow-sm'
+                : 'text-blue-100 hover:bg-[#084298] hover:text-white'
             }`
           }
           title="Settings"
         >
-          <Settings className="w-5 h-5" />
-          <span className="text-sm font-medium tracking-wide">Settings</span>
+          <div className="p-1.5 rounded-md bg-white/5">
+            <Settings className="w-4 h-4" />
+          </div>
+          <span className="text-sm tracking-wide">Settings</span>
         </NavLink>
 
         <button
           onClick={handleLogout}
-          className="p-2 px-3 rounded-lg text-blue-100 hover:bg-red-500 hover:text-white transition-all duration-200 flex items-center justify-center"
+          className="p-2 rounded-lg text-blue-100 bg-white/5 hover:bg-red-500 hover:text-white transition-all duration-200"
           title="Logout"
         >
-          <LogOut className="w-5 h-5" />
+          <LogOut className="w-4 h-4" />
         </button>
       </div>
     </div>
