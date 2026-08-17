@@ -83,32 +83,34 @@ const PharmacistDashboard = () => {
       };
 
       // ── Revenue & dispensed counts ──────────────────────────────────────────
-      const todayDispensed = dispensedList.filter(item => {
-        const ts = getValidDate(item.dispensedAt || item.createdAt || item.date || item.timestamp);
-        return isDateToday(ts);
-      });
-      setDispensedTodayCount(todayDispensed.length);
-
       let wRxRev = 0, wOtcRev = 0, dRev = 0;
       let dRevCard = 0, dRevBank = 0, dRevPayHere = 0, dRevCod = 0;
       let onlineDispCount = 0, physicalDispCount = 0;
 
-      todayDispensed.forEach(d => {
+      // 1. Process physical & online prescriptions from dispensedList
+      dispensedList.forEach(d => {
+        const ts = getValidDate(d.dispensedAt || d.createdAt || d.date || d.timestamp);
+        if (!isDateToday(ts)) return;
+
         const paymentStat = (d.paymentStatus || '').toLowerCase();
         const paymentMeth = (d.paymentMethod || '').toUpperCase();
         
         if (d.rxId || d.type === 'online') {
-          onlineDispCount++;
-          if (paymentStat === 'paid' || paymentMeth !== 'COD') {
-            const amt = parseFloat(d.total) || 0;
-            dRev += amt;
-            if (paymentMeth.includes('CARD')) dRevCard += amt;
-            else if (paymentMeth.includes('BANK')) dRevBank += amt;
-            else if (paymentMeth.includes('PAYHERE')) dRevPayHere += amt;
-            else if (paymentMeth === 'COD') dRevCod += amt;
-            else dRevCard += amt; 
+          // Online Prescription: Only count if payment is made or it's COD
+          if (paymentStat === 'paid' || paymentMeth === 'COD' || paymentStat === 'cod') {
+            onlineDispCount++;
+            if (paymentStat === 'paid' || paymentMeth !== 'COD') {
+              const amt = parseFloat(d.total) || 0;
+              dRev += amt;
+              if (paymentMeth.includes('CARD')) dRevCard += amt;
+              else if (paymentMeth.includes('BANK')) dRevBank += amt;
+              else if (paymentMeth.includes('PAYHERE')) dRevPayHere += amt;
+              else if (paymentMeth === 'COD') dRevCod += amt;
+              else dRevCard += amt; 
+            }
           }
         } else {
+          // Physical: Usually paid immediately at the counter
           physicalDispCount++;
           if (paymentStat === 'paid' || paymentStat === 'cod' || paymentMeth === 'COD') {
             if (d.type === 'prescription' || (d.id && d.id.includes('RX'))) {
@@ -120,6 +122,25 @@ const PharmacistDashboard = () => {
         }
       });
 
+      // 2. Process normal online orders from onlineOrders
+      onlineOrders.forEach(o => {
+        const ts = getValidDate(o.updatedAt || o.orderDate || o.createdAt || o.timestamp);
+        if (!isDateToday(ts)) return;
+
+        const stat = (o.status || o.orderStatus || '').toLowerCase();
+        const paymentStat = (o.paymentStatus || '').toLowerCase();
+        const paymentMeth = (o.paymentMethod || '').toUpperCase();
+
+        const isApproved = stat !== 'pending' && stat !== 'cancelled' && stat !== 'pending-cod';
+        const isPaidOrCod = paymentStat === 'paid' || paymentMeth === 'COD';
+
+        if (isApproved && isPaidOrCod) {
+          onlineDispCount++;
+        }
+      });
+
+      setDispensedTodayCount(physicalDispCount + onlineDispCount);
+      
       setDailyRevenue(dRev);
       setOnlineRevCard(dRevCard);
       setOnlineRevBank(dRevBank);
