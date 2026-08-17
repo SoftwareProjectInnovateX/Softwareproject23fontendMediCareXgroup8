@@ -69,8 +69,24 @@ const PharmacistDashboard = () => {
         getReturnRequests(),
       ]);
 
+      // ── Helper to safely extract date ──
+      const getValidDate = (val) => {
+        if (!val) return null;
+        if (val._seconds) return new Date(val._seconds * 1000);
+        const d = new Date(val);
+        return isNaN(d) ? null : d;
+      };
+      
+      const isDateToday = (d) => {
+        if (!d) return false;
+        return d.toDateString() === todayStr;
+      };
+
       // ── Revenue & dispensed counts ──────────────────────────────────────────
-      const todayDispensed = dispensedList.filter(item => item.dispensedDate === todayStr);
+      const todayDispensed = dispensedList.filter(item => {
+        const ts = getValidDate(item.dispensedAt || item.createdAt || item.date || item.timestamp);
+        return isDateToday(ts);
+      });
       setDispensedTodayCount(todayDispensed.length);
 
       let wRxRev = 0, wOtcRev = 0, dRev = 0;
@@ -78,21 +94,24 @@ const PharmacistDashboard = () => {
       let onlineDispCount = 0, physicalDispCount = 0;
 
       todayDispensed.forEach(d => {
-        if (d.rxId) {
+        const paymentStat = (d.paymentStatus || '').toLowerCase();
+        const paymentMeth = (d.paymentMethod || '').toUpperCase();
+        
+        if (d.rxId || d.type === 'online') {
           onlineDispCount++;
-          if (d.paymentStatus === 'Paid') {
+          if (paymentStat === 'paid' || paymentMeth !== 'COD') {
             const amt = parseFloat(d.total) || 0;
             dRev += amt;
-            if (d.paymentMethod === 'Card Payment') dRevCard += amt;
-            else if (d.paymentMethod === 'Bank Transfer') dRevBank += amt;
-            else if (d.paymentMethod === 'PayHere') dRevPayHere += amt;
-            else if (d.paymentMethod === 'COD') dRevCod += amt;
-            else dRevCard += amt;
+            if (paymentMeth.includes('CARD')) dRevCard += amt;
+            else if (paymentMeth.includes('BANK')) dRevBank += amt;
+            else if (paymentMeth.includes('PAYHERE')) dRevPayHere += amt;
+            else if (paymentMeth === 'COD') dRevCod += amt;
+            else dRevCard += amt; 
           }
         } else {
           physicalDispCount++;
-          if (d.paymentStatus === 'Paid') {
-            if (d.type === 'prescription' || d.id?.includes('RX')) {
+          if (paymentStat === 'paid' || paymentStat === 'cod' || paymentMeth === 'COD') {
+            if (d.type === 'prescription' || (d.id && d.id.includes('RX'))) {
               wRxRev += parseFloat(d.total) || 0;
             } else {
               wOtcRev += parseFloat(d.total) || 0;
@@ -112,13 +131,22 @@ const PharmacistDashboard = () => {
       setPhysicalDispensedCount(physicalDispCount);
 
       const dispatchedOnline = onlineOrders.filter(o => {
-        const orderDate = new Date(o.orderDate || o.timestamp).toDateString();
-        return o.status === 'Dispatched' && orderDate === todayStr;
+        const ts = getValidDate(o.updatedAt || o.orderDate || o.createdAt || o.timestamp);
+        const stat = (o.status || o.orderStatus || '').toLowerCase();
+        return isDateToday(ts) && (stat === 'dispatched' || stat === 'delivered' || stat === 'completed');
       });
+      
       let paidRev = 0, codRev = 0;
       dispatchedOnline.forEach(o => {
-        if (o.paymentStatus === 'Paid') paidRev += parseFloat(o.total) || 0;
-        else if (o.paymentMethod === 'COD') codRev += parseFloat(o.total) || 0;
+        const amt = parseFloat(o.totalAmount || o.total) || 0;
+        const paymentStat = (o.paymentStatus || '').toLowerCase();
+        const paymentMeth = (o.paymentMethod || '').toUpperCase();
+        
+        if (paymentStat === 'paid' || paymentMeth !== 'COD') {
+           paidRev += amt;
+        } else if (paymentMeth === 'COD') {
+           codRev += amt;
+        }
       });
       setOnlinePaidRev(paidRev);
       setOnlineCodRev(codRev);

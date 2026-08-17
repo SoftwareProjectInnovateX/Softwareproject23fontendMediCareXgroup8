@@ -76,7 +76,7 @@ function UploadForm({ onUploaded, userId }) {
     if (userId) fd.append('userId', userId);
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/prescriptions/upload`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : (import.meta.env.VITE_API_URL || 'http://localhost:5000')}/api/prescriptions/upload`, {
         method: 'POST',
         body: fd,
       });

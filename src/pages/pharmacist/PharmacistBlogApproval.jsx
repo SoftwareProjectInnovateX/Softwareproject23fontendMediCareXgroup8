@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, ArrowLeft, RefreshCw, Loader2, Info } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { getPendingBlog, approveBlog, rejectAndRegenerateBlog } from '../../services/pharmacistService';
+import { getPendingBlog, approveBlog, rejectAndRegenerateBlog, generateTestBlog } from '../../services/pharmacistService';
 
 const PharmacistBlogApproval = () => {
   const navigate = useNavigate();
@@ -45,6 +45,20 @@ const PharmacistBlogApproval = () => {
     }
   };
 
+  const handleGenerateTest = async () => {
+    try {
+      setIsGenerating(true);
+      setError(null);
+      await generateTestBlog();
+      await fetchPendingBlog();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to generate test blog.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleApprove = async () => {
     try {
       await approveBlog(blog.id);
@@ -74,11 +88,11 @@ const PharmacistBlogApproval = () => {
     let cleaned = content.replace(/^#\s+[^\n]+\n+/, '');
     if (title) {
       const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const exactTitleRegex = new RegExp(`^\\s*\\*?\\*?${escapedTitle}\\*?\\*?\\s*\\n+`, 'i');
+      const exactTitleRegex = new RegExp(`^\\s*\\*?\\*?\${escapedTitle}\\*?\\*?\\s*\\n+`, 'i');
       cleaned = cleaned.replace(exactTitleRegex, '');
     }
-    cleaned = cleaned.replace(/(\*?\*?Disclaimer:?[\s\S]*)/i, '');
-    cleaned = cleaned.replace(/(\*?\*?Image\s?Prompt:?[\s\S]*)/i, '');
+    cleaned = cleaned.replace(/(\*?\*?Disclaimer:?[\\s\\S]*)/i, '');
+    cleaned = cleaned.replace(/(\*?\*?Image\\s?Prompt:?[\\s\\S]*)/i, '');
     return cleaned.trim();
   };
 
@@ -134,7 +148,13 @@ const PharmacistBlogApproval = () => {
                   <CheckCircle className="w-10 h-10" />
                </div>
                <h3 className="text-2xl font-bold text-slate-800 mb-2">All caught up!</h3>
-               <p className="text-slate-500 max-w-sm mx-auto">There are no pending articles waiting for your approval right now.</p>
+               <p className="text-slate-500 max-w-sm mx-auto mb-6">There are no pending articles waiting for your approval right now.</p>
+               <button 
+                 onClick={handleGenerateTest}
+                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2 shadow-sm shadow-blue-600/20"
+               >
+                 <RefreshCw size={18} /> Generate Tomorrow's Blog Now
+               </button>
              </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
@@ -154,7 +174,7 @@ const PharmacistBlogApproval = () => {
                         onClick={handleApprove}
                         className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors flex items-center gap-2 shadow-sm shadow-blue-600/20"
                      >
-                        <CheckCircle size={18} /> Approve & Publish
+                        <CheckCircle size={18} /> Approve (Publishes at Midnight)
                      </button>
                   </div>
                </div>

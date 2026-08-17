@@ -11,7 +11,7 @@ import OrderCard      from '../../components/orders/OrderCard';
 import { ROUTES }     from '../../components/utils/constants';
 
 
-const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY}/api/customer-orders`;
+const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : (import.meta.env.VITE_API_URL || 'http://localhost:5000')}/api/customer-orders`;
 
 const COLLECTIONS = {
   CUSTOMER_ORDERS: 'CustomerOrders',

@@ -3,6 +3,17 @@ import { ArrowLeft, Search, AlertTriangle, Calendar, Package, ChevronDown, Chevr
 import { useNavigate } from 'react-router-dom';
 import { getInventory } from '../../services/pharmacistService';
 
+
+function parseExpiryDate(item) {
+  const rawDate = item.expiryDate ?? item.expiry ?? item.expirationDate ?? item.expireDate;
+  if (!rawDate) return null;
+  let d = new Date(rawDate);
+  if (rawDate._seconds) d = new Date(rawDate._seconds * 1000);
+  if (typeof rawDate.toDate === 'function') d = rawDate.toDate();
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
 const PharmacistExpiringInventory = () => {
   const navigate = useNavigate();
   const [expandedId, setExpandedId] = useState(null);
@@ -23,15 +34,13 @@ const PharmacistExpiringInventory = () => {
 
         const expiringList = inv
           .filter(item => {
-            const dateStr = item.expiryDate ?? item.expiry ?? item.expirationDate;
-            if (!dateStr) return false;
-            const expDate = new Date(dateStr);
+            const expDate = parseExpiryDate(item);
+              if (!expDate) return false;
             expDate.setHours(0, 0, 0, 0);
             return expDate <= inOneWeek; // within 7 days OR already expired
           })
           .map((item, idx) => {
-            const dateStr = item.expiryDate ?? item.expiry ?? item.expirationDate;
-            const expDate = new Date(dateStr);
+            const expDate = parseExpiryDate(item);
             expDate.setHours(0, 0, 0, 0);
             const isExpired = expDate < today;
             const msDiff = expDate - today;
@@ -66,7 +75,7 @@ const PharmacistExpiringInventory = () => {
                 {
                   batchNo: item.batch || item.sku || `B-${String(item.id || idx).slice(-4)}`,
                   qty: Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0),
-                  expiryDate: dateStr,
+                  expiryDate: expDate ? expDate.toISOString().split('T')[0] : 'N/A',
                   mfgDate: item.mfgDate ?? item.manufacturingDate ?? 'Unknown',
                 },
               ],

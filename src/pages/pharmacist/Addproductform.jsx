@@ -174,7 +174,7 @@ function VisibilitySelector({ value, onChange }) {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PHARMACIST_API = `${import.meta.env.VITE_API_URL_RAILWAY}/api/products`;
+const PHARMACIST_API = `${import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : (import.meta.env.VITE_API_URL || 'http://localhost:5000')}/api/products`;
 const MARKUP_RATE    = 1.2;
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -193,6 +193,7 @@ export default function AddProductForm() {
     category:    "",
     supplierId:  "",
     stockId:     "",
+    expireDate:  "",
   });
   const [tags,         setTags]         = useState({ newArrival: false });
   const [visibility,   setVisibility]   = useState("customer");
@@ -235,6 +236,11 @@ export default function AddProductForm() {
       category:    product.category    || "",
       supplierId:  product.supplierId  || "",
       stockId:     product.productCode || "",
+      expireDate:  product.expireDate  
+                     ? (typeof product.expireDate === "object" && product.expireDate._seconds 
+                         ? new Date(product.expireDate._seconds * 1000).toISOString().split("T")[0]
+                         : new Date(product.expireDate).toISOString().split("T")[0])
+                     : "",
     });
     setTags({ newArrival: false });
     setVisibility("customer");
@@ -247,7 +253,7 @@ export default function AddProductForm() {
     if (!form.name) { showToast("Please enter a product name first.", "error"); return; }
     setAiLoading(true);
     try {
-      const res  = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/ai/describe`, {
+      const res  = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : (import.meta.env.VITE_API_URL || 'http://localhost:5000')}/api/ai/describe`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ name: form.name, category: form.category || "medicine" }),
@@ -270,7 +276,7 @@ export default function AddProductForm() {
     if (!form.name) { showToast("Please enter a product name first.", "error"); return; }
     setImageLoading(true);
     try {
-      const res  = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY}/api/ai/generate-image`, {
+      const res  = await fetch(`${import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : (import.meta.env.VITE_API_URL || 'http://localhost:5000')}/api/ai/generate-image`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ name: form.name, category: form.category }),
@@ -367,7 +373,7 @@ export default function AddProductForm() {
   };
 
   const resetForm = () => {
-    setForm({ name: "", price: "", description: "", imageUrl: "", category: "", supplierId: "", stockId: "" });
+    setForm({ name: "", price: "", description: "", imageUrl: "", category: "", supplierId: "", stockId: "", expireDate: "" });
     setTags({ newArrival: false });
     setVisibility("customer");
     setSelectedPending(null);
@@ -557,6 +563,19 @@ export default function AddProductForm() {
               onChange={handleChange}
               className="bg-white border border-[rgba(26,135,225,0.18)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] outline-none w-full"
               required
+            />
+          </Field>
+        </div>
+
+        {/* Expiry Date */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[14px]">
+          <Field label="Expiry Date">
+            <input
+              type="date"
+              name="expireDate"
+              value={form.expireDate}
+              onChange={handleChange}
+              className="bg-white border border-[rgba(26,135,225,0.18)] rounded-lg px-3 py-[10px] text-[13px] text-[#1e293b] outline-none w-full"
             />
           </Field>
         </div>
