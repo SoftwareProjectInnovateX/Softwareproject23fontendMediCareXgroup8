@@ -115,11 +115,11 @@ export default function Inventory() {
   const outOfStock    = products.filter(p => p.stock === 0).length;
   const lowStock      = products.filter(p => p.stock > 0 && p.stock < (p.minStock ?? 10)).length;
   const expiredCount  = products.filter(p => {
-    const d = getDaysUntilExpiry(p.expiryDate);
+    const d = getDaysUntilExpiry(p);
     return d !== null && d < 0;
   }).length;
   const expiringSoon  = products.filter(p => {
-    const d = getDaysUntilExpiry(p.expiryDate);
+    const d = getDaysUntilExpiry(p);
     return d !== null && d >= 0 && d <= 30;
   }).length;
 
@@ -128,7 +128,7 @@ export default function Inventory() {
    * Filter "low" captures both low-stock AND out-of-stock rows.
    */
   const visible = products.filter(p => {
-    const days         = getDaysUntilExpiry(p.expiryDate);
+    const days         = getDaysUntilExpiry(p);
     const stockStatus  = getStockStatus(p.stock, p.minStock ?? 10);
     const expiryStatus = getExpiryStatus(days);
 
@@ -152,7 +152,7 @@ export default function Inventory() {
    * (expired → red tint, expiring soon / low stock → amber tint).
    */
   function rowBg(p) {
-    const days = getDaysUntilExpiry(p.expiryDate);
+    const days = getDaysUntilExpiry(p);
     if (days !== null && days < 0)    return "rgba(239,68,68,0.04)";
     if (days !== null && days <= 30)  return "rgba(245,158,11,0.04)";
     if (p.stock === 0)                return "rgba(239,68,68,0.04)";
@@ -248,7 +248,7 @@ export default function Inventory() {
           </div>
         ) : (
           visible.map((p, i) => {
-            const days         = getDaysUntilExpiry(p.expiryDate);
+            const days         = getDaysUntilExpiry(p);
             const expiryStatus = getExpiryStatus(days);
             const stockStatus  = getStockStatus(p.stock, p.minStock ?? 10);
 

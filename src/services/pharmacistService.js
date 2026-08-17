@@ -236,3 +236,15 @@ export async function rejectAndRegenerateBlog(id) {
   if (!res.ok) throw new Error(`Failed to reject blog: ${res.statusText}`);
   return res.json();
 }
+export async function generateTestBlog() {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`${BASE_URL}/api/customer/blogs/generate-test`, { 
+    method: 'POST',
+    headers: { ...authHeaders }
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(errorText || 'Failed to generate test blog');
+  }
+  return res.json();
+}

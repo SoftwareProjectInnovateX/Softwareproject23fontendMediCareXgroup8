@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-const PHARMACIST_API = `${import.meta.env.VITE_API_URL_RAILWAY}/api/products`;
+const PHARMACIST_API = `${import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : (import.meta.env.VITE_API_URL || 'http://localhost:5000')}/api/products`;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = `

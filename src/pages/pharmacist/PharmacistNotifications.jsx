@@ -86,7 +86,7 @@ const PharmacistNotifications = () => {
                      category: 'Alert',
                      title: 'Expiring Inventory',
                      subtitle: `Expires in ${Math.ceil(daysDiff)} days`,
-                     message: `${item.name} will expire on ${item.expiryDate}. Please clear the stock.`,
+                     message: `${item.name} will expire on ${expDate.toISOString().split('T')[0]}. Please clear the stock.`,
                      icon: <AlertTriangle className="w-5 h-5" />,
                      colorType: 'red',
                      date: new Date().getTime() - 15000 
@@ -127,6 +127,25 @@ const PharmacistNotifications = () => {
          });
 
          // 3. Online Orders Notifications
+         const systemNotifsSnap = await getDocs(collection(db, 'pharmacistNotifications'));
+         systemNotifsSnap.docs.forEach(doc => {
+            const data = doc.data();
+            if (data.type === 'blog_approval') {
+               newNotifs.push({
+                  id: doc.id,
+                  type: 'blog_approval',
+                  category: 'Action Required',
+                  title: data.title || 'New Article Needs Approval',
+                  subtitle: 'AI Blog Generation',
+                  message: data.message,
+                  icon: <FileText className="w-5 h-5" />,
+                  colorType: 'blue',
+                  date: data.createdAt?.toMillis ? data.createdAt.toMillis() : new Date(data.createdAt).getTime(),
+               });
+            }
+         });
+         
+         // 4. Online Orders Notifications
          onlineOrders.forEach(o => {
             if (o.status === 'Reviewing' || o.status === 'New') {
                newNotifs.push({

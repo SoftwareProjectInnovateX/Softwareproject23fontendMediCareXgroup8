@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 // ── API base (unchanged) ──────────────────────────────────────────────────────
-const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY}/api`;
+const API_BASE = `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined') ? import.meta.env.VITE_API_URL_RAILWAY : (import.meta.env.VITE_API_URL || 'http://localhost:5000')}/api`;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -614,7 +614,7 @@ export default function Orders() {
 
   // ── Derived counts ─────────────────────────────────────────────────────────
   const total      = orders.length;
-  const pending    = orders.filter(o => (o.orderStatus || "Pending-COD") === "Pending-COD").length;
+  const pending    = orders.filter(o => { const s = (o.orderStatus || "").toLowerCase(); return s.includes("pending"); }).length;
   
   const delivered  = orders.filter(o => o.orderStatus === "delivered").length;
   const cancelled  = orders.filter(o => o.orderStatus === "cancelled").length;
@@ -631,7 +631,7 @@ export default function Orders() {
   const visible = orders.filter(o => {
     const matchFilter =
       filter === "all"        ? true :
-      filter === "pending"    ? (o.orderStatus || "pending") === "pending" :
+      filter === "pending"    ? (o.orderStatus || "").toLowerCase().includes("pending") :
       filter === "approved"   ? o.orderStatus === "approved"   :
       filter === "processing" ? o.orderStatus === "processing" :
       filter === "delivered"  ? o.orderStatus === "delivered"  :
