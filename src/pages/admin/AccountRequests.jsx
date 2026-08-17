@@ -74,7 +74,7 @@ export default function AccountRequests() {
   const handleApprove = async (request) => {
     if (!request?.id) return;
     if (!window.confirm(`Approve ${request.type} account for ${request.companyName || request.fullName}?`)) return;
-    setActionLoading(request.id);
+    setActionLoading(`${request.id}-approve`);
     try {
       const authHeaders = await getAuthHeaders();
       const res  = await fetch(`${API_BASE}/account-requests/${request.id}/approve`, { method: 'POST', headers: { ...authHeaders } });
@@ -92,7 +92,7 @@ export default function AccountRequests() {
   const handleReject = async (request) => {
     if (!request?.id) return;
     if (!window.confirm(`Reject request from ${request.companyName || request.fullName}?`)) return;
-    setActionLoading(request.id);
+    setActionLoading(`${request.id}-reject`);
     try {
       const authHeaders = await getAuthHeaders();
       const res  = await fetch(`${API_BASE}/account-requests/${request.id}/reject`, { method: 'POST', headers: { ...authHeaders } });
@@ -138,7 +138,9 @@ export default function AccountRequests() {
     const isSupplier   = request.type === 'supplier';
     const isPending    = request.status === 'pending';
     const isApproved   = request.status === 'approved';
-    const isProcessing = actionLoading === request.id;
+    const isApproveProcessing = actionLoading === `${request.id}-approve`;
+    const isRejectProcessing  = actionLoading === `${request.id}-reject`;
+    const isProcessing        = isApproveProcessing || isRejectProcessing;
 
     return (
       <div className={`bg-white rounded-xl border-2 p-4 md:p-5 transition-all
@@ -202,7 +204,7 @@ export default function AccountRequests() {
           <div className="flex gap-3 pt-4 border-t border-slate-100">
             <button onClick={() => handleApprove(request)} disabled={isProcessing}
               className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-900 to-blue-500 text-white text-sm font-bold hover:-translate-y-0.5 hover:shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
-              {isProcessing ? (
+              {isApproveProcessing ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Approving...
@@ -211,7 +213,7 @@ export default function AccountRequests() {
             </button>
             <button onClick={() => handleReject(request)} disabled={isProcessing}
               className="flex-1 py-2.5 rounded-xl bg-red-50 border-2 border-red-200 text-red-600 text-sm font-bold hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-              {isProcessing ? (
+              {isRejectProcessing ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-3 h-3 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
                   Rejecting...
