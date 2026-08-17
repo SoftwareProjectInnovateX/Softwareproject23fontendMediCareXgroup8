@@ -518,7 +518,7 @@ const PharmacistDashboard = () => {
                     : <span className="bg-slate-50 text-slate-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">OK</span>
                   }
                 </div>
-                <h2 className="text-4xl font-bold text-slate-800 my-2">{expiringQty}</h2>
+                <h2 className="text-4xl font-bold text-slate-800 my-2">{expiringItems.length}</h2>
                 <div>
                   {expiringItems.length > 0 ? (
                     <>
