@@ -20,36 +20,7 @@ import {
   MdArrowForward,
   MdInbox,
 } from "react-icons/md";
-
-/* ================= Stats Card ================= */
-function StatsCard({ title, value, icon, bgColor, accent }) {
-  return (
-    <div className="group relative bg-white rounded-2xl p-6 shadow-[0_1px_4px_rgba(15,36,99,0.08)] border border-blue-50 overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_28px_rgba(15,36,99,0.14)] hover:border-blue-100">
-      {/* Ambient accent glow */}
-      <div
-        className={`absolute -top-10 -right-10 h-28 w-28 rounded-full ${bgColor} opacity-40 blur-2xl transition-opacity duration-300 group-hover:opacity-70`}
-      />
-
-      <div className="relative flex justify-between items-start">
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-            {title}
-          </p>
-          <h2 className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">
-            {value}
-          </h2>
-        </div>
-        <div
-          className={`${bgColor} p-3 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}
-        >
-          {icon}
-        </div>
-      </div>
-
-      <div className="relative mt-4 h-[3px] w-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-300 transition-all duration-300 group-hover:w-16" />
-    </div>
-  );
-}
+import Card from "../../components/Card";
 
 /* ================= Quick Actions ================= */
 function QuickActions() {
@@ -348,7 +319,23 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
         {statCards.map((card) => (
-          <StatsCard key={card.title} {...card} />
+          <Card key={card.title}>
+            <div className="flex justify-between items-start">
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                  {card.title}
+                </p>
+                <h2 className="text-3xl font-bold text-gray-900 mt-1 tabular-nums">
+                  {card.value}
+                </h2>
+              </div>
+              <div
+                className={`${card.bgColor} p-3 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}
+              >
+                {card.icon}
+              </div>
+            </div>
+          </Card>
         ))}
       </div>
       <QuickActions />

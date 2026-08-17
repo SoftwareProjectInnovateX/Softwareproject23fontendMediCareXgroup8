@@ -49,6 +49,13 @@ const formatDate = (value) => {
     : date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 };
 
+// Formats a number as "144,440.00" (comma thousands separators + 2 decimals)
+const formatCurrency = (value = 0) =>
+  Number(value || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -84,8 +91,11 @@ export default function UserManagement() {
   }, []);
 
   // Orders are matched to a user by EMAIL (CustomerOrders stores `email`, not userId)
-  const getUserOrders = (email) =>
-    orders.filter((o) => (o.email || "").toLowerCase() === (email || "").toLowerCase());
+  const getUserOrders = (email) => {
+    if (!email) return [];
+    const normalizedEmail = email.toLowerCase();
+    return orders.filter((o) => (o.email || "").toLowerCase() === normalizedEmail);
+  };
 
   const getTotalPurchases = (email) =>
     getUserOrders(email).reduce((sum, o) => sum + (o.totalAmount || 0), 0);
@@ -197,7 +207,7 @@ export default function UserManagement() {
               <div className="min-w-0">
                 <p className="text-xs text-slate-400 font-semibold uppercase">Total Purchases</p>
                 <p className="text-sm font-bold text-emerald-600">
-                  Rs. {getTotalPurchases(selectedUser.email).toFixed(2)}
+                  Rs. {formatCurrency(getTotalPurchases(selectedUser.email))}
                 </p>
               </div>
             </div>
@@ -278,7 +288,7 @@ export default function UserManagement() {
                             {item.name}
                           </p>
                           <p className="text-xs text-slate-500">
-                            Qty {item.quantity || 1} · Rs. {(item.price || 0).toFixed(2)}
+                            Qty {item.quantity || 1} · Rs. {formatCurrency(item.price)}
                           </p>
                         </div>
                       </div>
@@ -291,7 +301,7 @@ export default function UserManagement() {
                     {order.address ? order.address : ""}
                   </span>
                   <span className="text-base font-bold text-emerald-600">
-                    Rs. {(order.totalAmount || 0).toFixed(2)}
+                    Rs. {formatCurrency(order.totalAmount)}
                   </span>
                 </div>
               </div>
@@ -347,7 +357,7 @@ export default function UserManagement() {
       label: "Total Purchases",
       render: (_v, user) => (
         <span className="text-sm font-bold text-emerald-600">
-          Rs. {getTotalPurchases(user.email).toFixed(2)}
+          Rs. {formatCurrency(getTotalPurchases(user.email))}
         </span>
       ),
     },
@@ -416,7 +426,7 @@ export default function UserManagement() {
           </div>
           <div>
             <p className="text-xs text-slate-400 font-semibold uppercase">Total Revenue</p>
-            <p className="text-xl font-bold text-slate-800">Rs. {totalRevenue.toFixed(2)}</p>
+            <p className="text-xl font-bold text-slate-800">Rs. {formatCurrency(totalRevenue)}</p>
           </div>
         </div>
       </div>
