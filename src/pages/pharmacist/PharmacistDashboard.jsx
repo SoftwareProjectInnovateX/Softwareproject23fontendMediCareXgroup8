@@ -133,7 +133,7 @@ const PharmacistDashboard = () => {
       const dispatchedOnline = onlineOrders.filter(o => {
         const ts = getValidDate(o.updatedAt || o.orderDate || o.createdAt || o.timestamp);
         const stat = (o.status || o.orderStatus || '').toLowerCase();
-        return isDateToday(ts) && stat !== 'cancelled';
+        return isDateToday(ts) && (stat === 'dispatched' || stat === 'delivered' || stat === 'completed');
       });
       
       let paidRev = 0, codRev = 0;
