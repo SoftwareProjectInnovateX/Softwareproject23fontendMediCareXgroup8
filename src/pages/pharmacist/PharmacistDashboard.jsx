@@ -240,7 +240,7 @@ const PharmacistDashboard = () => {
          inOneWeek.setDate(inOneWeek.getDate() + 7);
          
          const expiringList = inv.filter(item => {
-            const dateStr = item.expiryDate ?? item.expiry ?? item.expirationDate;
+            const dateStr = item.expiryDate ?? item.expireDate ?? item.expiry ?? item.expirationDate;
             if (!dateStr) return false;
             const expDate = new Date(dateStr);
             expDate.setHours(0, 0, 0, 0);
@@ -494,12 +494,13 @@ const PharmacistDashboard = () => {
         {/* Card 4 - Expiring Soon (Red) — 7-day window */}
         {(() => {
           const expiredCount = expiringItems.filter(item => {
-            const dateStr = item.expiryDate ?? item.expiry ?? item.expirationDate;
+            const dateStr = item.expiryDate ?? item.expireDate ?? item.expiry ?? item.expirationDate;
             if (!dateStr) return false;
             const d = new Date(dateStr); d.setHours(0,0,0,0);
             const t = new Date(); t.setHours(0,0,0,0);
             return d < t;
           }).length;
+          const expiringQty = expiringItems.reduce((acc, item) => acc + Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0), 0);
           return (
             <div
               className="relative bg-white rounded-2xl overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-[0_8px_30px_rgba(239,68,68,0.18)] border border-slate-100"
@@ -514,14 +515,14 @@ const PharmacistDashboard = () => {
                     : <span className="bg-slate-50 text-slate-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">OK</span>
                   }
                 </div>
-                <h2 className="text-4xl font-bold text-slate-800 my-2">{expiringItems.length}</h2>
+                <h2 className="text-4xl font-bold text-slate-800 my-2">{expiringQty}</h2>
                 <div>
                   {expiringItems.length > 0 ? (
                     <>
                       <div className="flex gap-1.5 flex-wrap mb-1">
                         {expiringItems.slice(0, 4).map((item, idx) => (
-                          <span key={idx} className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center text-[10px] font-bold text-red-500 border border-red-100 flex-shrink-0" title={item.name}>
-                            {item.name ? item.name.charAt(0).toUpperCase() : '?'}
+                          <span key={idx} className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center text-[10px] font-bold text-red-500 border border-red-100 flex-shrink-0" title={item.name || item.productName || item.itemName || 'Unknown'}>
+                            {(item.name || item.productName || item.itemName || '?').charAt(0).toUpperCase()}
                           </span>
                         ))}
                         {expiringItems.length > 4 && (
