@@ -152,7 +152,7 @@ const PharmacistDrugLookup = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 lg:gap-8 max-w-[1400px] mx-auto pb-6 h-[calc(100vh-120px)]">
+    <div className="flex flex-col md:flex-row gap-6 lg:gap-8 max-w-7xl mx-auto pb-6 h-[calc(100vh-120px)]">
 
       {/* Left Column: Search & List */}
       <div className="w-full md:w-[380px] flex flex-col shrink-0 h-full">

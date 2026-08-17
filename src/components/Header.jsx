@@ -6,7 +6,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
 // Same pattern as useNotifications.js — RAW host + /api prefix, path must not repeat /api
-const RAW_API_URL = import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000';
+const RAW_API_URL = (import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000');
 const API_BASE = `${RAW_API_URL.replace(/\/$/, '')}/api`;
 
 const PAGE_META = {
@@ -106,7 +106,7 @@ export default function Header() {
   /* ── Poll notifications ── */
   useEffect(() => {
     fetchUnreadCount();
-    const id = setInterval(fetchUnreadCount, 30000);
+    const id = setInterval(fetchUnreadCount, 300000); // 5 minutes instead of 30s to save Firebase limit
     return () => clearInterval(id);
   }, []);
 

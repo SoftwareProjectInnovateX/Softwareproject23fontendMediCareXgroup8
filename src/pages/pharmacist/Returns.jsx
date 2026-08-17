@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 
 // Base URL for all pharmacist return API calls
-const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/pharmacist/returns`;
+const API_BASE = `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api/pharmacist/returns`;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -93,7 +93,7 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
         color:      disabled ? C.textMuted : color,
         border:     `1px solid ${disabled ? C.border : border}`,
         cursor:     disabled ? "not-allowed" : "pointer",
-        fontFamily: FONT.body,
+        fontFamily: 'inherit',
       }}
     >
       <Icon size={13} strokeWidth={2.5} />
@@ -155,7 +155,7 @@ function ReturnRow({ ret, onAction, updating }) {
         <button
           onClick={() => setExpanded(e => !e)}
           className="bg-[#f1f5f9] rounded-lg px-3 py-[6px] cursor-pointer text-xs font-semibold flex items-center gap-[5px]"
-          style={{ border: `1px solid ${C.border}`, color: C.textSoft, fontFamily: FONT.body }}
+          style={{ border: `1px solid ${C.border}`, color: C.textSoft, fontFamily: 'inherit' }}
         >
           {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           {expanded ? "Hide" : "Details"}
@@ -216,7 +216,7 @@ function ReturnRow({ ret, onAction, updating }) {
               style={{
                 border: `1px solid rgba(26,135,225,0.4)`,
                 color: C.textPrimary,
-                fontFamily: FONT.body,
+                fontFamily: 'inherit',
                 opacity: ret.returnStatus !== "pending" ? 0.5 : 1,
               }}
             />
@@ -261,7 +261,7 @@ export default function Returns() {
 
   useEffect(() => {
     fetchReturns();
-    const interval = setInterval(fetchReturns, 30000);
+    const interval = setInterval(fetchReturns, 300000); // 5 minutes instead of 30s to save Firebase limit
     return () => clearInterval(interval);
   }, [fetchReturns]);
 
@@ -314,7 +314,7 @@ export default function Returns() {
   });
 
   return (
-    <div style={{ fontFamily: FONT.body }}>
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
       <div className="mb-6">
         <h1 className="text-3xl font-black text-slate-800">
           Returns &amp; Adjustments
@@ -343,7 +343,7 @@ export default function Returns() {
             onClick={() => setFilter(f.key)}
             className="text-xs font-semibold px-[14px] py-[7px] rounded-lg cursor-pointer"
             style={{
-              fontFamily: FONT.body,
+              fontFamily: 'inherit',
               background: filter === f.key ? "rgba(26,135,225,0.12)" : C.surface,
               color:      filter === f.key ? C.accent : C.textSoft,
               border:     filter === f.key ? "1px solid rgba(26,135,225,0.35)" : `1px solid ${C.border}`,
@@ -358,7 +358,7 @@ export default function Returns() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="ml-auto bg-white rounded-lg px-3 py-[7px] text-xs outline-none w-60"
-          style={{ border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: FONT.body }}
+          style={{ border: `1px solid ${C.border}`, color: C.textPrimary, fontFamily: 'inherit' }}
         />
       </div>
 

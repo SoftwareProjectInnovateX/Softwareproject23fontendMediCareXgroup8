@@ -19,7 +19,7 @@ const COURIERS = [
 ];
 
 /* ── Backend API helper (same pattern as useNotifications.js) ── */
-const RAW_API_URL = import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000';
+const RAW_API_URL = (import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000');
 const API_BASE = `${RAW_API_URL.replace(/\/$/, '')}/api`;
 const apiFetch = async (url, options = {}) => {
   const res = await fetch(`${API_BASE}${url}`, options);

@@ -3,7 +3,7 @@ import { Plus, Trash2, Printer, ArrowLeft, CheckCircle2, User, Search, FileText,
 import { useNavigate } from 'react-router-dom';
 import { getPatients, updatePatient, addPatient, addPrescription, getInventory, updateInventoryItem, addDispensedRecord } from '../../services/pharmacistService';
 import { db } from '../../lib/firebase';
-import { collection, getDocs, query, where, doc, updateDoc, arrayUnion, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, arrayUnion, addDoc, Timestamp, onSnapshot } from 'firebase/firestore';
 
 const PharmacistNewRxEntry = () => {
   const navigate = useNavigate();
@@ -13,53 +13,125 @@ const PharmacistNewRxEntry = () => {
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState(false);
 
-  // Retry inventory load up to 3 times (backend may still be starting)
-  const loadInventory = async (attempt = 1) => {
-    try {
-      setInventoryLoading(true);
-      setInventoryError(false);
-      const data = await getInventory();
-      if (Array.isArray(data)) {
-        setInventoryDb(data);
-      } else {
-        setInventoryDb([]);
-      }
-      setInventoryLoading(false);
-    } catch(err) {
-      console.error(`Inventory load attempt ${attempt} failed:`, err);
-      if (attempt < 3) {
-        setTimeout(() => loadInventory(attempt + 1), 2000 * attempt);
-      } else {
-        setInventoryError(true);
-        setInventoryLoading(false);
-        setInventoryDb([]);
-      }
-    }
-  };
-
   useEffect(() => {
-     // Load suggestions from Firebase users (role=customer)
-     (async () => {
-       try {
-         const snap = await getDocs(
-           query(collection(db, 'users'), where('role', '==', 'customer'))
-         );
-         const pts = snap.docs.map(d => {
-           const d2 = d.data();
-           return {
-             id: d.id,
-             name: d2.fullName || d2.name || 'Unknown',
-             phone: d2.phone || '',
-             age: d2.age || '',
-             firebaseUid: d.id
-           };
-         });
-         setPatientsDb(pts);
-       } catch (e) {
-         console.error("Failed to fetch customer suggestions:", e);
-       }
-     })();
-     loadInventory();
+    // 1. Load patient suggestions from Firebase users (role=customer)
+    (async () => {
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'users'), where('role', '==', 'customer'))
+        );
+        const pts = snap.docs.map(d => {
+          const d2 = d.data();
+          return {
+            id: d.id,
+            name: d2.fullName || d2.name || 'Unknown',
+            phone: d2.phone || '',
+            age: d2.age || '',
+            firebaseUid: d.id
+          };
+        });
+        setPatientsDb(pts);
+      } catch (e) {
+        console.error("Failed to fetch customer suggestions:", e);
+      }
+    })();
+
+    // 2. Real-time Firestore products listener from all product collections
+    setInventoryLoading(true);
+    setInventoryError(false);
+
+    let productsList = [];
+    let adminProductsList = [];
+    let pharmacistProductsList = [];
+    let backendProductsList = [];
+
+    const mergeProducts = () => {
+      const map = new Map();
+
+      const addToList = (item) => {
+        const rawName = item.name || item.productName || item.title || item.itemName || '';
+        const name = rawName.trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+
+        const price = Number(
+          item.retailPrice ?? item.sellingPrice ?? item.price ?? item.unitPrice ?? item.wholesalePrice ?? item.cost ?? item.amount ?? 0
+        );
+
+        const stock = Number(
+          item.stock ?? item.qty ?? item.quantity ?? item.currentStock ?? item.totalStock ?? 0
+        );
+
+        const category = item.category || item.type || item.itemType || '';
+
+        const normalized = {
+          ...item,
+          id: item.id || key,
+          name,
+          price,
+          retailPrice: price,
+          stock,
+          category,
+          brand: item.brand || item.manufacturer || ''
+        };
+
+        if (map.has(key)) {
+          const existing = map.get(key);
+          map.set(key, {
+            ...existing,
+            ...normalized,
+            price: normalized.price > 0 ? normalized.price : existing.price,
+            retailPrice: normalized.price > 0 ? normalized.price : existing.price,
+            stock: Math.max(existing.stock, normalized.stock),
+            category: normalized.category || existing.category
+          });
+        } else {
+          map.set(key, normalized);
+        }
+      };
+
+      // Merge all collections
+      adminProductsList.forEach(addToList);
+      productsList.forEach(addToList);
+      pharmacistProductsList.forEach(addToList);
+      backendProductsList.forEach(addToList);
+
+      const merged = Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+      setInventoryDb(merged);
+      setInventoryLoading(false);
+      setInventoryError(false);
+    };
+
+    const unsubProducts = onSnapshot(collection(db, 'products'), (snap) => {
+      productsList = snap.docs.map(d => ({ id: d.id, collectionName: 'products', ...d.data() }));
+      mergeProducts();
+    }, (err) => console.warn("Firestore products listener:", err));
+
+    const unsubAdminProducts = onSnapshot(collection(db, 'adminProducts'), (snap) => {
+      adminProductsList = snap.docs.map(d => ({ id: d.id, collectionName: 'adminProducts', ...d.data() }));
+      mergeProducts();
+    }, (err) => console.warn("Firestore adminProducts listener:", err));
+
+    const unsubPharmacistProducts = onSnapshot(collection(db, 'pharmacistProducts'), (snap) => {
+      pharmacistProductsList = snap.docs.map(d => ({ id: d.id, collectionName: 'pharmacistProducts', ...d.data() }));
+      mergeProducts();
+    }, (err) => console.warn("Firestore pharmacistProducts listener:", err));
+
+    // Also fetch backend inventory if available
+    getInventory().then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        backendProductsList = data;
+        mergeProducts();
+      }
+    }).catch(err => {
+      console.log("Backend inventory fetch skipped (using Firestore products):", err.message);
+    });
+
+    return () => {
+      unsubProducts();
+      unsubAdminProducts();
+      unsubPharmacistProducts();
+    };
   }, []);
 
   // Form State
@@ -164,32 +236,48 @@ const PharmacistNewRxEntry = () => {
 
   const filteredPatients = patientsDb.filter(p => p.name.toLowerCase().includes(patientName.toLowerCase()) && patientName.length > 0);
 
-  // Comprehensive medicine category keywords — covers common pharmacy inventory naming
-  const MEDICINE_KEYWORDS = [
-    'medicine', 'medication', 'drug', 'pharmaceutical', 'prescription', 'rx',
-    'tablet', 'tablets', 'capsule', 'capsules', 'syrup', 'syrups', 'injection',
-    'antibiotic', 'antiviral', 'antifungal', 'analgesic', 'antipyretic',
-    'vitamin', 'supplement', 'drops', 'cream', 'ointment', 'gel', 'patch',
-    'inhaler', 'nebulizer', 'sedative', 'antacid', 'laxative', 'diuretic',
-    'steroid', 'hormone', 'generic', 'branded', 'oral', 'topical', 'eye',
-    'ear', 'nasal', 'dental', 'paediatric', 'pediatric', 'adult'
+  // OTC & General Item classification
+  const OTC_KEYWORDS = [
+    'otc', 'over the counter', 'supplement', 'supplements', 'vitamin', 'vitamins',
+    'personal care', 'general', 'skincare', 'skin care', 'balm', 'shampoo', 'soap',
+    'device', 'equipment', 'baby', 'cosmetics', 'wellness', 'oral care', 'bandage',
+    'plaster', 'sanitizer', 'mask', 'first aid', 'lotion', 'cream', 'antiseptic'
   ];
 
-  const filteredItems = inventoryDb.filter(item => {
-    const itemName = item.name || item.productName || item.itemName || '';
-    if (currentMed.length > 0 && !itemName.toLowerCase().includes(currentMed.toLowerCase())) return false;
-    
+  const isItemOtc = (item) => {
     const cat = (item.category || '').toLowerCase();
-    // If no category is set at all — treat as Rx (medicines usually lack strict categorisation)
-    const hasNoCategory = !item.category || item.category.trim() === '';
-    const isRx = hasNoCategory || MEDICINE_KEYWORDS.some(kw => cat.includes(kw));
+    const name = (item.name || item.productName || item.itemName || '').toLowerCase();
+    const type = (item.type || '').toLowerCase();
     
+    // Explicit properties
+    if (item.isOtc === true || item.isRx === false || item.requiresPrescription === false) return true;
+    if (item.isRx === true || item.requiresPrescription === true) return false;
+    
+    // Check OTC keywords
+    if (OTC_KEYWORDS.some(kw => cat.includes(kw) || name.includes(kw) || type.includes(kw))) {
+      return true;
+    }
+    
+    // Check if category or name explicitly mentions prescription medicines
+    if (cat.includes('prescription') || cat.includes('rx') || cat.includes('antibiotic') || cat.includes('pharmaceutical')) {
+      return false;
+    }
+
+    return false;
+  };
+
+  const filteredItems = inventoryDb.filter(item => {
+    const itemName = (item.name || item.productName || item.itemName || '').trim();
+    if (!itemName) return false;
+    if (currentMed.trim().length > 0 && !itemName.toLowerCase().includes(currentMed.toLowerCase().trim())) {
+      return false;
+    }
+
+    const otc = isItemOtc(item);
     if (activeTab === 'rx') {
-      return isRx;
+      return !otc; // Show only Rx Prescribed Medicines
     } else {
-      // OTC tab — show everything that is NOT a prescription-only medicine
-      // (includes OTC medicines, personal care, general items)
-      return !isRx || cat.includes('otc') || cat.includes('over the counter') || cat.includes('general') || cat.includes('personal');
+      return otc;  // Show only OTC & General Items
     }
   }).slice(0, 50);
 
@@ -282,6 +370,7 @@ const PharmacistNewRxEntry = () => {
     // NOTE: revenue_updated & dispensed_updated events are fired AFTER
     // all Firebase writes complete (at the end of this function).
 
+    let activePatientId = selectedPatientId || (linkedCustomer ? linkedCustomer.firebaseUid : null) || 'N/A';
 
     // 2. Update Patient Profile
     try {
@@ -334,6 +423,7 @@ const PharmacistNewRxEntry = () => {
         };
         updatedPatients.unshift(newPatient); // Add to top
         setSelectedPatientId(newId);
+        activePatientId = newId;
         
         // Save to Firebase
         addPatient(newPatient).catch(console.error);
@@ -344,6 +434,7 @@ const PharmacistNewRxEntry = () => {
 
     // 2.2 If phone matched a Firebase registered customer → update their user doc
     if (linkedCustomer?.firebaseUid) {
+      activePatientId = linkedCustomer.firebaseUid;
       try {
         const now = new Date();
         const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
@@ -397,6 +488,7 @@ const PharmacistNewRxEntry = () => {
           if (!chk.empty) {
             // Customer found (maybe role differs) — just update their record
             const existId = chk.docs[0].id;
+            activePatientId = existId;
             // Use backend service
             await updatePatient(existId, {
               lastVisit: dateStr,
@@ -422,16 +514,18 @@ const PharmacistNewRxEntry = () => {
           };
           
           const result = await addPatient(patientData);
+          const createdId = result.id || result.firebaseId || result.docId;
+          activePatientId = createdId;
           
           // Update local state so UI says "Registered" immediately
           setLinkedCustomer({
-            firebaseUid: result.id || result.firebaseId || result.docId,
+            firebaseUid: createdId,
             name: walkinName,
             phone: walkinPhone,
             age: age
           });
           setPhoneStatus('found');
-          console.log("New walk-in customer registered via Backend:", result.id);
+          console.log("New walk-in customer registered via Backend:", createdId);
           alert(`Success: Customer ${walkinName} registered & payment processed via Backend!`);
         } else {
            setPhoneStatus('found'); // Even if they existed, mark as found now
@@ -479,7 +573,7 @@ const PharmacistNewRxEntry = () => {
         const todayStr = new Date().toDateString();
         const payMethod = paymentMethod === 'card' ? 'Card Payment' : 'Cash';
         const patLabel = patientName || 'Walk-in Guest';
-        const patId = selectedPatientId || 'N/A';
+        const patId = activePatientId;
         
         if (rxMeds.length > 0) {
             const rxTotal = rxMeds.reduce((sum, item) => sum + item.total, 0);
@@ -494,6 +588,7 @@ const PharmacistNewRxEntry = () => {
                dispensedTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
                paymentStatus: 'Paid',
                paymentMethod: payMethod,
+               status: 'dispensed',
                total: finalRxTotal.toFixed(2),
                type: 'prescription',
                // orderItems used by PharmacistDispensedToday for item count
@@ -518,6 +613,7 @@ const PharmacistNewRxEntry = () => {
                dispensedTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
                paymentStatus: 'Paid',
                paymentMethod: payMethod,
+               status: 'dispensed',
                total: finalOtcTotal.toFixed(2),
                type: 'otc',
                orderItems: otcMeds.map(m => ({ name: m.name, qty: m.qty, price: m.price, total: m.total })),
@@ -531,6 +627,7 @@ const PharmacistNewRxEntry = () => {
         // Fire events AFTER all Firebase writes — dashboard refreshes with fresh data
         window.dispatchEvent(new Event('dispensed_updated'));
         window.dispatchEvent(new Event('revenue_updated'));
+        window.dispatchEvent(new Event('inventory_updated'));
     } catch(err) {
         console.error("Failed to add dispensed record", err);
     }
@@ -539,10 +636,11 @@ const PharmacistNewRxEntry = () => {
     setIsBillGenerated(true);
     setIsPaid(true);
 
-    // Auto-trigger print
+    // Auto-trigger print and then automatically reset for next order
     setTimeout(() => {
       window.print();
-    }, 500);
+      setTimeout(startNewEntry, 300);
+    }, 400);
   };
 
   const startNewEntry = () => {
@@ -556,11 +654,27 @@ const PharmacistNewRxEntry = () => {
     setDiscountPercent(0);
     setLinkedCustomer(null);
     setPhoneStatus('idle');
+    setCurrentMed('');
+    setCurrentQty('');
+    setCurrentPrice('');
+    setSelectedInventoryItem(null);
+    setShowItemSuggest(false);
+    setShowAutoSuggest(false);
   };
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      startNewEntry();
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, []);
 
   return (
     <>
-    <div className="max-w-6xl mx-auto space-y-6 pb-12 print:hidden">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12 print:hidden">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -595,7 +709,7 @@ const PharmacistNewRxEntry = () => {
               <User className="w-5 h-5 text-blue-500" />
               Patient Information
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="relative col-span-1">
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Name</label>
                 <input 
@@ -650,17 +764,7 @@ const PharmacistNewRxEntry = () => {
                   <p className="text-[11px] text-slate-400 mt-1 font-medium">👤 Walk-in customer (not registered)</p>
                 )}
               </div>
-              <div className="col-span-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Age</label>
-                <input 
-                  type="number" 
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  placeholder="Years"
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  disabled={isBillGenerated}
-                />
-              </div>
+
             </div>
           </div>
 
@@ -702,8 +806,8 @@ const PharmacistNewRxEntry = () => {
                     {activeTab === 'rx' ? 'Medicine Name / Formula' : 'Item Name / Brand'}
                   </label>
                   <div className="relative">
-                    {/* Search icon — pulses while loading */}
-                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${inventoryLoading ? 'text-blue-400 animate-pulse' : inventoryError ? 'text-red-400' : 'text-slate-400'}`} />
+                    {/* Search icon */}
+                    <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${inventoryLoading ? 'text-blue-400 animate-pulse' : 'text-slate-400'}`} />
                     <input 
                       type="text" 
                       value={currentMed}
@@ -714,28 +818,17 @@ const PharmacistNewRxEntry = () => {
                       }}
                       onFocus={() => setShowItemSuggest(true)}
                       onBlur={() => setTimeout(() => setShowItemSuggest(false), 200)}
-                      placeholder={inventoryLoading ? 'Loading inventory...' : inventoryError ? 'Backend unavailable — retry below' : 'Search from inventory...'}
-                      disabled={inventoryLoading}
-                      className={`w-full pl-9 pr-3 py-2 bg-white border rounded-md text-sm outline-none transition-colors ${
-                        inventoryError ? 'border-red-300 bg-red-50' : inventoryLoading ? 'border-slate-200 bg-slate-50' : 'border-slate-200 focus:border-blue-500'
-                      }`}
+                      placeholder={activeTab === 'rx' ? 'Search medicine (e.g. Paracetamol, Amoxicillin)...' : 'Search item name...'}
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 focus:border-blue-500 rounded-md text-sm outline-none transition-colors"
                       required
                     />
 
-                    {/* Dropdown — results / loading / error states */}
-                    {showItemSuggest && !inventoryLoading && (
+                    {/* Dropdown — results / loading / items */}
+                    {showItemSuggest && (
                       <ul className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto left-0">
-                        {inventoryError ? (
-                          <li className="px-4 py-4 text-center">
-                            <p className="text-sm font-bold text-red-500 mb-2">⚠ Backend not reachable</p>
-                            <p className="text-xs text-slate-400 mb-3">Make sure the backend server is running on port 3000</p>
-                            <button
-                              type="button"
-                              onMouseDown={(e) => { e.preventDefault(); loadInventory(); }}
-                              className="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md transition-colors"
-                            >
-                              Retry Connection
-                            </button>
+                        {inventoryLoading && inventoryDb.length === 0 ? (
+                          <li className="px-4 py-3 text-center text-sm text-slate-400 font-medium">
+                            Loading medicines...
                           </li>
                         ) : filteredItems.length > 0 ? (
                           filteredItems.map(item => {
@@ -762,8 +855,8 @@ const PharmacistNewRxEntry = () => {
                         ) : (
                           <li className="px-4 py-4 text-center text-sm text-slate-400 font-medium">
                             {currentMed.length > 0
-                              ? `No "${currentMed}" found in inventory`
-                              : `${inventoryDb.length} items loaded — start typing to search`}
+                              ? `No catalog match for "${currentMed}" — you can still enter price & qty to add!`
+                              : `${inventoryDb.length} items available in inventory — start typing to search`}
                           </li>
                         )}
                       </ul>
@@ -955,11 +1048,14 @@ const PharmacistNewRxEntry = () => {
         {`
           @media print {
             @page {
-              margin: 0;
+              size: A4;
+              margin: 15mm;
             }
             body {
               margin: 0;
               background-color: white;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
             body * {
               visibility: hidden;
@@ -969,118 +1065,110 @@ const PharmacistNewRxEntry = () => {
             }
             #printable-receipt {
               position: absolute;
-              left: 50%;
+              left: 0;
               top: 0;
-              transform: translateX(-50%);
-              width: 380px;
-              padding: 40px 20px;
-              background-color: white;
+              width: 100%;
+              padding: 0;
+            }
+            .print\\:hidden {
+              display: none !important;
             }
           }
         `}
       </style>
-      <div id="printable-receipt" className="hidden print:block w-[380px] mx-auto text-slate-800 text-[12px] font-sans mt-8">
+      <div id="printable-receipt" className="hidden print:block w-full mx-auto text-slate-800 font-sans mt-8 bg-white">
         
-        <div className="border-2 border-slate-500 rounded-2xl overflow-hidden bg-white shadow-sm">
-          {/* Colorful Header */}
-          <div className="bg-gradient-to-br from-blue-700 to-blue-900 text-white p-6 text-center print:bg-blue-800 print:text-black">
-            <h1 className="text-2xl font-black tracking-wider uppercase mb-1 drop-shadow-sm">MediCareX</h1>
-            <p className="text-[10px] text-blue-100 opacity-90 tracking-widest uppercase font-semibold">Premium Pharmacy</p>
+        {/* Beautiful Invoice Header */}
+        <div className="flex justify-between items-start border-b-4 border-blue-600 pb-8 mb-8">
+          <div>
+            <h1 className="text-4xl font-black text-blue-700 tracking-wider mb-2">MediCareX</h1>
+            <p className="text-slate-500 font-medium">123 Health Avenue, Medical City</p>
+            <p className="text-slate-500 font-medium">Tel: 011-2345678 | Web: medicarex.lk</p>
           </div>
-          
-          <div className="p-6 bg-white">
-            <div className="text-center mb-6">
-              <p className="text-slate-500 text-[11px] font-medium">123 Health Avenue, Medical City</p>
-              <p className="text-slate-500 text-[11px] font-medium">Tel: 011-2345678 | Web: medicarex.lk</p>
-              <div className="w-16 h-1 bg-blue-100 mx-auto my-4 rounded-full"></div>
-              <p className="font-bold text-blue-800 text-sm uppercase tracking-widest">Cash Receipt</p>
-            </div>
-
-            {/* Info Section */}
-            <div className="mb-6 bg-slate-50 p-4 rounded-lg text-[11px] space-y-2 border border-slate-100">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Bill No:</span>
-                <span className="font-bold text-slate-800">#INV-{Math.floor(Date.now() / 1000).toString().slice(-6)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Date & Time:</span>
-                <span className="font-bold text-slate-800">{new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Patient:</span>
-                <span className="font-bold text-blue-700">{patientName || 'Walk-in Guest'}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Cashier:</span>
-                <span className="font-bold text-slate-800">Pharmacist 01</span>
-              </div>
-            </div>
-
-            {/* Table Headers */}
-            <table className="w-full text-left mb-4">
-              <thead>
-                <tr className="border-b-2 border-slate-200 text-[10px] uppercase text-slate-400">
-                  <th className="pb-2 font-bold w-1/2">Item</th>
-                  <th className="pb-2 font-bold text-center">Qty</th>
-                  <th className="pb-2 font-bold text-right">Price</th>
-                  <th className="pb-2 font-bold text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {medicines.map((med) => (
-                  <tr key={med.id} className="border-b border-slate-50 last:border-0 align-top">
-                    <td className="py-3 pr-2">
-                      <div className="font-bold text-slate-800 text-[12px] leading-tight">{med.name}</div>
-                      <div className="text-[9px] text-blue-500 font-bold uppercase mt-1 tracking-wider">{med.category === 'rx' ? 'Rx Med' : 'OTC'}</div>
-                    </td>
-                    <td className="py-3 text-center font-medium text-[12px]">{med.qty}</td>
-                    <td className="py-3 text-right text-slate-500 text-[11px]">Rs. {med.price.toFixed(2)}</td>
-                    <td className="py-3 text-right font-bold text-slate-800 text-[12px]">Rs. {med.total.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="border-b-2 border-dashed border-slate-300 my-4"></div>
-
-            {/* Totals */}
-            <div className="space-y-2 mb-6 text-[12px]">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Subtotal</span>
-                <span className="font-bold text-slate-700">Rs. {subTotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Discount ({parseFloat(discountPercent) || 0}%)</span>
-                <span className="font-bold text-emerald-600">- Rs. {discountAmount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-end pt-4 mt-4 border-t-2 border-slate-800">
-                <span className="font-black text-[13px] uppercase text-slate-800">Net Amount</span>
-                <span className="font-black text-2xl tracking-tight text-blue-700">Rs. {grandTotal.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {/* Payment Info */}
-            <div className={`p-4 rounded-xl text-center text-[12px] mb-8 border-2 ${paymentMethod === 'card' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
-              <span className="uppercase tracking-widest text-[10px] block mb-2 opacity-80 font-bold">Payment Status</span>
-              <span className="font-black uppercase text-lg flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-5 h-5" /> 
-                {paymentMethod === 'card' ? 'Paid via Card' : 'Paid via Cash'}
-              </span>
-            </div>
-
-            {/* Standard POS Footer */}
-            <div className="text-center text-[11px] text-slate-500 pt-6 mt-6 border-t-2 border-dashed border-slate-200">
-              <p className="font-black text-slate-800 uppercase mb-2 tracking-widest text-[13px]">Thank You, Come Again!</p>
-              <p className="font-medium text-slate-600 leading-relaxed">Exchange possible within 7 days with receipt.<br/>Medicines sold cannot be returned.</p>
-              <div className="mt-5 flex justify-center items-center gap-2 text-[9px] font-bold text-slate-400 tracking-widest">
-                <span>***</span>
-                <span>MEDICAREX POS</span>
-                <span>***</span>
-              </div>
-            </div>
-
+          <div className="text-right">
+            <h2 className="text-3xl font-bold text-slate-300 uppercase tracking-widest mb-2">INVOICE</h2>
+            <p className="text-sm font-bold text-slate-700">#INV-{Math.floor(Date.now() / 1000).toString().slice(-6)}</p>
+            <p className="text-sm text-slate-500">{new Date().toLocaleDateString()} {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
           </div>
         </div>
+        
+        {/* Patient & Billing Info */}
+        <div className="flex justify-between items-end mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Billed To</p>
+            <p className="text-lg font-bold text-blue-800">{patientName || 'Walk-in Guest'}</p>
+            <p className="text-sm font-medium text-slate-500 mt-1">{phone || 'No phone provided'}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Served By</p>
+            <p className="text-lg font-bold text-slate-700">Pharmacist 01</p>
+          </div>
+        </div>
+
+        {/* Invoice Table */}
+        <table className="w-full text-left mb-8">
+          <thead>
+            <tr className="border-b-2 border-slate-200 text-xs uppercase text-slate-400 tracking-wider">
+              <th className="pb-3 font-bold w-1/2">Item Description</th>
+              <th className="pb-3 font-bold text-center">Category</th>
+              <th className="pb-3 font-bold text-center">Qty</th>
+              <th className="pb-3 font-bold text-right">Unit Price</th>
+              <th className="pb-3 font-bold text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {medicines.map((med) => (
+              <tr key={med.id} className="border-b border-slate-100 last:border-0 align-middle">
+                <td className="py-4 pr-2">
+                  <div className="font-bold text-slate-800 text-sm">{med.name}</div>
+                </td>
+                <td className="py-4 text-center">
+                  <span className="text-[10px] bg-blue-50 text-blue-600 font-bold uppercase tracking-wider px-2 py-1 rounded-md">{med.category === 'rx' ? 'Rx Med' : 'OTC'}</span>
+                </td>
+                <td className="py-4 text-center font-bold text-slate-700">{med.qty}</td>
+                <td className="py-4 text-right text-slate-500 font-medium">Rs. {med.price.toFixed(2)}</td>
+                <td className="py-4 text-right font-bold text-slate-800">Rs. {med.total.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Totals Section */}
+        <div className="flex justify-end mb-12">
+          <div className="w-1/2 space-y-3">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-slate-500 font-medium">Subtotal</span>
+              <span className="font-bold text-slate-700">Rs. {subTotal.toFixed(2)}</span>
+            </div>
+            {discountPercent > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-500 font-medium">Discount ({parseFloat(discountPercent)}%)</span>
+                <span className="font-bold text-emerald-600">- Rs. {discountAmount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-end pt-4 mt-4 border-t-2 border-slate-200">
+              <span className="font-black text-lg text-slate-800">Total Amount</span>
+              <span className="font-black text-3xl tracking-tight text-blue-700">Rs. {grandTotal.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment & Footer */}
+        <div className="flex justify-between items-end border-t-2 border-slate-100 pt-8 mt-8">
+          <div>
+            <span className="uppercase tracking-widest text-[10px] block mb-2 opacity-80 font-bold text-slate-400">Payment Status</span>
+            <span className={`font-black uppercase text-sm flex items-center gap-2 ${paymentMethod === 'card' ? 'text-indigo-600' : 'text-emerald-600'}`}>
+              <CheckCircle2 className="w-5 h-5" /> 
+              {paymentMethod === 'card' ? 'Paid via Credit/Debit Card' : 'Paid in Cash'}
+            </span>
+          </div>
+          <div className="text-right text-xs text-slate-500">
+            <p className="font-black text-slate-800 uppercase mb-1 tracking-widest">Thank You, Come Again!</p>
+            <p className="font-medium">Exchange possible within 7 days with receipt.</p>
+            <p className="font-medium">Medicines sold cannot be returned.</p>
+          </div>
+        </div>
+
       </div>
       </>
     )}

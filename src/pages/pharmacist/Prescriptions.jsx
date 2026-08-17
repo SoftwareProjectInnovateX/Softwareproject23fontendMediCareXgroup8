@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "../../lib/firebase";
-import { collection, getDocs, orderBy, limit, query, doc, updateDoc, Timestamp, where } from "firebase/firestore";
+import { collection, getDocs, orderBy, limit, query, doc, updateDoc, Timestamp, where, onSnapshot } from "firebase/firestore";
 
 
 import {
@@ -39,7 +39,7 @@ export default function Prescriptions() {
   const [selectedRx,       setSelectedRx]       = useState(null);
   const [loading,          setLoading]          = useState(true);
   const [meds,             setMeds]             = useState([]);
-  const [currentMed,       setCurrentMed]       = useState({ name: "", dosage: "", timing: "", qty: "", price: "" });
+  const [currentMed,       setCurrentMed]       = useState({ name: "", dosage: "", timing: "", days: "1", qty: "", price: "" });
   const [isSubmitting,     setIsSubmitting]     = useState(false);
   const [isDownloading,    setIsDownloading]    = useState(false);
   const [imageBase64,      setImageBase64]      = useState(null);
@@ -50,6 +50,21 @@ export default function Prescriptions() {
   const [pharmacistMeds,   setPharmacistMeds]   = useState([]);
   const [medSearch,        setMedSearch]        = useState("");
   const [medsLoading,      setMedsLoading]      = useState(false);
+
+  // ── Inventory Dropdown ──────────────────────────────────────────────────
+  const [inventoryMeds,    setInventoryMeds]    = useState([]);
+  const [showDropdown,     setShowDropdown]     = useState(false);
+  const dropdownRef        = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // ── Fetch prescriptions ───────────────────────────────────────────────────
   const fetchPrescriptions = async () => {
@@ -70,27 +85,23 @@ export default function Prescriptions() {
     }
   };
 
-  // ── Fetch pharmacist-only medicines ──────────────────────────────────────
-  const fetchPharmacistMeds = async () => {
-    setMedsLoading(true);
-    try {
-      const q    = query(
-        collection(db, "pharmacistProducts"),
-        where("visibility", "==", "pharmacist_only"),
-        orderBy("name", "asc")
-      );
-      const snap = await getDocs(q);
-      setPharmacistMeds(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (err) {
-      console.error("Pharmacist meds fetch error:", err);
-    } finally {
-      setMedsLoading(false);
-    }
-  };
-
   useEffect(() => {
     fetchPrescriptions();
-    fetchPharmacistMeds();
+
+    // Fetch live inventory (in-stock only, medicine categories only)
+    const unsub = onSnapshot(collection(db, "adminProducts"), snap => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      const medicineCats = ["medicine", "medicines", "antibiotics", "pain-relief", "pain relief", "heart", "heart health", "herbal"];
+      const inStock = data.filter(p => {
+        if (p.stock <= 0) return false;
+        const cat = (p.category || "").toLowerCase().trim();
+        return medicineCats.includes(cat) || cat.includes("medicine") || cat.includes("pill") || cat.includes("tablet") || cat.includes("capsule");
+      });
+      
+      setInventoryMeds(inStock);
+    });
+    return () => unsub();
   }, []);
 
   // ── Select prescription and resolve signed image URL ─────────────────────
@@ -107,22 +118,41 @@ const handleSelectRx = async (p) => {
   }
 };
 
-  // ── Quick-add from pharmacist medicine list ───────────────────────────────
-  const handleQuickAdd = (product) => {
-    setCurrentMed({
-      name:   product.name   || "",
-      dosage: "",
-      timing: "",
-      qty:    "1",
-      price:  String(product.price || product.retailPrice || ""),
-    });
-  };
+
+
+  // ── Auto-calculate Quantity ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentMed.dosage && !currentMed.timing && !currentMed.days) return;
+
+    let amount = 1;
+    let freq = 1;
+    let days = parseInt(currentMed.days) || 1;
+
+    const dText = currentMed.dosage.toLowerCase();
+    const tText = currentMed.timing.toLowerCase();
+
+    // Extract amount from dosage
+    const matchAmount = dText.match(/(\d+(\.\d+)?)/);
+    if (matchAmount) amount = parseFloat(matchAmount[1]);
+
+    // Extract frequency from timing
+    if (tText.includes("bd") || tText.includes("bid") || tText.includes("2 times")) freq = 2;
+    else if (tText.includes("tds") || tText.includes("tid") || tText.includes("3 times")) freq = 3;
+    else if (tText.includes("qid") || tText.includes("4 times")) freq = 4;
+    else if (tText.includes("od") || tText === "morning" || tText === "night" || tText === "afternoon") freq = 1;
+    else if (tText.includes("sos")) freq = 1; // Default to 1 for SOS
+
+    const calculatedQty = amount * freq * days;
+    if (calculatedQty > 0) {
+      setCurrentMed(prev => ({ ...prev, qty: String(calculatedQty) }));
+    }
+  }, [currentMed.dosage, currentMed.timing, currentMed.days]);
 
   // ── Medication helpers ────────────────────────────────────────────────────
   const addMedication = () => {
     if (!currentMed.name || !currentMed.qty) return;
     setMeds([...meds, { ...currentMed, id: Date.now() }]);
-    setCurrentMed({ name: "", dosage: "", timing: "", qty: "", price: "" });
+    setCurrentMed({ name: "", dosage: "", timing: "", days: "1", qty: "", price: "" });
   };
 
   const removeMed = (id) => setMeds(meds.filter(m => m.id !== id));
@@ -138,14 +168,14 @@ const handleSelectRx = async (p) => {
         pharmacistNote: "Prescription processed by pharmacist.",
       };
       if (status === "Approved" && meds.length > 0) {
-        updateData.medications = meds.map(({ name, dosage, timing, qty, price }) => ({
+        updateData.medications = meds.map(({ name, dosage, timing, days, qty, price }) => ({
           name, dosage, timing,
-          qty:   parseInt(qty),
+          days:  parseInt(days) || 1,
+          qty:   parseInt(qty) || 1,
           price: parseFloat(price) || 0,
         }));
-        updateData.totalAmount = meds.reduce(
-          (sum, m) => sum + (parseFloat(m.price) || 0) * (parseInt(m.qty) || 0), 0
-        );
+        updateData.totalAmount = meds.reduce((sum, m) => sum + ((parseInt(m.qty) || 0) * (parseFloat(m.price) || 0)), 0);
+        updateData.pharmacistNote = "Prescription processed by pharmacist. Awaiting payment.";
       }
       await updateDoc(doc(db, "prescriptions", selectedRx.id), updateData);
       alert(`Prescription ${status.toLowerCase()} successfully!`);
@@ -220,7 +250,7 @@ const handleSelectRx = async (p) => {
                 <tr>
                   <td>${m.name}</td>
                   <td>${m.dosage}</td>
-                  <td>${m.timing}</td>
+                  <td>${m.timing} <br/><small>${m.days} days</small></td>
                   <td>${m.qty}</td>
                   <td>Rs. ${(m.qty * m.price).toFixed(2)}</td>
                 </tr>
@@ -242,10 +272,7 @@ const handleSelectRx = async (p) => {
     printWindow.document.close();
   };
 
-  // ── Filtered medicine list ────────────────────────────────────────────────
-  const filteredMeds = pharmacistMeds.filter(m =>
-    m.name?.toLowerCase().includes(medSearch.toLowerCase())
-  );
+
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (loading) return (
@@ -254,7 +281,7 @@ const handleSelectRx = async (p) => {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-[calc(100vh-120px)] gap-6 font-['Inter',sans-serif]">
+    <div className="flex h-[calc(100vh-120px)] gap-6 ">
 
       {/* ── Left Sidebar ─────────────────────────────────────────────────── */}
       <div className="w-[380px] flex flex-col gap-4 overflow-y-auto pr-2 custom-scrollbar">
@@ -410,65 +437,7 @@ const handleSelectRx = async (p) => {
               </div>
             </div>
 
-            {/* ── Col 2: Pharmacist Medicine List ──────────────────────────── */}
-            <div className="w-[220px] border-r border-slate-100 flex flex-col bg-slate-50/30">
 
-              {/* Header */}
-              <div className="px-4 pt-4 pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <Package size={15} className="text-rose-500" />
-                  <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider">
-                    Medicine List
-                  </span>
-                </div>
-                {/* Search */}
-                <div className="relative">
-                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={medSearch}
-                    onChange={e => setMedSearch(e.target.value)}
-                    className="w-full pl-7 pr-3 py-1.5 text-[11px] bg-white border border-slate-200 rounded-lg outline-none focus:border-blue-400 transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Medicine items */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2">
-                {medsLoading ? (
-                  <div className="text-center py-6 text-slate-400 text-xs">Loading...</div>
-                ) : filteredMeds.length === 0 ? (
-                  <div className="text-center py-6 text-slate-400 text-xs">No medicines found</div>
-                ) : (
-                  filteredMeds.map(product => (
-                    <button
-                      key={product.id}
-                      onClick={() => handleQuickAdd(product)}
-                      title={`Click to pre-fill: ${product.name}`}
-                      className="w-full text-left px-3 py-2.5 mb-1 rounded-xl border border-transparent hover:border-blue-200 hover:bg-blue-50 transition-all duration-150 group"
-                    >
-                      <p className="text-[12px] font-semibold text-slate-700 group-hover:text-blue-700 leading-tight truncate">
-                        {product.name}
-                      </p>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <span className="text-[10px] text-slate-400 truncate">{product.category || "—"}</span>
-                        <span className="text-[10px] font-bold text-emerald-600 shrink-0 ml-1">
-                          Rs.{Number(product.price || product.retailPrice || 0).toFixed(0)}
-                        </span>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-
-              {/* Footer hint */}
-              <div className="px-3 py-2 border-t border-slate-100 bg-slate-50">
-                <p className="text-[9px] text-slate-400 text-center leading-tight">
-                  Click any medicine to pre-fill the form
-                </p>
-              </div>
-            </div>
 
             {/* ── Col 3: Medication Entry + Table + Actions ─────────────────── */}
             <div className="flex-1 flex flex-col p-6 overflow-y-auto custom-scrollbar">
@@ -526,7 +495,7 @@ const handleSelectRx = async (p) => {
                             <tr key={i} className="border-t border-emerald-100 bg-white">
                               <td className="px-4 py-2">
                                 <p className="font-bold text-slate-700 text-xs">{m.name}</p>
-                                <p className="text-[10px] text-slate-400">{m.dosage} • {m.timing}</p>
+                                <p className="text-[10px] text-slate-400">{m.dosage} • {m.timing} • {m.days} days</p>
                               </td>
                               <td className="px-4 py-2 text-center text-xs text-slate-500">x{m.qty}</td>
                               <td className="px-4 py-2 text-right text-xs font-bold text-emerald-600">
@@ -555,15 +524,48 @@ const handleSelectRx = async (p) => {
               {/* Add medication inputs */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                  <div>
+                  <div className="relative" ref={dropdownRef}>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Medication Name</label>
                     <input
                       type="text"
-                      placeholder="e.g. Amoxicillin 500mg"
+                      placeholder="Search inventory..."
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 transition-all"
                       value={currentMed.name}
-                      onChange={e => setCurrentMed({ ...currentMed, name: e.target.value })}
+                      onChange={e => {
+                        setCurrentMed({ ...currentMed, name: e.target.value });
+                        setShowDropdown(true);
+                      }}
+                      onFocus={() => setShowDropdown(true)}
                     />
+                    {showDropdown && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
+                        {inventoryMeds
+                          .filter(m => (m.productName || "").toLowerCase().includes((currentMed.name || "").toLowerCase()))
+                          .map(m => (
+                            <button
+                              key={m.id}
+                              className="w-full text-left px-4 py-2 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors"
+                              onClick={() => {
+                                setCurrentMed({
+                                  ...currentMed,
+                                  name: m.productName || "",
+                                  price: String(m.retailPrice || m.price || 0)
+                                });
+                                setShowDropdown(false);
+                              }}
+                            >
+                              <p className="font-bold text-sm text-slate-700">{m.productName || "Unnamed Medicine"}</p>
+                              <div className="flex justify-between items-center mt-0.5">
+                                <span className="text-[10px] text-slate-500">{m.category || "—"} • {m.stock} in stock</span>
+                                <span className="text-xs font-bold text-emerald-600">Rs. {Number(m.retailPrice || m.price || 0).toFixed(2)}</span>
+                              </div>
+                            </button>
+                          ))}
+                        {inventoryMeds.filter(m => (m.productName || "").toLowerCase().includes((currentMed.name || "").toLowerCase())).length === 0 && (
+                          <div className="p-3 text-center text-xs text-slate-500">No matching medicines found</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Dosage</label>
@@ -576,15 +578,37 @@ const handleSelectRx = async (p) => {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Timing</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. BD"
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 transition-all"
+                    <select
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 transition-all cursor-pointer"
                       value={currentMed.timing}
                       onChange={e => setCurrentMed({ ...currentMed, timing: e.target.value })}
+                    >
+                      <option value="">Select Timing</option>
+                      <option value="Morning">Morning</option>
+                      <option value="Afternoon">Afternoon</option>
+                      <option value="Night">Night</option>
+                      <option value="Morning & Night (2 times)">Morning & Night (2 times)</option>
+                      <option value="Morning, Afternoon, Night (3 times)">Morning, Afternoon, Night (3 times)</option>
+                      <option value="Morning, Afternoon, Night, Bedtime (4 times)">Morning, Afternoon, Night, Bedtime (4 times)</option>
+                      <option value="OD (Once daily)">OD (Once daily)</option>
+                      <option value="BD (Twice daily)">BD (Twice daily)</option>
+                      <option value="TDS (Thrice daily)">TDS (Thrice daily)</option>
+                      <option value="QID (Four times daily)">QID (Four times daily)</option>
+                      <option value="SOS (As needed)">SOS (As needed)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Days</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 5"
+                      min="1"
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-500 transition-all"
+                      value={currentMed.days}
+                      onChange={e => setCurrentMed({ ...currentMed, days: e.target.value })}
                     />
                   </div>
                   <div>
@@ -598,7 +622,7 @@ const handleSelectRx = async (p) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Unit Price (Rs.)</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Price (Rs.)</label>
                     <input
                       type="number"
                       placeholder="0.00"
@@ -617,8 +641,8 @@ const handleSelectRx = async (p) => {
               </div>
 
               {/* Medication table */}
-              <div className="flex-1 border border-slate-200 rounded-2xl overflow-hidden flex flex-col mb-6">
-                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex justify-between items-center">
+              <div className="flex-1 border border-slate-200 rounded-2xl flex flex-col mb-6 min-h-[280px]">
+                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex justify-between items-center rounded-t-2xl">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Added Medications</span>
                   <span className="text-[10px] font-bold text-slate-400">{meds.length} Items</span>
                 </div>
@@ -640,9 +664,21 @@ const handleSelectRx = async (p) => {
                           <tr key={m.id} className="border-t border-slate-100 hover:bg-slate-50 transition-colors">
                             <td className="px-4 py-3">
                               <p className="font-bold text-slate-700">{m.name}</p>
-                              <p className="text-[10px] text-slate-500">{m.dosage} • {m.timing}</p>
+                              <p className="text-[10px] text-slate-500">{m.dosage} • {m.timing} • {m.days} Days</p>
                             </td>
-                            <td className="px-4 py-3 text-center font-medium">{m.qty}</td>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="number"
+                                min="1"
+                                value={m.qty}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const newQty = val === "" ? "" : parseInt(val) || 0;
+                                  setMeds(meds.map(med => med.id === m.id ? { ...med, qty: newQty } : med));
+                                }}
+                                className="w-16 px-2 py-1 text-center bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-blue-400 transition-all"
+                              />
+                            </td>
                             <td className="px-4 py-3 text-right font-bold text-blue-600">
                               Rs. {(m.qty * m.price).toFixed(2)}
                             </td>
@@ -658,7 +694,7 @@ const handleSelectRx = async (p) => {
                   )}
                 </div>
                 {meds.length > 0 && (
-                  <div className="bg-blue-50/50 p-4 border-t border-blue-100 flex justify-between items-center">
+                  <div className="bg-blue-50/50 p-4 border-t border-blue-100 flex justify-between items-center rounded-b-2xl mt-auto">
                     <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">Estimated Total</span>
                     <span className="text-xl font-black text-blue-700">
                       Rs. {meds.reduce((sum, m) => sum + (m.qty * m.price), 0).toFixed(2)}
@@ -668,21 +704,21 @@ const handleSelectRx = async (p) => {
               </div>
 
               {/* Action buttons */}
-              <div className="flex gap-3">
+              <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
                 <button
                   onClick={() => handleFinalize("Rejected")}
                   disabled={isSubmitting}
-                  className="flex-1 border-2 border-red-500 text-red-600 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-red-50 transition-all disabled:opacity-50"
+                  className="px-5 h-12 bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 hover:bg-red-100 hover:border-red-200 transition-all duration-200 disabled:opacity-50"
                 >
-                  <XCircle size={18} /> Reject Prescription
+                  <XCircle size={18} /> Reject
                 </button>
                 <button
                   onClick={() => handleFinalize("Approved")}
                   disabled={isSubmitting || meds.length === 0}
-                  className="flex-[2] bg-emerald-600 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition-all disabled:opacity-50"
+                  className="flex-1 h-12 bg-blue-600 text-white rounded-xl font-bold text-[14px] shadow-md shadow-blue-500/20 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:hover:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                   <CheckCircle size={18} />
-                  {isSubmitting ? "Processing..." : "Approve & Send Quote"}
+                  {isSubmitting ? "Processing..." : "Approve"}
                 </button>
               </div>
               </>)}

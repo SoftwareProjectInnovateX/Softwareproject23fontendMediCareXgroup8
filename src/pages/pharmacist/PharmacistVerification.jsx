@@ -294,7 +294,7 @@ const PharmacistVerification = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto pb-10 relative">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10 relative">
       
       {/* Approval Success Overlay */}
       {showApproveSuccess && (
@@ -485,6 +485,7 @@ const PharmacistVerification = () => {
                                   setInventoryMeds(inventoryMeds.map(m => m.id === itemToRemove.inventoryId ? { ...m, stock: restoredStock } : m));
                                   try {
                                      await updateInventoryItem(itemToRemove.inventoryId, { stock: restoredStock, qty: restoredStock, quantity: restoredStock });
+                                     window.dispatchEvent(new Event('inventory_updated'));
                                   } catch (err) { console.error("Failed to restore inventory", err); }
                                }
                             }
@@ -655,6 +656,7 @@ const PharmacistVerification = () => {
                      setInventoryMeds(inventoryMeds.map(m => m.id === selectedInventoryItem.id ? { ...m, stock: updatedStock } : m));
                      try {
                         await updateInventoryItem(selectedInventoryItem.id, { stock: updatedStock, qty: updatedStock, quantity: updatedStock });
+                        window.dispatchEvent(new Event('inventory_updated'));
                      } catch (err) { console.error("Failed to update inventory", err); }
                   }
 

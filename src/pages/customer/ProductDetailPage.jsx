@@ -32,7 +32,7 @@ const db   = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const API_BASE   = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
+const API_BASE   = `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api`;
 const STAR_LABEL = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 
 function formatDate(iso) {

@@ -11,7 +11,7 @@ const styles = `
   .pmp-root *, .pmp-root *::before, .pmp-root *::after { box-sizing: border-box; }
 
   .pmp-root {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     background: #f4f6fb;
     min-height: 100vh;
     color: #0f172a;
@@ -20,7 +20,7 @@ const styles = `
   /* Shell */
   .pmp-shell {
     width: 100%;
-    padding: 36px 40px 90px;
+    
     display: flex;
     flex-direction: column;
     gap: 28px;
@@ -37,7 +37,7 @@ const styles = `
     border-bottom: 1.5px solid #e2e8f0;
   }
   .pmp-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     font-size: 22px;
     font-weight: 800;
     color: #0f172a;
@@ -64,7 +64,7 @@ const styles = `
     font-weight: 600;
     color: #64748b;
     cursor: pointer;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     transition: all 0.15s;
     white-space: nowrap;
     letter-spacing: 0.01em;
@@ -106,7 +106,7 @@ const styles = `
   .pmp-stat.vis::before     { background: linear-gradient(90deg, #10b981, #34d399); }
   .pmp-stat.rx::before      { background: linear-gradient(90deg, #f43f5e, #fb7185); }
   .pmp-stat-num {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     font-size: 30px;
     font-weight: 700;
     line-height: 1;
@@ -158,7 +158,7 @@ const styles = `
     background: white;
     font-size: 13px;
     color: #0f172a;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     outline: none;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
@@ -183,7 +183,7 @@ const styles = `
     font-weight: 600;
     color: #64748b;
     cursor: pointer;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     transition: all 0.15s;
     white-space: nowrap;
   }
@@ -293,7 +293,7 @@ const styles = `
     flex-direction: column;
   }
   .pmp-card-name {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     font-size: 14px;
     font-weight: 700;
     color: #0f172a;
@@ -319,7 +319,7 @@ const styles = `
     display: inline-block;
   }
   .pmp-card-price {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     font-size: 15px;
     font-weight: 700;
     color: #1a87e1;
@@ -360,7 +360,7 @@ const styles = `
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     border: 1.5px solid;
     transition: all 0.15s;
     letter-spacing: 0.01em;
@@ -458,7 +458,7 @@ const styles = `
     to   { opacity: 1; transform: scale(1)    translateY(0);    }
   }
   .pmp-modal-title {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     font-size: 17px;
     font-weight: 700;
     color: #0f172a;
@@ -491,7 +491,7 @@ const styles = `
     font-weight: 600;
     color: #64748b;
     cursor: pointer;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     transition: all 0.15s;
   }
   .pmp-modal-cancel:hover { background: #f8fafc; border-color: #cbd5e1; }
@@ -504,7 +504,7 @@ const styles = `
     font-weight: 700;
     color: white;
     cursor: pointer;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: inherit;
     transition: all 0.15s;
   }
   .pmp-modal-confirm.to-vis { background: #10b981; }
@@ -675,7 +675,7 @@ export default function PharmacistProductsPage() {
   ];
 
   return (
-    <div className="pmp-root">
+    <div className="pmp-root space-y-6 max-w-7xl mx-auto pb-10">
       <style>{styles}</style>
 
       {confirmFor && (

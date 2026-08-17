@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { db } from "../../lib/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 import {
   FileText, Clock, CheckCircle, XCircle,
   ChevronDown, ChevronUp, Banknote,
@@ -8,7 +10,7 @@ import {
   MessageSquare, Tag
 } from "lucide-react";
 
-const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
+const API_BASE = `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api`;
 
 const C = {
   bg:          "#f8fafc",
@@ -97,7 +99,7 @@ function Badge({ label, style: s }) {
       fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 20,
       background: s.bg, color: s.color, border: `1px solid ${s.border}`,
       display: "inline-flex", alignItems: "center", gap: 4,
-      whiteSpace: "nowrap", letterSpacing: "0.02em", fontFamily: FONT.body,
+      whiteSpace: "nowrap", letterSpacing: "0.02em", fontFamily: 'inherit',
     }}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: s.dot, flexShrink: 0 }} />
       {label}
@@ -114,8 +116,8 @@ function InfoRow({ icon: Icon, label, value, mono }) {
         <Icon size={12} color={C.textMuted} />
       </div>
       <div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: FONT.body }}>{label}</div>
-        <div style={{ fontSize: 12, color: C.textPrimary, fontFamily: mono ? "monospace" : FONT.body, marginTop: 1, wordBreak: "break-all" }}>{value}</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: 'inherit' }}>{label}</div>
+        <div style={{ fontSize: 12, color: C.textPrimary, fontFamily: mono ? 'monospace' : 'inherit', marginTop: 1, wordBreak: "break-all" }}>{value}</div>
       </div>
     </div>
   );
@@ -129,8 +131,8 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
         <Icon size={19} color={color} strokeWidth={2} />
       </div>
       <div>
-        <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body }}>{label}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: C.textPrimary, lineHeight: 1.15, marginTop: 2, fontFamily: FONT.display }}>{value}</div>
+        <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: 'inherit' }}>{label}</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: C.textPrimary, lineHeight: 1.15, marginTop: 2, fontFamily: 'inherit' }}>{value}</div>
       </div>
     </div>
   );
@@ -154,8 +156,8 @@ function WeeklyChart({ items }) {
     <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body }}>Prescriptions this week</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.textPrimary, lineHeight: 1.2, marginTop: 2, fontFamily: FONT.display }}>{items.length} total</div>
+          <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: 'inherit' }}>Prescriptions this week</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.textPrimary, lineHeight: 1.2, marginTop: 2, fontFamily: 'inherit' }}>{items.length} total</div>
         </div>
         <div style={{ width: 34, height: 34, borderRadius: 9, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <TrendingUp size={16} color="#2563eb" />
@@ -165,7 +167,7 @@ function WeeklyChart({ items }) {
         {reordered.map(({ day, count, isToday }, i) => (
           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
             <div title={`${count} prescriptions`} style={{ width: "100%", height: Math.max((count / max) * 48, count > 0 ? 8 : 3), borderRadius: "4px 4px 0 0", background: isToday ? "linear-gradient(180deg,#3b82f6,#1d4ed8)" : count > 0 ? "#bfdbfe" : "#f1f5f9", minHeight: 3, transition: "height 0.3s ease" }} />
-            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: isToday ? "#2563eb" : "#94a3b8", fontFamily: FONT.body }}>{day}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: isToday ? "#2563eb" : "#94a3b8", fontFamily: 'inherit' }}>{day}</span>
           </div>
         ))}
       </div>
@@ -210,7 +212,7 @@ function PaymentChart({ items }) {
 
   return (
     <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-      <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: FONT.body, marginBottom: 14 }}>Payment overview</div>
+      <div style={{ fontSize: 11, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 600, fontFamily: 'inherit', marginBottom: 14 }}>Payment overview</div>
       <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
         <canvas ref={canvasRef} width={80} height={80} style={{ flexShrink: 0 }} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -220,10 +222,10 @@ function PaymentChart({ items }) {
             { dot: "#3b82f6", label: "Online paid",  val: onlinePaid },
           ].map((r, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 7, fontFamily: FONT.body }}>
+              <span style={{ fontSize: 12, color: C.textMuted, display: "flex", alignItems: "center", gap: 7, fontFamily: 'inherit' }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: r.dot }} />{r.label}
               </span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: r.dot, fontFamily: FONT.display }}>{r.val}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: r.dot, fontFamily: 'inherit' }}>{r.val}</span>
             </div>
           ))}
         </div>
@@ -240,7 +242,7 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
       display: "flex", alignItems: "center", gap: 6,
       background: disabled ? "#f8fafc" : bg, color: disabled ? "#94a3b8" : color,
       border: `1px solid ${disabled ? "#e2e8f0" : border}`,
-      cursor: disabled ? "not-allowed" : "pointer", fontFamily: FONT.body, opacity: disabled ? 0.6 : 1,
+      cursor: disabled ? "not-allowed" : "pointer", fontFamily: 'inherit', opacity: disabled ? 0.6 : 1,
     }}
       onMouseEnter={e => { if (!disabled) e.currentTarget.style.opacity = "0.82"; }}
       onMouseLeave={e => { if (!disabled) e.currentTarget.style.opacity = "1"; }}
@@ -285,7 +287,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
         {/* Patient */}
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{patientName}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{patientName}</span>
             {isCOD && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", textTransform: "uppercase", letterSpacing: "0.06em" }}>COD</span>}
             {isPaid && isCOD && (
               <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", textTransform: "uppercase", letterSpacing: "0.06em", display: "inline-flex", alignItems: "center", gap: 3 }}>
@@ -294,33 +296,33 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
             )}
           </div>
           {phone && (
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: FONT.body }}>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: 'inherit' }}>
               <Phone size={10} />{phone}
             </div>
           )}
           {address && (
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontFamily: FONT.body }}>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontFamily: 'inherit' }}>
               <MapPin size={10} />{address}
             </div>
           )}
           {!phone && rx.userId && (
-            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: FONT.body }}>
+            <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: 'inherit' }}>
               <User size={10} />{rx.userId.slice(0, 20)}…
             </div>
           )}
         </div>
 
-        <div style={{ fontSize: 11, color: C.textSoft, fontFamily: FONT.body }}>{dateStr}</div>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#2563eb", fontFamily: FONT.body }}>{getOrderDay(rx.createdAt)}</div>
-        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>{fmtOrderPlacedDate(rx.createdAt)}</div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{meds.length} med{meds.length !== 1 ? "s" : ""}</div>
+        <div style={{ fontSize: 11, color: C.textSoft, fontFamily: 'inherit' }}>{dateStr}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#2563eb", fontFamily: 'inherit' }}>{getOrderDay(rx.createdAt)}</div>
+        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>{fmtOrderPlacedDate(rx.createdAt)}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{meds.length} med{meds.length !== 1 ? "s" : ""}</div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           <Badge label={rx.paymentMethod || "—"} style={{ bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#94a3b8" }} />
           <Badge label={rx.paymentStatus || "pending"} style={pStyle} />
         </div>
 
-        <Badge label={rx.status || "pending"} style={sStyle} />
+        <Badge label={(rx.status || "pending").toLowerCase() === "dispensed" ? "Counter Sales" : (rx.status || "pending")} style={sStyle} />
 
         <button onClick={() => setExpanded(e => !e)} style={{
           fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 8,
@@ -328,7 +330,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
           border: `1px solid ${expanded ? "#bfdbfe" : C.border}`,
           color: expanded ? "#1d4ed8" : C.textSoft,
           cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
-          fontFamily: FONT.body, transition: "all 0.15s",
+          fontFamily: 'inherit', transition: "all 0.15s",
         }}>
           {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           {expanded ? "Hide" : "Details"}
@@ -342,7 +344,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
           {isPaid && isCOD && (
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, marginBottom: 16, background: "#f0fdf4", border: "1px solid #bbf7d0" }}>
               <BadgeCheck size={15} color="#15803d" />
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#15803d", fontFamily: FONT.body }}>Cash payment has been settled for this prescription</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#15803d", fontFamily: 'inherit' }}>Cash payment has been settled for this prescription</span>
             </div>
           )}
 
@@ -351,7 +353,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
 
             {/* Patient details */}
             <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body, paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>Patient details</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: 'inherit', paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>Patient details</div>
               <InfoRow icon={User}   label="Patient name" value={patientName} />
               <InfoRow icon={Phone}  label="Phone"        value={phone} />
               <InfoRow icon={MapPin} label="Address"      value={address} />
@@ -361,7 +363,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
 
             {/* Order details */}
             <div style={{ background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body, paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>Order details</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: 'inherit', paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>Order details</div>
               <InfoRow icon={Calendar}   label="Order placed"    value={fmtTs(rx.createdAt)} />
               <InfoRow icon={Calendar}   label="Processed at"    value={fmtTs(rx.processedAt)} />
               <InfoRow icon={Calendar}   label="Dispensed at"    value={fmtTs(rx.dispensedAt)} />
@@ -375,7 +377,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
           {/* Prescription image */}
           {rx.imageUrl && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: FONT.body }}>Prescription image</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8, fontFamily: 'inherit' }}>Prescription image</div>
               <img src={rx.imageUrl} alt="Prescription" onClick={() => window.open(rx.imageUrl, "_blank")}
                 style={{ maxWidth: 240, maxHeight: 180, borderRadius: 10, objectFit: "cover", border: `1px solid ${C.border}`, cursor: "pointer" }} />
             </div>
@@ -384,7 +386,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
           {/* Medications */}
           {meds.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontFamily: FONT.body }}>Medications</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontFamily: 'inherit' }}>Medications</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {meds.map((med, i) => (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: C.surface, borderRadius: 9, padding: "10px 14px", border: `1px solid ${C.border}` }}>
@@ -393,16 +395,16 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
                         <Pill size={15} color="#15803d" />
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: FONT.body }}>{med.name || med.medicineName || med.medicine || "—"}</div>
-                        {med.dosage       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Dosage: {med.dosage}</div>}
-                        {med.duration     && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Duration: {med.duration}</div>}
-                        {med.timing       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Timing: {med.timing}</div>}
-                        {med.instructions && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Instructions: {med.instructions}</div>}
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{med.name || med.medicineName || med.medicine || "—"}</div>
+                        {med.dosage       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Dosage: {med.dosage}</div>}
+                        {med.duration     && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Duration: {med.duration}</div>}
+                        {med.timing       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Timing: {med.timing}</div>}
+                        {med.instructions && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Instructions: {med.instructions}</div>}
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      {med.qty   !== undefined && <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", fontFamily: FONT.display }}>×{med.qty}</div>}
-                      {med.price !== undefined && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>Rs. {med.price}</div>}
+                      {med.qty   !== undefined && <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", fontFamily: 'inherit' }}>×{med.qty}</div>}
+                      {med.price !== undefined && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Rs. {med.price}</div>}
                     </div>
                   </div>
                 ))}
@@ -413,10 +415,10 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
           {/* Pharmacist note */}
           {rx.pharmacistNote && (
             <div style={{ background: "#f8fbff", border: "1px solid #dbeafe", borderRadius: 9, padding: "10px 14px", marginBottom: 16 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontFamily: FONT.body, display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontFamily: 'inherit', display: "flex", alignItems: "center", gap: 5 }}>
                 <MessageSquare size={10} />Pharmacist note
               </div>
-              <div style={{ fontSize: 13, color: C.textSoft, fontFamily: FONT.body }}>{rx.pharmacistNote}</div>
+              <div style={{ fontSize: 13, color: C.textSoft, fontFamily: 'inherit' }}>{rx.pharmacistNote}</div>
             </div>
           )}
 
@@ -441,7 +443,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
 function Toast({ message, type, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3200); return () => clearTimeout(t); }, [onClose]);
   return (
-    <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 50, display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderRadius: 12, background: type === "success" ? "#15803d" : "#b91c1c", color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: FONT.body, minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", animation: "slideInUp 0.22s ease" }}>
+    <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 50, display: "flex", alignItems: "center", gap: 10, padding: "12px 18px", borderRadius: 12, background: type === "success" ? "#15803d" : "#b91c1c", color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: 'inherit', minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.18)", animation: "slideInUp 0.22s ease" }}>
       {type === "success" ? <BadgeCheck size={16} /> : <AlertCircle size={16} />}
       {message}
     </div>
@@ -451,7 +453,7 @@ function Toast({ message, type, onClose }) {
 // ── Filter Button ──────────────────────────────────────────────────────────────
 function FilterBtn({ active, label, onClick, accentColor, accentBg, accentBorder }) {
   return (
-    <button onClick={onClick} style={{ fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, border: `1px solid ${active ? accentBorder : C.border}`, background: active ? accentBg : C.surface, color: active ? accentColor : C.textSoft, cursor: "pointer", fontFamily: FONT.body, transition: "all 0.15s" }}>
+    <button onClick={onClick} style={{ fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, border: `1px solid ${active ? accentBorder : C.border}`, background: active ? accentBg : C.surface, color: active ? accentColor : C.textSoft, cursor: "pointer", fontFamily: 'inherit', transition: "all 0.15s" }}>
       {label}
     </button>
   );
@@ -469,7 +471,13 @@ export default function Dispense() {
     try {
       const res  = await fetch(`${API_BASE}/pharmacist/dispensed`);
       const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
+      const list = Array.isArray(data) ? data.map(rx => {
+        // Fix old Walk-in POS entries that were saved without a status
+        if ((rx.id || "").startsWith("WALKIN-") && (!rx.status || rx.status.toLowerCase() === "pending")) {
+          return { ...rx, status: "dispensed" };
+        }
+        return rx;
+      }) : [];
       list.sort((a, b) => {
         const aDate = parseTs(a.processedAt || a.createdAt || a.dispensedAt);
         const bDate = parseTs(b.processedAt || b.createdAt || b.dispensedAt);
@@ -483,7 +491,7 @@ export default function Dispense() {
 
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 30000);
+    const interval = setInterval(fetchAll, 300000); // 5 minutes
     return () => clearInterval(interval);
   }, [fetchAll]);
 
@@ -497,6 +505,23 @@ export default function Dispense() {
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error(await res.text());
+
+      // Sync status to the original prescription in Firebase
+      const targetRx = prev.find(x => x.id === id);
+      const originalRxId = targetRx?.rxId || targetRx?.prescriptionId;
+      if (originalRxId) {
+        let mappedStatus = status;
+        if (status.toLowerCase() === "completed") mappedStatus = "Delivered";
+        else if (status.toLowerCase() === "cancelled") mappedStatus = "Rejected";
+        else mappedStatus = status.charAt(0).toUpperCase() + status.slice(1);
+        
+        try {
+          await updateDoc(doc(db, "prescriptions", originalRxId), { status: mappedStatus });
+        } catch (fbErr) {
+          console.warn("Could not sync status to firebase prescriptions collection:", fbErr);
+        }
+      }
+
       await fetchAll();
       setToast({ message: `Marked as ${status}`, type: "success" });
     } catch (err) {
@@ -514,6 +539,18 @@ export default function Dispense() {
         method: "PUT", headers: { "Content-Type": "application/json" },
       });
       if (!res.ok) throw new Error(await res.text());
+
+      // Sync payment status to the original prescription in Firebase
+      const targetRx = prev.find(x => x.id === rxId);
+      const originalRxId = targetRx?.rxId || targetRx?.prescriptionId;
+      if (originalRxId) {
+        try {
+          await updateDoc(doc(db, "prescriptions", originalRxId), { paymentStatus: "paid" });
+        } catch (fbErr) {
+          console.warn("Could not sync payment to firebase prescriptions collection:", fbErr);
+        }
+      }
+
       await fetchAll();
       setToast({ message: "Payment settled!", type: "success" });
     } catch (err) {
@@ -572,7 +609,7 @@ export default function Dispense() {
     { key: "pending",    label: `Pending (${pending})`,       accent: "#b45309", bg: "#fffbeb", border: "#fde68a" },
     { key: "approved",   label: `Approved (${approved})`,     accent: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe" },
     { key: "processing", label: `Processing (${processing})`, accent: "#7e22ce", bg: "#faf5ff", border: "#e9d5ff" },
-    { key: "dispensed",  label: `Dispensed (${dispensed})`,   accent: "#0f766e", bg: "#f0fdfa", border: "#99f6e4" },
+    { key: "dispensed",  label: `Counter Sales (${dispensed})`,   accent: "#0f766e", bg: "#f0fdfa", border: "#99f6e4" },
     { key: "completed",  label: `Completed (${completed})`,   accent: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" },
     { key: "cancelled",  label: `Cancelled (${cancelled})`,   accent: "#b91c1c", bg: "#fef2f2", border: "#fecaca" },
     { key: "cod",        label: `COD (${cod})`,               accent: "#b45309", bg: "#fffbeb", border: "#fde68a" },
@@ -580,14 +617,13 @@ export default function Dispense() {
   ];
 
   return (
-    <div style={{ fontFamily: FONT.body, minHeight: "100vh", background: C.bg }}>
+    <>
       <style>{`
         @keyframes slideInUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
       `}</style>
-
-      <div style={{ maxWidth: 1160, margin: "0 auto", padding: "28px 24px" }}>
+      <div className="space-y-6 max-w-7xl mx-auto pb-10">
 
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -596,7 +632,7 @@ export default function Dispense() {
             <p className="text-slate-500 font-medium mt-1">Full prescription history — patient info, medications, timestamps & payment</p>
           </div>
           {updating && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 12, fontWeight: 600, color: "#1d4ed8", fontFamily: FONT.body }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 12, fontWeight: 600, color: "#1d4ed8", fontFamily: 'inherit' }}>
               <div style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #bfdbfe", borderTopColor: "#2563eb", animation: "spin 0.7s linear infinite" }} />
               Updating…
             </div>
@@ -607,7 +643,7 @@ export default function Dispense() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 16 }}>
           <StatCard icon={ClipboardList} label="Total Rx"    value={total}      color="#2563eb" bg="#eff6ff" />
           <StatCard icon={Clock}         label="Pending"      value={pending}    color="#b45309" bg="#fffbeb" />
-          <StatCard icon={Pill}          label="Dispensed"    value={dispensed}  color="#0f766e" bg="#f0fdfa" />
+          <StatCard icon={Pill}          label="Counter Sales"    value={dispensed}  color="#0f766e" bg="#f0fdfa" />
           <StatCard icon={CheckCircle}   label="Completed"    value={completed}  color="#15803d" bg="#f0fdf4" />
           <StatCard icon={XCircle}       label="Cancelled"    value={cancelled}  color="#b91c1c" bg="#fef2f2" />
           <StatCard icon={BadgeCheck}    label="COD Settled"  value={codSettled} color="#15803d" bg="#f0fdf4" />
@@ -627,14 +663,14 @@ export default function Dispense() {
           ))}
           <input placeholder="Search patient, phone, address, medicine…" value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ marginLeft: "auto", padding: "7px 12px", fontSize: 12, borderRadius: 8, outline: "none", border: `1px solid ${C.border}`, background: C.surface, color: C.textPrimary, fontFamily: FONT.body, width: 260 }}
+            style={{ marginLeft: "auto", padding: "7px 12px", fontSize: 12, borderRadius: 8, outline: "none", border: `1px solid ${C.border}`, background: C.surface, color: C.textPrimary, fontFamily: 'inherit', width: 260 }}
           />
         </div>
 
         {/* Table header */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1.1fr 0.85fr 0.85fr 0.7fr 1fr 1fr 90px", gap: 12, padding: "10px 18px", background: "linear-gradient(135deg,#f0f9ff,#f8fafc)", border: `1px solid ${C.border}`, borderRadius: "12px 12px 0 0", borderBottom: "none" }}>
           {["Patient", "Date", "Day Placed", "Order Placed", "Meds", "Payment", "Status", ""].map((h, i) => (
-            <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: FONT.body }}>{h}</div>
+            <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: 'inherit' }}>{h}</div>
           ))}
         </div>
 
@@ -643,8 +679,8 @@ export default function Dispense() {
           {visible.length === 0 ? (
             <div style={{ textAlign: "center", padding: "56px 20px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: "0 0 12px 12px" }}>
               <FileText size={40} color={C.textMuted} style={{ margin: "0 auto 12px" }} />
-              <div style={{ fontSize: 15, fontWeight: 600, color: C.textSoft, fontFamily: FONT.body }}>No prescriptions found</div>
-              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, fontFamily: FONT.body }}>Try changing your filter or search query</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.textSoft, fontFamily: 'inherit' }}>No prescriptions found</div>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, fontFamily: 'inherit' }}>Try changing your filter or search query</div>
             </div>
           ) : visible.map(rx => (
             <PrescriptionRow key={rx.id} rx={rx}
@@ -657,16 +693,16 @@ export default function Dispense() {
 
         {/* Footer */}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textMuted, fontFamily: FONT.body }}>
-            <RefreshCw size={11} />Auto-refreshes every 30 seconds
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>
+            <RefreshCw size={11} />Auto-refreshes every 5 minutes
           </div>
-          <div style={{ fontSize: 12, color: C.textMuted, fontFamily: FONT.body }}>
+          <div style={{ fontSize: 12, color: C.textMuted, fontFamily: 'inherit' }}>
             Showing <strong style={{ color: "#2563eb" }}>{visible.length}</strong> of <strong style={{ color: C.textPrimary }}>{total}</strong> prescriptions
           </div>
         </div>
-      </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
+    </>
   );
 }

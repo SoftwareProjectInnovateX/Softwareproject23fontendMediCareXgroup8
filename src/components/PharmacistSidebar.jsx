@@ -23,7 +23,7 @@ import {
 
 const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const navigate = useNavigate();
-  const { unreadAlerts, pendingRxCount } = useContext(AlertContext);
+  const { unreadAlerts, unreadMessages, pendingRxCount } = useContext(AlertContext);
   const { logout } = useAuth();
 
   const handleLogout = async () => {
@@ -54,7 +54,7 @@ const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     { path: '/pharmacist/brands',        name: 'Add Brand',      icon: Tag },
     { path: '/pharmacist/my-products',   name: 'My Products',    icon: Layers },
     { path: '/pharmacist/blog-approval', name: 'Blog Approval',  icon: FileText },
-    { path: '/pharmacist/messages',      name: 'Messages',       icon: MessageSquare, dot: false },
+    { path: '/pharmacist/messages',      name: 'Messages',       icon: MessageSquare, dot: unreadMessages > 0 },
   ];
 
   const NavItem = ({ item }) => (
@@ -101,8 +101,8 @@ const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       {/* Logo + Settings & Logout top-right */}
       <div className="h-[70px] flex items-center justify-between px-5 bg-[#084298] border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 bg-white/15 border border-white/20 flex items-center justify-center">
-            <img src="/logo.png" alt="MediCareX" className="w-full h-full object-contain p-1" />
+          <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-white shadow-sm flex items-center justify-center border-2 border-white/20">
+            <img src="/logo.png" alt="MediCareX" className="w-full h-full object-cover scale-110" />
           </div>
           <span className="text-xl font-black tracking-wide text-white">
             MediCareX

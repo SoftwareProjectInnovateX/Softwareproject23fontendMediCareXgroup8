@@ -8,7 +8,7 @@ import { getFirestore, collection, addDoc, serverTimestamp, query, where, onSnap
 
 // Base URL for all API calls — falls back to localhost in development
 const API_BASE = `${
-  import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
+  (import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api`;
 // Firebase initialization — reuses existing app instance if already initialized
 const firebaseConfig = {
    apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,

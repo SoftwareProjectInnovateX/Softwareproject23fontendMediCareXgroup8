@@ -2,7 +2,8 @@ import React, { useContext, useState, useEffect, useRef, useCallback } from 'rea
 import { Search, Bell, Plus, User, FileText, Pill, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AlertContext } from '../layouts/PharmacistLayout';
-import { getPatients, getPrescriptions, getInventory } from '../services/pharmacistService';
+import { db } from '../lib/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 const PharmacistHeader = ({ setIsMobileOpen }) => {
   const navigate = useNavigate();
@@ -44,11 +45,29 @@ const PharmacistHeader = ({ setIsMobileOpen }) => {
       const q = searchQuery.toLowerCase();
 
       try {
-        const [pList, rxList, invList] = await Promise.all([
-          getPatients().catch(() => []),
-          getPrescriptions().catch(() => []),
-          getInventory().catch(() => [])
+        // Fetch from Firestore directly
+        
+        // Prefix search queries to prevent Quota Exceeded error
+        const endQ = q + '\uf8ff';
+        const [pSnap, rxSnap, prodSnap, adminProdSnap, pharmProdSnap] = await Promise.all([
+          getDocs(query(collection(db, 'users'), where('role', '==', 'customer'), limit(10))), // Limit user search for now
+          getDocs(query(collection(db, 'prescriptions'), limit(10))), // Limit prescriptions
+          getDocs(query(collection(db, 'products'), where('name', '>=', q), where('name', '<=', endQ), limit(10))),
+          getDocs(query(collection(db, 'adminProducts'), where('name', '>=', q), where('name', '<=', endQ), limit(10))),
+          getDocs(query(collection(db, 'pharmacistProducts'), where('name', '>=', q), where('name', '<=', endQ), limit(10)))
         ]);
+  
+
+        const pList = pSnap.docs.map(doc => {
+          const data = doc.data();
+          return { id: doc.id, ...data, name: data.name || data.fullName || 'Unknown' };
+        });
+        const rxList = rxSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const invList = [
+          ...prodSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          ...adminProdSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+          ...pharmProdSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        ];
 
         const matchedPatients = pList.filter(p =>
           (p.name && p.name.toLowerCase().includes(q)) ||
@@ -96,7 +115,7 @@ const PharmacistHeader = ({ setIsMobileOpen }) => {
         navigate('/pharmacist/prescriptions', { state: { searchTarget: targetValue } });
         break;
       case 'drug':
-        navigate('/pharmacist/drug-lookup', { state: { searchTarget: targetValue } });
+        navigate('/pharmacist/inventory', { state: { searchTarget: targetValue } });
         break;
       default:
         break;

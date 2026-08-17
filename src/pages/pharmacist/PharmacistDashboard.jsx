@@ -198,10 +198,10 @@ const PharmacistDashboard = () => {
          
          setTotalInventoryCount(inv.length);
          
-         // Low stock: qty < 100
+         // Low stock: qty <= 30 (includes 0)
          const lowStock = inv.filter(item => {
             const qty = Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0);
-            return qty < 100;
+            return qty <= 30;
          });
          setLowStockItems(lowStock);
          
@@ -254,12 +254,19 @@ const PharmacistDashboard = () => {
       }));
     }, 1000);
 
-    // Event-driven updates only — no polling timers that hammer the API
+    // Event-driven updates for local immediate changes
     const handleUpdate = () => fetchAllDashboardData();
     window.addEventListener('revenue_updated',    handleUpdate);
     window.addEventListener('dispensed_updated',  handleUpdate);
     window.addEventListener('inventory_updated',  fetchInventoryData);
     window.addEventListener('patient_registered', updatePatientCount);
+
+    // Auto-refresh every 5 minutes (safe for Firebase limits)
+    const syncInterval = setInterval(() => {
+      fetchAllDashboardData();
+      fetchInventoryData();
+      updatePatientCount();
+    }, 300000);
 
     // --- Firebase onSnapshot - prescriptions real-time (single listener) ------
     const prescQ = query(
@@ -306,6 +313,7 @@ const PharmacistDashboard = () => {
       window.removeEventListener('inventory_updated',  fetchInventoryData);
       window.removeEventListener('patient_registered', updatePatientCount);
       clearInterval(clockTimer);
+      clearInterval(syncInterval);
       unsubPrescriptions();
     };
   }, []);
@@ -437,7 +445,7 @@ const PharmacistDashboard = () => {
                           style={{ width: `${Math.min((lowStockItems.length / Math.max(totalInventoryCount, 1)) * 100, 100)}%` }} />
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-400 font-semibold">&lt;100 items</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">&lt;=30 items</span>
                         {criticalCount > 0 && (
                           <span className="flex items-center gap-1 bg-red-50 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-100">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -657,7 +665,7 @@ const PharmacistDashboard = () => {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono text-slate-400">{clockDisplay}</span>
+                <span className="text-[10px]  text-slate-400">{clockDisplay}</span>
                 <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Live</span>
               </div>
             </div>

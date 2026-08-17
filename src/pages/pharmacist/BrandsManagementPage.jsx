@@ -41,7 +41,7 @@ export default function BrandsManagementPage() {
   };
 
   return (
-    <div className="font-['DM_Sans',sans-serif]">
+    <div className="space-y-6 max-w-7xl mx-auto pb-10">
 
       {/* ── Page header with Add / Cancel toggle button ── */}
       <div className="flex items-start justify-between mb-6">
@@ -56,7 +56,7 @@ export default function BrandsManagementPage() {
         {/* Button switches between "Add Brand" (blue) and "Cancel" (red outline) */}
         <button
           onClick={() => setShowForm(!showForm)}
-          className={`inline-flex items-center gap-[7px] rounded-[10px] px-[18px] py-[10px] text-[13px] font-semibold font-['DM_Sans',sans-serif] cursor-pointer border transition-all ${
+          className={`inline-flex items-center gap-[7px] rounded-[10px] px-[18px] py-[10px] text-[13px] font-semibold  cursor-pointer border transition-all ${
             showForm
               ? "bg-[rgba(239,68,68,0.08)] text-red-600 border-[rgba(239,68,68,0.25)] shadow-none"
               : "bg-[#1a87e1] text-white border-none shadow-[0_4px_12px_rgba(26,135,225,0.25)]"
@@ -105,7 +105,7 @@ export default function BrandsManagementPage() {
                 </div>
                 <button
                   onClick={() => handleDelete(b.id)}
-                  className="flex items-center gap-[5px] bg-[rgba(239,68,68,0.07)] border border-[rgba(239,68,68,0.2)] rounded-lg px-[11px] py-[6px] text-[11px] font-semibold text-red-600 cursor-pointer font-['DM_Sans',sans-serif] shrink-0 ml-[10px]"
+                  className="flex items-center gap-[5px] bg-[rgba(239,68,68,0.07)] border border-[rgba(239,68,68,0.2)] rounded-lg px-[11px] py-[6px] text-[11px] font-semibold text-red-600 cursor-pointer  shrink-0 ml-[10px]"
                 >
                   <Trash2 size={12} />
                   Delete

@@ -44,8 +44,8 @@ export default function Sidebar() {
       >
         {!isCollapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-white/15 flex items-center justify-center">
-              <img src="/logo.png" alt="MediCareX" className="w-full h-full object-contain" />
+            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-white shadow-sm flex items-center justify-center border-2 border-white/20">
+              <img src="/logo.png" alt="MediCareX" className="w-full h-full object-cover scale-110" />
             </div>
             <span className="text-[15px] font-bold text-white tracking-tight whitespace-nowrap">
               MediCareX
@@ -54,8 +54,8 @@ export default function Sidebar() {
         )}
 
         {isCollapsed && (
-          <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/15 flex items-center justify-center">
-            <img src="/logo.png" alt="MediCareX" className="w-full h-full object-contain" />
+          <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-white shadow-sm flex items-center justify-center border-2 border-white/20">
+            <img src="/logo.png" alt="MediCareX" className="w-full h-full object-cover scale-110" />
           </div>
         )}
 

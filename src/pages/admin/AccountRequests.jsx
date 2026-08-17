@@ -3,7 +3,7 @@ import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db, getAuthHeaders } from "../../services/firebase";
 import PageLayout from "../../components/PageLayout";
 
-const API_BASE = `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api`;
+const API_BASE = `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api`;
 const REQUESTS_PER_PAGE = 6;
 
 // ── Info field ──────────────────────────────────────────────────────────────
