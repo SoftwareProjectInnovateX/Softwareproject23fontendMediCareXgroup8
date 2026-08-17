@@ -64,7 +64,7 @@ const PharmacistExpiringInventory = () => {
 
             return {
               id: item.id || idx,
-              name: item.name || 'Unknown',
+              name: item.name || item.productName || item.itemName || item.medicineName || item.title || item.productCode || 'Unknown',
               dosage: item.dosage || 'N/A',
               totalQty: Number(item.stock ?? item.qty ?? item.quantity ?? item.totalStock ?? item.currentStock ?? 0),
               status: statusStr,
