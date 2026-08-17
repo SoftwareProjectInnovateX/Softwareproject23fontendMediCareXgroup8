@@ -119,7 +119,7 @@ export default function ChatBot({ onClose }) {
       <div className="bg-[#0b5ed7] px-4 py-3 flex items-center gap-3">
         <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center overflow-hidden">
           <img
-            src="/src/assets/logo.png"
+            src="/logo.png"
             alt="MediCareX"
             className="w-6 h-6 object-contain"
           />
