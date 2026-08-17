@@ -98,7 +98,7 @@ const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     <div className={`w-64 bg-[#0b5ed7] text-white flex flex-col h-screen fixed left-0 top-0 z-[200] transition-transform duration-300
       ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
 
-      {/* Logo + Settings & Logout top-right */}
+      {/* Logo top */}
       <div className="h-[70px] flex items-center justify-between px-5 bg-[#084298] border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-white shadow-sm flex items-center justify-center border-2 border-white/20">
@@ -107,31 +107,6 @@ const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           <span className="text-xl font-black tracking-wide text-white">
             MediCareX
           </span>
-        </div>
-
-        {/* Settings & Logout — top right */}
-        <div className="flex items-center gap-1">
-          <NavLink
-            to="/pharmacist/settings"
-            className={({ isActive }) =>
-              `p-1.5 rounded-lg transition-all duration-200 ${
-                isActive
-                  ? 'bg-white/20 text-white'
-                  : 'text-blue-100 hover:bg-white/10 hover:text-white'
-              }`
-            }
-            title="Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </NavLink>
-
-          <button
-            onClick={handleLogout}
-            className="p-1.5 rounded-lg text-blue-100 hover:bg-red-500/80 hover:text-white transition-all duration-200"
-            title="Logout"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
         </div>
       </div>
 
@@ -166,7 +141,31 @@ const PharmacistSidebar = ({ isMobileOpen, setIsMobileOpen }) => {
         </div>
       </div>
 
-      {/* Footer removed — Settings & Logout moved to top */}
+      {/* Footer Settings & Logout */}
+      <div className="p-4 border-t border-white/10 shrink-0 mt-auto flex items-center gap-2">
+        <NavLink
+          to="/pharmacist/settings"
+          className={({ isActive }) =>
+            `flex flex-1 items-center justify-center gap-2 p-2 rounded-lg transition-all duration-200 ${
+              isActive
+                ? 'bg-white/20 text-white shadow-sm'
+                : 'text-blue-100 hover:bg-white/10 hover:text-white'
+            }`
+          }
+          title="Settings"
+        >
+          <Settings className="w-5 h-5" />
+          <span className="text-sm font-medium tracking-wide">Settings</span>
+        </NavLink>
+
+        <button
+          onClick={handleLogout}
+          className="p-2 px-3 rounded-lg text-blue-100 hover:bg-red-500 hover:text-white transition-all duration-200 flex items-center justify-center"
+          title="Logout"
+        >
+          <LogOut className="w-5 h-5" />
+        </button>
+      </div>
     </div>
   );
 };
