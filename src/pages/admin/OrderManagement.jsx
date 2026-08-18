@@ -144,6 +144,7 @@ const OrderManagement = () => {
     if (!confirmOrder) return;
     const { orderId, order } = confirmOrder;
     setConfirmLoading(true);
+
     try {
       await updateDoc(doc(db, 'purchaseOrders', orderId), {
         status: 'COMPLETED',
@@ -153,13 +154,33 @@ const OrderManagement = () => {
 
       const adminProductRef  = doc(db, 'adminProducts', order.adminProductId);
       const adminProductSnap = await getDoc(adminProductRef);
+
       if (adminProductSnap.exists()) {
+        const newStock =
+          Number(adminProductSnap.data().stock || 0) +
+          Number(order.quantity || 0);
+
+        // Update adminProducts stock
         await updateDoc(adminProductRef, {
-          stock:         adminProductSnap.data().stock + order.quantity,
+          stock:         newStock,
           availability:  'in stock',
           lastRestocked: Timestamp.now(),
           updatedAt:     Timestamp.now(),
         });
+
+        // Update matching products stock
+        if (order.productId) {
+          const productRef  = doc(db, 'products', order.productId);
+          const productSnap = await getDoc(productRef);
+
+          if (productSnap.exists()) {
+            await updateDoc(productRef, {
+              stock:        newStock,
+              availability: 'in stock',
+              updatedAt:    Timestamp.now(),
+            });
+          }
+        }
       }
 
       const resolvedProductName = order.productName || order.product || 'N/A';
@@ -183,6 +204,7 @@ const OrderManagement = () => {
       } else {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 14);
+
         await addDoc(collection(db, 'payments'), {
           purchaseOrderId:  orderId,
           orderId:          resolvedPoId,
