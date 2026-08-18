@@ -303,7 +303,7 @@ export default function OrdersPage() {
               <Sparkles size={17} className="text-blue-600" style={{ color: 'var(--accent-blue)' }} />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-500">AI Powered</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-500"></p>
               <h3 className="text-xl font-black" style={{ color: C.textPrimary }}>Order Intelligence</h3>
             </div>
           </div>
@@ -366,7 +366,7 @@ export default function OrdersPage() {
               <p className="text-base font-black mb-3" style={{ color: C.textPrimary }}>{summary.nextOrderEstimate}</p>
               {summary.savingsOpportunity > 0 && (
                 <div className="p-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-green-700">💰 Save up to</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-green-700"> Save up to</p>
                   <p className="text-xl font-black text-green-700 mt-1">Rs{summary.savingsOpportunity}</p>
                   <p className="text-xs text-green-600 mt-0.5">with bulk orders</p>
                 </div>
