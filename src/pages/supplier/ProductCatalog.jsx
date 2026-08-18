@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   collection, getDocs, updateDoc, deleteDoc,
-  doc, query, orderBy, where, Timestamp, getDoc,
+  doc, query, where, Timestamp, getDoc,
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -214,9 +214,18 @@ const ProductCatalog = () => {
       const snapshot = await getDocs(query(
         collection(db, 'products'),
         where('supplierId', '==', currentUser.id),
-        orderBy('createdAt', 'desc'),
       ));
-      setProducts(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+      const approvedProducts = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((product) => product.status === 'approved')
+        .sort((a, b) => {
+          const aTime = a.createdAt?.seconds ?? a.createdAt?._seconds ?? 0;
+          const bTime = b.createdAt?.seconds ?? b.createdAt?._seconds ?? 0;
+          return bTime - aTime;
+        });
+
+      setProducts(approvedProducts);
     } catch (error) {
       console.error('Error fetching approved products:', error);
       showToast('Failed to load products: ' + error.message, 'error');
@@ -229,19 +238,28 @@ const ProductCatalog = () => {
     if (currentUser) fetchProducts();
   }, [currentUser]);
 
-  // Real-time listener — fetches ALL fields from pendingProducts including expireDate
+  // Real-time listener — pending submissions now live in products with status: pending
   useEffect(() => {
     if (!currentUser?.id) return;
 
     const q = query(
-      collection(db, 'pendingProducts'),
+      collection(db, 'products'),
       where('supplierId', '==', currentUser.id),
-      orderBy('createdAt', 'desc'),
     );
 
     const unsubscribe = onSnapshot(
       q,
-      (snap) => setPendingProducts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (snap) => {
+        const pending = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((product) => product.status === 'pending')
+          .sort((a, b) => {
+            const aTime = a.createdAt?.seconds ?? a.createdAt?._seconds ?? 0;
+            const bTime = b.createdAt?.seconds ?? b.createdAt?._seconds ?? 0;
+            return bTime - aTime;
+          });
+        setPendingProducts(pending);
+      },
       (error) => console.error('Pending products listener error:', error),
     );
 
@@ -416,6 +434,7 @@ const ProductCatalog = () => {
     if (!val) return '—';
     if (typeof val.toDate === 'function') return val.toDate().toLocaleDateString();
     if (val._seconds) return new Date(val._seconds * 1000).toLocaleDateString();
+    if (val.seconds) return new Date(val.seconds * 1000).toLocaleDateString();
     const d = new Date(val);
     return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
   };
