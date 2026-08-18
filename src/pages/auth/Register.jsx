@@ -180,6 +180,14 @@ const Register = () => {
 
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
+  // Sri Lanka phone: 07XXXXXXXX or +94XXXXXXXXX
+  const validatePhone = (phone) =>
+    /^(\+94)[0-9]{9}$/.test(phone) || /^07[0-9]{8}$/.test(phone);
+
+  // NIC: old 9 digits + V/X, or new 12 digits
+  const validateNIC = (nic) =>
+    /^[0-9]{9}[VvXx]$/.test(nic) || /^[0-9]{12}$/.test(nic);
+
   const validatePassword = (password, errs, field = "password") => {
     if (!password) errs[field] = "Password is required";
     else if (password.length < 8) errs[field] = "Minimum 8 characters";
@@ -203,6 +211,9 @@ const Register = () => {
         e.confirmPassword = "Please confirm password";
       else if (formData.password !== formData.confirmPassword)
         e.confirmPassword = "Passwords do not match";
+      // Phone is optional but must be valid format if provided
+      if (formData.phone.trim() && !validatePhone(formData.phone.trim()))
+        e.phone = "Enter a valid phone number (e.g. 0771234567 or +94771234567)";
     }
 
     if (role === "supplier") {
@@ -213,14 +224,23 @@ const Register = () => {
         e.email = "Invalid email address";
       if (!formData.contactPerson.trim())
         e.contactPerson = "Contact person is required";
-      if (!formData.phone.trim()) e.phone = "Phone number is required";
+      if (!formData.phone.trim()) {
+        e.phone = "Phone number is required";
+      } else if (!validatePhone(formData.phone.trim())) {
+        e.phone = "Enter a valid phone number (e.g. 0771234567 or +94771234567)";
+      }
       if (!formData.businessRegNo.trim())
         e.businessRegNo = "Business registration number is required";
+      else if (formData.businessRegNo.trim().length < 5)
+        e.businessRegNo = "Enter a valid registration number (min 5 characters)";
       if (!formData.businessAddress.trim())
         e.businessAddress = "Business address is required";
       if (!formData.bankName.trim()) e.bankName = "Bank name is required";
-      if (!formData.accountNumber.trim())
+      if (!formData.accountNumber.trim()) {
         e.accountNumber = "Account number is required";
+      } else if (!/^[0-9]{8,16}$/.test(formData.accountNumber.trim())) {
+        e.accountNumber = "Account number must be 8–16 digits only";
+      }
       if (!formData.accountHolderName.trim())
         e.accountHolderName = "Account holder name is required";
     }
@@ -230,12 +250,26 @@ const Register = () => {
       if (!formData.email.trim()) e.email = "Email is required";
       else if (!validateEmail(formData.email))
         e.email = "Invalid email address";
-      if (!formData.phone.trim()) e.phone = "Phone number is required";
-      if (!formData.nicNumber.trim()) e.nicNumber = "NIC number is required";
-      if (!formData.licenseNumber.trim())
+      if (!formData.phone.trim()) {
+        e.phone = "Phone number is required";
+      } else if (!validatePhone(formData.phone.trim())) {
+        e.phone = "Enter a valid phone number (e.g. 0771234567 or +94771234567)";
+      }
+      if (!formData.nicNumber.trim()) {
+        e.nicNumber = "NIC number is required";
+      } else if (!validateNIC(formData.nicNumber.trim())) {
+        e.nicNumber = "Enter a valid NIC (e.g. 987654321V or 200012345678)";
+      }
+      if (!formData.licenseNumber.trim()) {
         e.licenseNumber = "License number is required";
-      if (!formData.licenseExpiry)
+      } else if (!/^[A-Za-z0-9\-]{5,}$/.test(formData.licenseNumber.trim())) {
+        e.licenseNumber = "Enter a valid license number (e.g. PH-12345-2024)";
+      }
+      if (!formData.licenseExpiry) {
         e.licenseExpiry = "License expiry date is required";
+      } else if (new Date(formData.licenseExpiry) <= new Date()) {
+        e.licenseExpiry = "License expiry date must be a future date";
+      }
       if (!formData.specialization.trim())
         e.specialization = "Specialization is required";
     }
