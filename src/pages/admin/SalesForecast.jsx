@@ -275,19 +275,37 @@ export default function SalesForecast() {
         ]);
 
         const salesMap = {};
+
         ordersSnap.docs.forEach((orderDoc) => {
-          const items = orderDoc.data().items ?? [];
+          const orderData = orderDoc.data();
+          const items = orderData.items ?? orderData.types ?? [];
+
           items.forEach((item) => {
-            if (item.id) {
-              salesMap[item.id] = (salesMap[item.id] ?? 0) + (item.quantity ?? 1);
-            }
+            const productId =
+              item.id ??
+              item.productId ??
+              item.productID ??
+              item.product?.id ??
+              null;
+
+            if (!productId) return;
+
+            const quantity = Number(item.quantity ?? item.qty ?? 1);
+
+            salesMap[productId] =
+              (salesMap[productId] ?? 0) +
+              (Number.isFinite(quantity) ? quantity : 1);
           });
         });
 
-        const mapped = productsSnap.docs.map((doc) => mapProduct(doc, salesMap));
+        const mapped = productsSnap.docs.map((doc) =>
+          mapProduct(doc, salesMap)
+        );
+
         setData(mapped);
         setSelected(mapped[0] ?? null);
       } catch (err) {
+        console.error("Failed to load sales forecast:", err);
         setError(err.message);
       } finally {
         setLoading(false);
