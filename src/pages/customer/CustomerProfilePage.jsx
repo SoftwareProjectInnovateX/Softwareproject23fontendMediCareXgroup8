@@ -60,11 +60,20 @@ export default function CustomerProfilePage() {
         if (!res.ok) throw new Error('Failed to fetch profile');
 
         const data = await res.json();
-        setUser(data);
+
+        // Use only the actual loyalty fields from the users collection.
+        // Never use totalSpent as loyalty points.
+        const mappedUser = {
+          ...data,
+          totalPoints: data.loyaltyPoints ?? 0,
+          level: data.loyaltyTier ?? data.level ?? "Silver",
+        };
+
+        setUser(mappedUser);
         // Pre-populate edit fields with existing profile data
-        setFullName(data.fullName || "");
-        setPhone(data.phone       || "");
-        setAddress(data.address   || "");
+        setFullName(mappedUser.fullName || "");
+        setPhone(mappedUser.phone       || "");
+        setAddress(mappedUser.address   || "");
       } catch (err) {
         console.error(err);
       } finally {
@@ -212,7 +221,7 @@ export default function CustomerProfilePage() {
         {/* Quick navigation links to Orders, Prescriptions, and Returns */}
         <QuickLinks navigate={navigate} />
 
-        {/* Logout button — signs out from Firebase Auth and redirects to login */}
+        {/* Logout button — signs out from Firebase Auth and redirects */}
         <button
           onClick={handleLogout}
           className="flex items-center justify-center gap-2 w-full py-[13px] rounded-xl text-[14px] font-bold cursor-pointer"
