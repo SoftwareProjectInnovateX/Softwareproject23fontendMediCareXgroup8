@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { db } from "../../lib/firebase";
+import { getAuthHeaders } from "../../services/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import {
   FileText, Clock, CheckCircle, XCircle,
@@ -59,7 +60,7 @@ function getBorderColor(rx) {
   }
 }
 
-// ── Universal timestamp helpers (handles ISO string, Firestore _seconds/seconds)
+// â”€â”€ Universal timestamp helpers (handles ISO string, Firestore _seconds/seconds)
 function parseTs(val) {
   if (!val) return null;
   if (typeof val === "string") return new Date(val);
@@ -92,7 +93,7 @@ function fmtOrderPlacedDate(val) {
   });
 }
 
-// ── Badge ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Badge({ label, style: s }) {
   return (
     <span style={{
@@ -107,7 +108,7 @@ function Badge({ label, style: s }) {
   );
 }
 
-// ── Info Row ───────────────────────────────────────────────────────────────────
+// â”€â”€ Info Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function InfoRow({ icon: Icon, label, value, mono }) {
   if (!value) return null;
   return (
@@ -123,7 +124,7 @@ function InfoRow({ icon: Icon, label, value, mono }) {
   );
 }
 
-// ── StatCard ───────────────────────────────────────────────────────────────────
+// â”€â”€ StatCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
     <div style={{ background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
@@ -138,7 +139,7 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
   );
 }
 
-// ── Weekly Chart ───────────────────────────────────────────────────────────────
+// â”€â”€ Weekly Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function WeeklyChart({ items }) {
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const today = new Date().getDay();
@@ -175,7 +176,7 @@ function WeeklyChart({ items }) {
   );
 }
 
-// ── Payment Donut ──────────────────────────────────────────────────────────────
+// â”€â”€ Payment Donut â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PaymentChart({ items }) {
   const canvasRef = useRef(null);
   const cod        = items.filter(rx => (rx.paymentMethod || "").toLowerCase() === "cod");
@@ -234,7 +235,7 @@ function PaymentChart({ items }) {
   );
 }
 
-// ── Action Button ──────────────────────────────────────────────────────────────
+// â”€â”€ Action Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
@@ -252,8 +253,48 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
   );
 }
 
-// ── Prescription Row ───────────────────────────────────────────────────────────
-function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
+
+// ─── Cancel Confirm Dialog ──────────────────────────────────────────────────
+function CancelDialog({ onConfirm, onClose }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy]     = useState(false);
+  const handleConfirm = async () => { setBusy(true); await onConfirm(reason.trim()); setBusy(false); };
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(15,23,42,0.45)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: "28px 32px", width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.18)", border: "1px solid rgba(148,163,184,0.2)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <X size={18} color="#b91c1c" />
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", fontFamily: "inherit" }}>Cancel Order</div>
+        </div>
+        <div style={{ fontSize: 13, color: "#64748b", marginBottom: 18, fontFamily: "inherit" }}>
+          Are you sure you want to cancel this order? The customer will be notified.
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "inherit", display: "block", marginBottom: 6 }}>
+            Cancellation reason (optional)
+          </label>
+          <textarea value={reason} onChange={e => setReason(e.target.value)}
+            placeholder="e.g. Medication out of stock, prescription invalid..." rows={3}
+            style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "1px solid rgba(148,163,184,0.4)", borderRadius: 9, fontFamily: "inherit", resize: "vertical", outline: "none", color: "#0f172a", background: "#f8fafc", boxSizing: "border-box" }}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} disabled={busy} style={{ fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 9, border: "1px solid rgba(148,163,184,0.35)", background: "#f8fafc", color: "#475569", cursor: "pointer", fontFamily: "inherit" }}>
+            Go Back
+          </button>
+          <button onClick={handleConfirm} disabled={busy} style={{ fontSize: 13, fontWeight: 600, padding: "9px 20px", borderRadius: 9, background: "#b91c1c", color: "#fff", border: "none", cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: busy ? 0.7 : 1, display: "flex", alignItems: "center", gap: 7 }}>
+            <X size={13} /> {busy ? "Cancelling..." : "Yes, Cancel Order"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// â”€â”€ Prescription Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, onCancelRequest, updating }) {
   const [expanded, setExpanded] = useState(false);
 
   const sStyle     = statusStyle(rx.status);
@@ -270,7 +311,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
 
   // Best timestamp for the summary row
   const mainTsVal = rx.processedAt || rx.createdAt || rx.dispensedAt;
-  const dateStr   = fmtTs(mainTsVal) || "—";
+  const dateStr   = fmtTs(mainTsVal) || "â€”";
 
   return (
     <div style={{
@@ -307,7 +348,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
           )}
           {!phone && rx.userId && (
             <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: 'inherit' }}>
-              <User size={10} />{rx.userId.slice(0, 20)}…
+              <User size={10} />{rx.userId.slice(0, 20)}â€¦
             </div>
           )}
         </div>
@@ -318,7 +359,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
         <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{meds.length} med{meds.length !== 1 ? "s" : ""}</div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <Badge label={rx.paymentMethod || "—"} style={{ bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#94a3b8" }} />
+          <Badge label={rx.paymentMethod || "â€”"} style={{ bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#94a3b8" }} />
           <Badge label={rx.paymentStatus || "pending"} style={pStyle} />
         </div>
 
@@ -395,7 +436,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
                         <Pill size={15} color="#15803d" />
                       </div>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{med.name || med.medicineName || med.medicine || "—"}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{med.name || med.medicineName || med.medicine || "â€”"}</div>
                         {med.dosage       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Dosage: {med.dosage}</div>}
                         {med.duration     && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Duration: {med.duration}</div>}
                         {med.timing       && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Timing: {med.timing}</div>}
@@ -403,7 +444,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      {med.qty   !== undefined && <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", fontFamily: 'inherit' }}>×{med.qty}</div>}
+                      {med.qty   !== undefined && <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", fontFamily: 'inherit' }}>Ã—{med.qty}</div>}
                       {med.price !== undefined && <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Rs. {med.price}</div>}
                     </div>
                   </div>
@@ -427,7 +468,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
             <ActionBtn label="Complete" icon={CheckCircle} disabled={isTerminal || updating}
               onClick={() => onStatusUpdate(rx.id, "completed")} color="#1d4ed8" bg="#eff6ff" border="#bfdbfe" />
             <ActionBtn label="Cancel" icon={X} disabled={isTerminal || updating}
-              onClick={() => onStatusUpdate(rx.id, "cancelled")} color="#b91c1c" bg="#fef2f2" border="#fecaca" />
+              onClick={() => onCancelRequest(rx)} color="#b91c1c" bg="#fef2f2" border="#fecaca" />
             {isCOD && (
               <ActionBtn label="Payment settled" icon={Banknote} disabled={isPaid || updating}
                 onClick={() => onPaymentSettle(rx.id)} color="#15803d" bg="#f0fdf4" border="#bbf7d0" />
@@ -439,7 +480,7 @@ function PrescriptionRow({ rx, onStatusUpdate, onPaymentSettle, updating }) {
   );
 }
 
-// ── Toast ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Toast({ message, type, onClose }) {
   useEffect(() => { const t = setTimeout(onClose, 3200); return () => clearTimeout(t); }, [onClose]);
   return (
@@ -450,7 +491,7 @@ function Toast({ message, type, onClose }) {
   );
 }
 
-// ── Filter Button ──────────────────────────────────────────────────────────────
+// â”€â”€ Filter Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function FilterBtn({ active, label, onClick, accentColor, accentBg, accentBorder }) {
   return (
     <button onClick={onClick} style={{ fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, border: `1px solid ${active ? accentBorder : C.border}`, background: active ? accentBg : C.surface, color: active ? accentColor : C.textSoft, cursor: "pointer", fontFamily: 'inherit', transition: "all 0.15s" }}>
@@ -459,13 +500,14 @@ function FilterBtn({ active, label, onClick, accentColor, accentBg, accentBorder
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
+// â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function Dispense() {
   const [prescriptions, setPrescriptions] = useState([]);
   const [filter,   setFilter]   = useState("all");
   const [search,   setSearch]   = useState("");
   const [updating, setUpdating] = useState(false);
   const [toast,    setToast]    = useState(null);
+  const [cancelDialog, setCancelDialog] = useState(null); // {rx} when open
 
   const fetchAll = useCallback(async () => {
     try {
@@ -495,39 +537,47 @@ export default function Dispense() {
     return () => clearInterval(interval);
   }, [fetchAll]);
 
-  const handleStatusUpdate = async (id, status) => {
+  const handleStatusUpdate = async (id, status, extraData = {}) => {
     setUpdating(true);
     const prev = prescriptions;
     setPrescriptions(p => p.map(x => x.id === id ? { ...x, status } : x));
     try {
+      const targetRx = prev.find(x => x.id === id);
+      const headers = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/pharmacist/dispensed/${id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        method: "PUT", headers,
+        body: JSON.stringify({
+          status,
+          userId: targetRx?.userId || null,
+          orderId: targetRx?.customerOrderId || targetRx?.orderId || null,
+          ...extraData,
+        }),
       });
       if (!res.ok) throw new Error(await res.text());
-
-      // Sync status to the original prescription in Firebase
-      const targetRx = prev.find(x => x.id === id);
       const originalRxId = targetRx?.rxId || targetRx?.prescriptionId;
       if (originalRxId) {
         let mappedStatus = status;
         if (status.toLowerCase() === "completed") mappedStatus = "Delivered";
         else if (status.toLowerCase() === "cancelled") mappedStatus = "Rejected";
         else mappedStatus = status.charAt(0).toUpperCase() + status.slice(1);
-        
-        try {
-          await updateDoc(doc(db, "prescriptions", originalRxId), { status: mappedStatus });
-        } catch (fbErr) {
-          console.warn("Could not sync status to firebase prescriptions collection:", fbErr);
-        }
+        try { await updateDoc(doc(db, "prescriptions", originalRxId), { status: mappedStatus }); }
+        catch (fbErr) { console.warn("Could not sync status to firebase:", fbErr); }
       }
-
       await fetchAll();
-      setToast({ message: `Marked as ${status}`, type: "success" });
+      const msg = status === "completed" ? "Order complete — customer notified ✓"
+        : status === "cancelled" ? "Order cancelled — customer notified ✓"
+        : `Marked as ${status}`;
+      setToast({ message: msg, type: "success" });
     } catch (err) {
       setPrescriptions(prev);
       setToast({ message: `Failed: ${err.message}`, type: "error" });
     } finally { setUpdating(false); }
+  };
+
+  const handleCancelConfirm = async (reason) => {
+    const rx = cancelDialog;
+    setCancelDialog(null);
+    if (rx) await handleStatusUpdate(rx.id, "cancelled", { cancelReason: reason || undefined });
   };
 
   const handlePaymentSettle = async (rxId) => {
@@ -535,8 +585,9 @@ export default function Dispense() {
     const prev = prescriptions;
     setPrescriptions(p => p.map(x => x.id === rxId ? { ...x, paymentStatus: "paid" } : x));
     try {
+      const headers = await getAuthHeaders();
       const res = await fetch(`${API_BASE}/pharmacist/dispensed/${rxId}/settle-payment`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
+        method: "PUT", headers,
       });
       if (!res.ok) throw new Error(await res.text());
 
@@ -629,12 +680,12 @@ export default function Dispense() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-black text-slate-800">Dispense</h1>
-            <p className="text-slate-500 font-medium mt-1">Full prescription history — patient info, medications, timestamps & payment</p>
+            <p className="text-slate-500 font-medium mt-1">Full prescription history â€” patient info, medications, timestamps & payment</p>
           </div>
           {updating && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 12, fontWeight: 600, color: "#1d4ed8", fontFamily: 'inherit' }}>
               <div style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid #bfdbfe", borderTopColor: "#2563eb", animation: "spin 0.7s linear infinite" }} />
-              Updating…
+              Updatingâ€¦
             </div>
           )}
         </div>
@@ -661,7 +712,7 @@ export default function Dispense() {
             <FilterBtn key={f.key} active={filter === f.key} label={f.label}
               onClick={() => setFilter(f.key)} accentColor={f.accent} accentBg={f.bg} accentBorder={f.border} />
           ))}
-          <input placeholder="Search patient, phone, address, medicine…" value={search}
+          <input placeholder="Search patient, phone, address, medicineâ€¦" value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ marginLeft: "auto", padding: "7px 12px", fontSize: 12, borderRadius: 8, outline: "none", border: `1px solid ${C.border}`, background: C.surface, color: C.textPrimary, fontFamily: 'inherit', width: 260 }}
           />
@@ -686,6 +737,7 @@ export default function Dispense() {
             <PrescriptionRow key={rx.id} rx={rx}
               onStatusUpdate={handleStatusUpdate}
               onPaymentSettle={handlePaymentSettle}
+              onCancelRequest={(rx) => setCancelDialog(rx)}
               updating={updating}
             />
           ))}
@@ -701,8 +753,11 @@ export default function Dispense() {
           </div>
         </div>
 
+      {cancelDialog && <CancelDialog onConfirm={handleCancelConfirm} onClose={() => setCancelDialog(null)} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
     </>
   );
 }
+
+

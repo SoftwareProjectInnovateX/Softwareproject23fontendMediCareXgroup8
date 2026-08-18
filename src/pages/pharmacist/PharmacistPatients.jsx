@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { updatePatient, getDispensedHistory } from '../../services/pharmacistService';
+import { updatePatient, getDispensedHistory, getOnlineOrders } from '../../services/pharmacistService';
 import { db } from '../../lib/firebase';
 import { collection, getDocs, query, where, onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { 
@@ -24,7 +24,25 @@ const PharmacistPatients = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    getDispensedHistory().then(setDispensedHistory).catch(console.error);
+    Promise.all([getDispensedHistory(), getOnlineOrders()])
+      .then(([disp, ord]) => {
+         const mappedOrders = (ord || []).map(o => {
+            const dateStr = o.createdAt ? new Date(o.createdAt._seconds ? o.createdAt._seconds * 1000 : o.createdAt).toLocaleDateString() : '';
+            const ts = o.createdAt ? new Date(o.createdAt._seconds ? o.createdAt._seconds * 1000 : o.createdAt).getTime() : 0;
+            return {
+               ...o,
+               patientId: o.userId,
+               orderItems: (o.types || o.items || o.cartItems || []).map(m => ({ ...m, name: m.name || m.productName, qty: m.qty || m.quantity })),
+               dispensedDate: dateStr,
+               timestamp: ts,
+               type: 'online_order',
+               dispensedAt: 'Online / App',
+               paymentStatus: o.paymentStatus === 'paid' ? 'Paid' : o.paymentStatus
+            };
+         });
+         setDispensedHistory([...(disp || []), ...mappedOrders]);
+      })
+      .catch(console.error);
 
     setIsLoading(true);
     const q = query(collection(db, 'users'), where('role', '==', 'customer'));
@@ -38,10 +56,10 @@ const PharmacistPatients = () => {
           name: d2.fullName || d2.name || 'Walk-in Guest',
           email: d2.email || '',
           phone: d2.phone || 'N/A',
-          dob: d2.dob || '—',
-          age: d2.age || '—',
-          address: d2.address || '—',
-          gender: d2.gender || '—',
+          dob: d2.dob || 'â€”',
+          age: d2.age || 'â€”',
+          address: d2.address || 'â€”',
+          gender: d2.gender || 'â€”',
           physician: 'Walk-in POS',
           status: d2.isOnline ? 'active' : 'inactive',
           registrationSource: d2.registrationSource || 'app',
@@ -69,7 +87,7 @@ const PharmacistPatients = () => {
 
   const [sortBy, setSortBy] = useState('Recent');
   const [searchQuery, setSearchQuery] = useState('');
-  const [medFilter, setMedFilter] = useState('Active PharmacistPrescriptions');
+  const [medFilter, setMedFilter] = useState('Prescriptions');
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editedPatient, setEditedPatient] = useState(null);
@@ -101,12 +119,13 @@ const PharmacistPatients = () => {
       return meds.map(m => ({
         name: m.name || 'Unknown',
         form: r.type === 'prescription' ? `Qty: ${m.qty}` : 'OTC/General',
-        sig: `Qty: ${m.qty} · Rs. ${Number(m.price || 0).toFixed(2)} each`,
-        date: r.dispensedDate || r.date || '—',
+        sig: `Qty: ${m.qty} Â· Rs. ${Number(m.price || 0).toFixed(2)} each`,
+        date: r.dispensedDate || r.date || 'â€”',
         timestamp: r.timestamp || 0,
         prescriber: r.dispensedAt || 'Walk-in POS',
         status: r.paymentStatus === 'Paid' ? 'Active' : 'Past',
-        paymentMethod: r.paymentMethod || '—'
+        paymentMethod: r.paymentMethod || '?',
+        recordType: r.type
       }));
     }).sort((a, b) => b.timestamp - a.timestamp);
   }
@@ -451,7 +470,7 @@ const PharmacistPatients = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-5">
                      <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Email Address</span>
-                     <p className="font-medium text-slate-700 break-all">{activePatient.email || '—'}</p>
+                     <p className="font-medium text-slate-700 break-all">{activePatient.email || 'â€”'}</p>
                   </div>
                   <div className="bg-slate-50 border-2 border-slate-200 rounded-xl p-5">
                      <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Address</span>
@@ -486,15 +505,20 @@ const PharmacistPatients = () => {
                  <div className="bg-blue-600 text-white p-2.5 rounded-lg"><Pill className="w-5 h-5" /></div>
                  Medication History
                </h3>
-               <select 
-                 value={medFilter}
-                 onChange={(e) => setMedFilter(e.target.value)}
-                 className="border-2 border-slate-300 bg-white text-xs font-bold text-slate-700 px-4 py-2 rounded-lg outline-none focus:border-blue-500 transition-all"
-               >
-                 <option>Active PharmacistPrescriptions</option>
-                 <option>Past PharmacistPrescriptions</option>
-                 <option>All PharmacistPrescriptions</option>
-               </select>
+               <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+                 <button 
+                   onClick={() => setMedFilter('Prescriptions')}
+                   className={`px-4 py-2 text-sm font-bold rounded-lg transition-all shadow-sm ${medFilter === 'Prescriptions' ? 'bg-white text-blue-700' : 'bg-transparent text-slate-600 hover:text-slate-800'}`}
+                 >
+                   Prescriptions
+                 </button>
+                 <button 
+                   onClick={() => setMedFilter('App/Web Orders')}
+                   className={`px-4 py-2 text-sm font-bold rounded-lg transition-all shadow-sm ${medFilter === 'App/Web Orders' ? 'bg-white text-blue-700' : 'bg-transparent text-slate-600 hover:text-slate-800'}`}
+                 >
+                   App/Web Orders
+                 </button>
+               </div>
              </div>
              
              <div className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-sm">
@@ -510,7 +534,7 @@ const PharmacistPatients = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {activePatientMeds
-                        .filter(med => medFilter === 'All PharmacistPrescriptions' || (medFilter === 'Active PharmacistPrescriptions' && med.status === 'Active') || (medFilter === 'Past PharmacistPrescriptions' && med.status === 'Past'))
+                        .filter(med => medFilter === 'Prescriptions' ? med.recordType !== 'online_order' : med.recordType === 'online_order')
                         .map((med, idx) => (
                           <tr key={idx} className={`hover:bg-slate-50 transition-colors ${med.status === 'Past' ? 'opacity-60' : ''}`}>
                             <td className="px-6 py-4 align-top">
@@ -531,56 +555,50 @@ const PharmacistPatients = () => {
                           </tr>
                       ))}
                       {activePatientMeds
-                        .filter(med => medFilter === 'All PharmacistPrescriptions' || (medFilter === 'Active PharmacistPrescriptions' && med.status === 'Active') || (medFilter === 'Past PharmacistPrescriptions' && med.status === 'Past'))
+                        .filter(med => medFilter === 'Prescriptions' ? med.recordType !== 'online_order' : med.recordType === 'online_order')
                         .length === 0 && (
                           <tr><td colSpan="4" className="text-center text-slate-400 text-sm py-10 font-medium">No {medFilter.toLowerCase()} found for this patient.</td></tr>
                       )}
                     </tbody>
                   </table>
                </div>
-               <button 
-                 onClick={() => setMedFilter(medFilter === 'All PharmacistPrescriptions' ? 'Active PharmacistPrescriptions' : 'All PharmacistPrescriptions')}
-                 className="w-full py-4 text-sm font-bold text-blue-600 hover:bg-blue-50 border-t-2 border-slate-200 transition-colors"
-               >
-                  {medFilter === 'All PharmacistPrescriptions' ? '↑ Hide Medication History' : '↓ View All Medication History'}
-               </button>
              </div>
-           </div>
-
-           {/* Clinical Notes (Takes 1 column) */}
-           <div className="space-y-4">
-             <div className="flex justify-between items-center">
-               <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
-                 <div className="bg-amber-600 text-white p-2.5 rounded-lg"><ClipboardList className="w-5 h-5" /></div>
-                 Notes
-               </h3>
-               <button 
-                 onClick={() => setIsAddingNote(!isAddingNote)}
-                 className="bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded-lg transition-all shadow-md"
-                 title="Add new note"
-               >
-                 <Plus className="w-5 h-5" />
-               </button>
              </div>
 
-             <div className="space-y-3">
-               
-               {isAddingNote && (
-                 <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5 shadow-sm">
-                    <div className="mb-4">
-                      <label className="text-xs font-bold text-amber-900 uppercase tracking-wider block mb-2">Note Type</label>
-                      <select 
-                        value={newNote.type}
-                        onChange={e => setNewNote({...newNote, type: e.target.value})}
-                        className="w-full bg-white border-2 border-amber-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 font-medium outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100 transition-all"
-                      >
-                        <option>Counseling</option>
-                        <option>PharmacistVerification</option>
-                        <option>General Note</option>
-                      </select>
-                    </div>
-                    <div className="mb-4">
-                      <label className="text-xs font-bold text-amber-900 uppercase tracking-wider block mb-2">Note Content</label>
+             {/* Clinical Notes (Takes 1 column) */}
+             <div className="space-y-4">
+               <div className="flex justify-between items-center">
+                 <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
+                   <div className="bg-amber-600 text-white p-2.5 rounded-lg"><ClipboardList className="w-5 h-5" /></div>
+                   Notes
+                 </h3>
+                 <button 
+                   onClick={() => setIsAddingNote(!isAddingNote)}
+                   className="bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded-lg transition-all shadow-md"
+                   title="Add new note"
+                 >
+                   <Plus className="w-5 h-5" />
+                 </button>
+               </div>
+
+               <div className="space-y-3">
+                 
+                 {isAddingNote && (
+                   <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-5 shadow-sm">
+                      <div className="mb-4">
+                        <label className="text-xs font-bold text-amber-900 uppercase tracking-wider block mb-2">Note Type</label>
+                        <select 
+                          value={newNote.type}
+                          onChange={e => setNewNote({...newNote, type: e.target.value})}
+                          className="w-full bg-white border-2 border-amber-200 rounded-lg py-2.5 px-3 text-sm text-slate-700 font-medium outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100 transition-all"
+                        >
+                          <option value="Counseling">Counseling Note</option>
+                          <option value="Allergy">Allergy Warning</option>
+                          <option value="General">General Note</option>
+                        </select>
+                      </div>
+                      <div className="mb-4">
+                        <label className="text-xs font-bold text-amber-900 uppercase tracking-wider block mb-2">Note Content</label>
                       <textarea 
                         value={newNote.content}
                         onChange={e => setNewNote({...newNote, content: e.target.value})}
@@ -658,4 +676,5 @@ const PharmacistPatients = () => {
 };
 
 export default PharmacistPatients;
+
 
