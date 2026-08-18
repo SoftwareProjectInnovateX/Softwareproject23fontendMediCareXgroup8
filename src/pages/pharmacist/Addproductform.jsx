@@ -52,7 +52,7 @@ function ConfirmDialog({ product, visibility, onConfirm, onCancel }) {
             ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
             : "bg-rose-50 border border-rose-200 text-rose-600"
         }`}>
-          <span>{visibility === "customer" ? "🌐" : "🔒"}</span>
+          <span>{visibility === "customer" ? "" : ""}</span>
           <span>
             {visibility === "customer"
               ? "Will be visible to customers"
@@ -116,7 +116,7 @@ function VisibilitySelector({ value, onChange }) {
   const options = [
     {
       key:        "customer",
-      icon:       "🌐",
+      icon:       "",
       title:      "Show to Customer",
       desc:       "Product appears on the public customer store page",
       activeCls:  "border-emerald-500 bg-emerald-50",
@@ -127,7 +127,7 @@ function VisibilitySelector({ value, onChange }) {
     },
     {
       key:        "pharmacist_only",
-      icon:       "🔒",
+      icon:       "",
       title:      "Pharmacist Only",
       desc:       "Hidden from customers — visible in this dashboard only",
       activeCls:  "border-rose-400 bg-rose-50",
@@ -606,7 +606,7 @@ export default function AddProductForm() {
         {/* Visibility summary */}
         {visibility === "pharmacist_only" ? (
           <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-lg px-4 py-2">
-            <span className="text-rose-500 text-[15px]">🔒</span>
+            <span className="text-rose-500 text-[15px]"></span>
             <p className="text-[12px] text-rose-600 font-medium">
               This product will <strong>NOT</strong> be visible to customers.
               Only pharmacists can see and manage it.
@@ -614,7 +614,7 @@ export default function AddProductForm() {
           </div>
         ) : (
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
-            <span className="text-emerald-500 text-[15px]">🌐</span>
+            <span className="text-emerald-500 text-[15px]"></span>
             <p className="text-[12px] text-emerald-600 font-medium">
               This product will appear on the <strong>Customer Store</strong> page.
             </p>
