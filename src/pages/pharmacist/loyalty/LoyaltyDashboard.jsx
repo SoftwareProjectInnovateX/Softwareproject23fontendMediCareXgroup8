@@ -105,6 +105,13 @@ const LoyaltyDashboard = () => {
     }
   };
 
+  const getTierFromPoints = (points = 0) => {
+    if (points >= 5000) return 'Platinum';
+    if (points >= 2000) return 'Gold';
+    if (points >= 1000) return 'Silver';
+    return 'Silver';
+  };
+
   const levelColors = {
     Silver: 'bg-gray-400 text-white',
     Gold: 'bg-yellow-500 text-white',
