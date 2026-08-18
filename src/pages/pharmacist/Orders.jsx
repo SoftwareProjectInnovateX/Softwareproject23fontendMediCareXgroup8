@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ShoppingCart, Clock, CheckCircle, XCircle,
   Phone, MapPin, ChevronDown, ChevronUp,
@@ -7,10 +7,10 @@ import {
   CreditCard, BadgeCheck, RefreshCw
 } from "lucide-react";
 
-// ── API base (unchanged) ──────────────────────────────────────────────────────
+// â”€â”€ API base (unchanged) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const API_BASE = `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined') ? import.meta.env.VITE_API_URL_RAILWAY : (import.meta.env.VITE_API_URL || 'http://localhost:5000')}/api`;
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
+// â”€â”€ Design tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const C = {
   bg:          "#f8fafc",
   surface:     "#ffffff",
@@ -28,7 +28,7 @@ const FONT = {
   body:    "'DM Sans', 'Inter', sans-serif",
 };
 
-// ── Status helpers ─────────────────────────────────────────────────────────────
+// â”€â”€ Status helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function orderStatusStyle(status) {
   switch ((status || "").toLowerCase()) {
     case "delivered":  return { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0", dot: "#22c55e" };
@@ -60,7 +60,7 @@ function statusBorderColor(order) {
   }
 }
 
-// ── Badge ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Badge({ label, style: s }) {
   return (
     <span style={{
@@ -78,7 +78,7 @@ function Badge({ label, style: s }) {
   );
 }
 
-// ── StatCard ──────────────────────────────────────────────────────────────────
+// â”€â”€ StatCard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
     <div style={{
@@ -103,7 +103,7 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
   );
 }
 
-// ── Weekly Bar Chart ──────────────────────────────────────────────────────────
+// â”€â”€ Weekly Bar Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function WeeklyChart({ orders }) {
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const today = new Date().getDay();
@@ -164,7 +164,7 @@ function WeeklyChart({ orders }) {
   );
 }
 
-// ── Payment Donut Chart ───────────────────────────────────────────────────────
+// â”€â”€ Payment Donut Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PaymentChart({ orders }) {
   const canvasRef = useRef(null);
   const cod        = orders.filter(o => (o.paymentMethod || "").toLowerCase() === "cod");
@@ -234,7 +234,7 @@ function PaymentChart({ orders }) {
   );
 }
 
-// ── Action Button ─────────────────────────────────────────────────────────────
+// â”€â”€ Action Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) {
   return (
     <button
@@ -261,7 +261,7 @@ function ActionBtn({ label, icon: Icon, onClick, disabled, color, bg, border }) 
   );
 }
 
-// ── Order Row ─────────────────────────────────────────────────────────────────
+// â”€â”€ Order Row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -273,13 +273,14 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
   const isTerminal    = status === "delivered" || status === "cancelled";
   const isPaid        = paymentStatus === "paid";
   const borderColor   = statusBorderColor(order);
+  const orderItems  = order.items || order.types || [];
 
   const createdAt = order.createdAt?._seconds
     ? new Date(order.createdAt._seconds * 1000).toLocaleString("en-GB", {
         day: "2-digit", month: "short", year: "numeric",
         hour: "2-digit", minute: "2-digit",
       })
-    : "—";
+    : "â€”";
 
   return (
     <div style={{
@@ -306,7 +307,7 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>
-              {order.customerName || "—"}
+              {order.customerName || "â€”"}
             </span>
             {isCOD && (
               <span style={{
@@ -327,10 +328,10 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
             )}
           </div>
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 3, display: "flex", alignItems: "center", gap: 4, fontFamily: 'inherit' }}>
-            <Phone size={10} /> {order.phone || "—"}
+            <Phone size={10} /> {order.phone || "â€”"}
           </div>
           <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2, display: "flex", alignItems: "center", gap: 4, fontFamily: 'inherit' }}>
-            <MapPin size={10} /> {order.address || "—"}
+            <MapPin size={10} /> {order.address || "â€”"}
           </div>
         </div>
 
@@ -339,13 +340,13 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
 
         {/* Items */}
         <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>
-          {order.types?.length ?? 0} item{order.types?.length !== 1 ? "s" : ""}
+          {orderItems.length} item{orderItems.length !== 1 ? "s" : ""}
         </div>
 
         {/* Payment */}
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           <Badge
-            label={order.paymentMethod || "—"}
+            label={order.paymentMethod || "â€”"}
             style={{ bg: "#f8fafc", color: "#475569", border: "#e2e8f0", dot: "#94a3b8" }}
           />
           <Badge label={order.paymentStatus || "pending"} style={pStyle} />
@@ -393,13 +394,13 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
           )}
 
           {/* Order items */}
-          {order.types && order.types.length > 0 && (
+          {orderItems.length > 0 && (
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10, fontFamily: 'inherit' }}>
                 Order items
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {order.types.map((item, i) => (
+                {orderItems.map((item, i) => (
                   <div key={i} style={{
                     display: "flex", justifyContent: "space-between", alignItems: "center",
                     background: C.surface, borderRadius: 9,
@@ -413,13 +414,13 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
                         }} />
                       )}
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{item.name || "—"}</div>
-                        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Code: {item.id || "—"}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, fontFamily: 'inherit' }}>{item.name || "â€”"}</div>
+                        <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Code: {item.id || "â€”"}</div>
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#2563eb", fontFamily: 'inherit' }}>
-                        {item.quantity ? `×${item.quantity}` : ""}
+                        {item.quantity ? `Ã—${item.quantity}` : ""}
                       </div>
                       {item.price && (
                         <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>Rs. {item.price}</div>
@@ -499,7 +500,7 @@ function OrderRow({ order, onStatusUpdate, onPaymentSettle, updating }) {
   );
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Toast({ message, type, onClose }) {
   useEffect(() => {
     const t = setTimeout(onClose, 3200);
@@ -523,7 +524,7 @@ function Toast({ message, type, onClose }) {
   );
 }
 
-// ── Filter Button ─────────────────────────────────────────────────────────────
+// â”€â”€ Filter Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function FilterBtn({ active, label, onClick, accentColor, accentBg, accentBorder }) {
   return (
     <button
@@ -543,7 +544,7 @@ function FilterBtn({ active, label, onClick, accentColor, accentBg, accentBorder
   );
 }
 
-// ── Main Orders Page ──────────────────────────────────────────────────────────
+// â”€â”€ Main Orders Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function Orders() {
   const [orders,   setOrders]   = useState([]);
   const [filter,   setFilter]   = useState("all");
@@ -551,7 +552,7 @@ export default function Orders() {
   const [updating, setUpdating] = useState(false);
   const [toast,    setToast]    = useState(null);
 
-  // ── Fetch (unchanged paths) ────────────────────────────────────────────────
+  // â”€â”€ Fetch (unchanged paths) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const fetchAll = useCallback(async () => {
     try {
       const res  = await fetch(`${API_BASE}/pharmacist/orders`);
@@ -569,7 +570,7 @@ export default function Orders() {
     return () => clearInterval(interval);
   }, [fetchAll]);
 
-  // ── Status update (unchanged) ──────────────────────────────────────────────
+  // â”€â”€ Status update (unchanged) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleStatusUpdate = async (id, status) => {
     setUpdating(true);
     const prev = orders;
@@ -591,7 +592,7 @@ export default function Orders() {
     }
   };
 
-  // ── Payment settle (unchanged path) ───────────────────────────────────────
+  // â”€â”€ Payment settle (unchanged path) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handlePaymentSettle = async (orderId) => {
     setUpdating(true);
     const prev = orders;
@@ -612,7 +613,7 @@ export default function Orders() {
     }
   };
 
-  // ── Derived counts ─────────────────────────────────────────────────────────
+  // â”€â”€ Derived counts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const total      = orders.length;
   const pending    = orders.filter(o => { const s = (o.orderStatus || "").toLowerCase(); return s.includes("pending"); }).length;
   
@@ -627,7 +628,7 @@ export default function Orders() {
   ).length;
   const paidOrders = orders.filter(o => (o.paymentStatus || "").toLowerCase() === "paid").length;
 
-  // ── Filter logic ───────────────────────────────────────────────────────────
+  // â”€â”€ Filter logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const visible = orders.filter(o => {
     const matchFilter =
       filter === "all"        ? true :
@@ -662,7 +663,7 @@ export default function Orders() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
 
-        {/* ── Header ── */}
+        {/* â”€â”€ Header â”€â”€ */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-black text-slate-800">Orders</h1>
@@ -682,12 +683,12 @@ export default function Orders() {
                 borderTopColor: "#2563eb",
                 animation: "spin 0.7s linear infinite",
               }} />
-              Updating…
+              Updatingâ€¦
             </div>
           )}
         </div>
 
-        {/* ── Stat cards ── */}
+        {/* â”€â”€ Stat cards â”€â”€ */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 16 }}>
           <StatCard icon={ShoppingCart} label="Total orders"      value={total}      color="#2563eb" bg="#eff6ff" />
           <StatCard icon={Clock}        label="Pending"            value={pending}    color="#b45309" bg="#fffbeb" />
@@ -697,13 +698,13 @@ export default function Orders() {
           <StatCard icon={BadgeCheck}   label="Payment settled"    value={codSettled} color="#15803d" bg="#f0fdf4" />
         </div>
 
-        {/* ── Charts ── */}
+        {/* â”€â”€ Charts â”€â”€ */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 22 }}>
           <WeeklyChart  orders={orders} />
           <PaymentChart orders={orders} />
         </div>
 
-        {/* ── Filter tabs + search ── */}
+        {/* â”€â”€ Filter tabs + search â”€â”€ */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
           {filters.map(f => (
             <FilterBtn
@@ -717,7 +718,7 @@ export default function Orders() {
             />
           ))}
           <input
-            placeholder="Search name, phone, address…"
+            placeholder="Search name, phone, addressâ€¦"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
@@ -729,7 +730,7 @@ export default function Orders() {
           />
         </div>
 
-        {/* ── Table header ── */}
+        {/* â”€â”€ Table header â”€â”€ */}
         <div style={{
           display: "grid",
           gridTemplateColumns: "2fr 1.1fr 0.7fr 1fr 1fr 90px",
@@ -746,7 +747,7 @@ export default function Orders() {
           ))}
         </div>
 
-        {/* ── Order list ── */}
+        {/* â”€â”€ Order list â”€â”€ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
           {visible.length === 0 ? (
             <div style={{
@@ -772,7 +773,7 @@ export default function Orders() {
           )}
         </div>
 
-        {/* ── Footer ── */}
+        {/* â”€â”€ Footer â”€â”€ */}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textMuted, fontFamily: 'inherit' }}>
             <RefreshCw size={11} />
@@ -783,7 +784,7 @@ export default function Orders() {
           </div>
         </div>
 
-      {/* ── Toast ── */}
+      {/* â”€â”€ Toast â”€â”€ */}
       {toast && (
         <Toast
           message={toast.message}
@@ -794,3 +795,4 @@ export default function Orders() {
     </div>
   );
 }
+
