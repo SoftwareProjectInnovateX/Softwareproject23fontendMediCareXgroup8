@@ -3,10 +3,10 @@ import { Star, Copy, CheckCircle, Gift, Zap, Trophy, Award } from "lucide-react"
 import { C, FONT } from "./profileTheme";
 
 // Level thresholds — must match backend calculateLevel() in loyalty.service.ts
-// Silver: 0–1999 | Gold: 2000–4999 | Platinum: 5000+
+// Silver: 1000–1999 | Gold: 2000–4999 | Platinum: 5000+
 const LEVELS = {
   Silver: {
-    min: 0, max: 2000, next: "Gold",
+    min: 1000, max: 2000, next: "Gold",
     color: "#94A3B8",
     gradient: "linear-gradient(135deg, #CBD5E1 0%, #94A3B8 100%)",
     glow: "rgba(148,163,184,0.4)",
