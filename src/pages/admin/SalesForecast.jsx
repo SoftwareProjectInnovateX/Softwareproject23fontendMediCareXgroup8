@@ -5,8 +5,6 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from "recharts";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
-import { db } from "../../services/firebase";
 import PageLayout from "../../components/PageLayout";
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -260,31 +258,22 @@ export default function SalesForecast() {
   useEffect(() => {
     (async () => {
       try {
-        const thirtyDaysAgo = Timestamp.fromDate(
-          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        );
+        const API_URL =
+          import.meta.env.VITE_API_URL_RAILWAY || "http://localhost:5000";
 
-        const [productsSnap, ordersSnap] = await Promise.all([
-          getDocs(collection(db, "products")),
-          getDocs(
-            query(
-              collection(db, "CustomerOrders"),
-              where("createdAt", ">=", thirtyDaysAgo)
-            )
-          ),
-        ]);
+        const response = await fetch(`${API_URL}/api/forecast`);
 
-        const salesMap = {};
-        ordersSnap.docs.forEach((orderDoc) => {
-          const items = orderDoc.data().items ?? [];
-          items.forEach((item) => {
-            if (item.id) {
-              salesMap[item.id] = (salesMap[item.id] ?? 0) + (item.quantity ?? 1);
-            }
-          });
-        });
+        if (!response.ok) {
+          throw new Error(`Failed to load forecast: HTTP ${response.status}`);
+        }
 
-        const mapped = productsSnap.docs.map((doc) => mapProduct(doc, salesMap));
+        const result = await response.json();
+
+        const mapped = result.map((item) => ({
+          ...item,
+          totalSold30: item.totalSold ?? 0,
+        }));
+
         setData(mapped);
         setSelected(mapped[0] ?? null);
       } catch (err) {
@@ -328,7 +317,7 @@ export default function SalesForecast() {
 
     try {
             const res = await fetch(
-        `${(import.meta.env.VITE_API_URL_RAILWAY && import.meta.env.VITE_API_URL_RAILWAY !== 'undefined' ? import.meta.env.VITE_API_URL_RAILWAY : 'http://localhost:5000')}/api/forecast/insight/${selected.productId}`
+        `${import.meta.env.VITE_API_URL_RAILWAY || 'http://localhost:5000'}/api/forecast/insight/${selected.productId}`
       );
 
       if (!res.ok) {
