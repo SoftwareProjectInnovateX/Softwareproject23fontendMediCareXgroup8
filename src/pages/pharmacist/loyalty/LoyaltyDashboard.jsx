@@ -152,9 +152,9 @@ const LoyaltyDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: 'Total Customers', value: analytics.totalCustomers || 0 },
-          { label: 'Total Revenue', value: `$${(analytics.totalRevenue || 0).toFixed(2)}` },
+          { label: 'Total Revenue', value: `Rs. ${(analytics.totalRevenue || 0).toFixed(2)}` },
           { label: 'Total Points Issued', value: analytics.totalPoints || 0 },
-          { label: 'Avg Order Value', value: `$${(analytics.averageOrderValue || 0).toFixed(2)}` },
+          { label: 'Avg Order Value', value: `Rs. ${(analytics.averageOrderValue || 0).toFixed(2)}` },
         ].map((stat) => (
           <div key={stat.label} className="bg-white rounded-lg shadow p-4 border">
             <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
@@ -232,7 +232,7 @@ const LoyaltyDashboard = () => {
             </div>
             <p>Email: {selectedCustomer.email}</p>
             <p>Level: <span className={`px-2 py-0.5 rounded text-sm font-medium ${levelColors[selectedCustomer.level] || ''}`}>{selectedCustomer.level}</span></p>
-            <p>Total Spent: ${(selectedCustomer.totalSpent || 0).toFixed(2)}</p>
+            <p>Total Spent: Rs. {(selectedCustomer.totalSpent || 0).toFixed(2)}</p>
             <p>Points: {selectedCustomer.totalPoints}</p>
             <p>Purchase Count: {selectedCustomer.purchaseCount}</p>
             <p>Churn Risk: {selectedCustomer.predictedChurnRisk}%</p>
@@ -278,7 +278,7 @@ const LoyaltyDashboard = () => {
                       {customer.level}
                     </span>
                   </td>
-                  <td className="px-4 py-3">${(customer.totalSpent || 0).toFixed(2)}</td>
+                  <td className="px-4 py-3">Rs. {(customer.totalSpent || 0).toFixed(2)}</td>
                   <td className="px-4 py-3">{customer.totalPoints}</td>
                   <td className="px-4 py-3">{customer.purchaseCount}</td>
                   <td className="px-4 py-3">{customer.predictedChurnRisk}%</td>
