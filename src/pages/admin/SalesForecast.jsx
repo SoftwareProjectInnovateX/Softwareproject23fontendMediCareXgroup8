@@ -5,6 +5,8 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer,
 } from "recharts";
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { db } from "../../services/firebase";
 import PageLayout from "../../components/PageLayout";
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -258,25 +260,52 @@ export default function SalesForecast() {
   useEffect(() => {
     (async () => {
       try {
-        const API_URL =
-          import.meta.env.VITE_API_URL_RAILWAY || "http://localhost:5000";
+        const thirtyDaysAgo = Timestamp.fromDate(
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        );
 
-        const response = await fetch(`${API_URL}/api/forecast`);
+        const [productsSnap, ordersSnap] = await Promise.all([
+          getDocs(collection(db, "products")),
+          getDocs(
+            query(
+              collection(db, "CustomerOrders"),
+              where("createdAt", ">=", thirtyDaysAgo)
+            )
+          ),
+        ]);
 
-        if (!response.ok) {
-          throw new Error(`Failed to load forecast: HTTP ${response.status}`);
-        }
+        const salesMap = {};
 
-        const result = await response.json();
+        ordersSnap.docs.forEach((orderDoc) => {
+          const orderData = orderDoc.data();
+          const items = orderData.items ?? orderData.types ?? [];
 
-        const mapped = result.map((item) => ({
-          ...item,
-          totalSold30: item.totalSold ?? 0,
-        }));
+          items.forEach((item) => {
+            const productId =
+              item.id ??
+              item.productId ??
+              item.productID ??
+              item.product?.id ??
+              null;
+
+            if (!productId) return;
+
+            const quantity = Number(item.quantity ?? item.qty ?? 1);
+
+            salesMap[productId] =
+              (salesMap[productId] ?? 0) +
+              (Number.isFinite(quantity) ? quantity : 1);
+          });
+        });
+
+        const mapped = productsSnap.docs.map((doc) =>
+          mapProduct(doc, salesMap)
+        );
 
         setData(mapped);
         setSelected(mapped[0] ?? null);
       } catch (err) {
+        console.error("Failed to load sales forecast:", err);
         setError(err.message);
       } finally {
         setLoading(false);
