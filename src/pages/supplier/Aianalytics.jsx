@@ -681,7 +681,7 @@ const AiAnalyticsDashboard = () => {
               <MdAutoAwesome size={19} />
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-slate-900 leading-none">Groq AI Business Advisor</h2>
+              <h2 className="text-[15px] font-bold text-slate-900 leading-none">MedicaerX AI Business Advisor</h2>
               <p className="text-[12px] text-slate-400 mt-1">
                 AI explanation of the statistical analytics above
               </p>

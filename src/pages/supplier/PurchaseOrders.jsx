@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   collection,
   doc,
@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../../services/firebase";
+import { MdChevronLeft, MdChevronRight } from "react-icons/md";
 
 // Sub-components for each UI section
 import PurchaseOrderHeader from "../../components/supplier/PurchaseOrderHeader";
@@ -116,6 +117,8 @@ function ConfirmModal({
   );
 }
 
+const PAGE_SIZE = 10;
+
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function PurchaseOrders() {
   const [supplierId,    setSupplierId]    = useState(null);
@@ -133,6 +136,9 @@ export default function PurchaseOrders() {
   const [confirmModal, setConfirmModal] = useState(null);
 
   const [toasts, setToasts] = useState([]);
+
+  /* ── Pagination state ─────────────────────────────────────────────────────── */
+  const [page, setPage] = useState(1);
 
   /* ── Toast helpers ────────────────────────────────────────────────────────── */
   const addToast = useCallback((type, title, message = "") => {
@@ -221,6 +227,7 @@ export default function PurchaseOrders() {
             );
       const snapshot = await getDocs(q);
       setOrders(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setPage(1);
     } catch (error) {
       console.error("Error loading orders:", error);
       addToast("error", "Failed to Load Orders", error.message);
@@ -232,6 +239,41 @@ export default function PurchaseOrders() {
   useEffect(() => {
     if (authReady) fetchOrders();
   }, [fetchOrders, authReady]);
+
+  /* ── Pagination derived values ───────────────────────────────────────────── */
+  const totalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
+
+  // Clamp page if the order list shrinks
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [totalPages, page]);
+
+  const pagedOrders = orders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Build the visible page-number list with ellipses, e.g. 1 2 3 4 5 ... 12
+  const pageNumbers = useMemo(() => {
+    const total = totalPages;
+    const current = page;
+    const delta = 1;
+    const range = [];
+    const withDots = [];
+    let last = null;
+
+    for (let i = 1; i <= total; i++) {
+      if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+        range.push(i);
+      }
+    }
+    for (const i of range) {
+      if (last !== null) {
+        if (i - last === 2) withDots.push(last + 1);
+        else if (i - last > 2) withDots.push("...");
+      }
+      withDots.push(i);
+      last = i;
+    }
+    return withDots;
+  }, [totalPages, page]);
 
   /* ── Approve order ────────────────────────────────────────────────────────── */
   const approveOrder = async (orderId, order) => {
@@ -443,12 +485,56 @@ export default function PurchaseOrders() {
 
       <OrderTable
         loading={loading}
-        orders={orders}
+        orders={pagedOrders}
         onView={setSelectedOrder}
         onApprove={approveOrder}
         onReject={openRejectModal}
         formatDate={formatDate}
       />
+
+      {/* Numbered pagination — prev / page numbers / next */}
+      {!loading && orders.length > 0 && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1.5 mt-8 flex-wrap">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            aria-label="Previous page"
+            className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 transition-all duration-150 cursor-pointer"
+          >
+            <MdChevronLeft size={18} />
+          </button>
+
+          {pageNumbers.map((p, i) =>
+            p === "..." ? (
+              <span key={`dots-${i}`} className="h-9 w-9 flex items-center justify-center text-slate-400 text-sm font-medium select-none">
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                aria-current={p === page ? "page" : undefined}
+                className={`h-9 min-w-9 px-2 flex items-center justify-center rounded-lg text-sm font-bold transition-all duration-150 cursor-pointer
+                  ${p === page
+                    ? "bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.30)]"
+                    : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-800"
+                  }`}
+              >
+                {p}
+              </button>
+            )
+          )}
+
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            aria-label="Next page"
+            className="h-9 w-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-800 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 transition-all duration-150 cursor-pointer"
+          >
+            <MdChevronRight size={18} />
+          </button>
+        </div>
+      )}
 
       {selectedOrder && (
         <OrderDetailsModal
