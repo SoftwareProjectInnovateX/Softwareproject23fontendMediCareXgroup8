@@ -99,14 +99,18 @@ const PharmacistDashboard = () => {
           // Online Prescription: Only count if payment is made or it's COD
           if (paymentStat === 'paid' || paymentMeth === 'COD' || paymentStat === 'cod') {
             onlineDispCount++;
-            if (paymentStat === 'paid' || paymentMeth !== 'COD') {
-              const amt = parseFloat(d.total) || 0;
-              dRev += amt;
+            
+            const amt = parseFloat(d.total) || 0;
+            // Always add to total revenue if it's considered valid (paid or COD)
+            dRev += amt;
+            
+            if (paymentStat === 'paid' || (paymentMeth !== 'COD' && paymentStat !== 'cod')) {
               if (paymentMeth.includes('CARD')) dRevCard += amt;
               else if (paymentMeth.includes('BANK')) dRevBank += amt;
               else if (paymentMeth.includes('PAYHERE')) dRevPayHere += amt;
-              else if (paymentMeth === 'COD') dRevCod += amt;
-              else dRevCard += amt; 
+              else dRevCard += amt; // Default to card if paid but no method
+            } else if (paymentMeth === 'COD' || paymentStat === 'cod') {
+              dRevCod += amt;
             }
           }
         } else {
@@ -154,7 +158,8 @@ const PharmacistDashboard = () => {
       const dispatchedOnline = onlineOrders.filter(o => {
         const ts = getValidDate(o.updatedAt || o.orderDate || o.createdAt || o.timestamp);
         const stat = (o.status || o.orderStatus || '').toLowerCase();
-        return isDateToday(ts) && (stat === 'dispatched' || stat === 'delivered' || stat === 'completed');
+        const isApproved = stat !== 'pending' && stat !== 'cancelled' && stat !== 'pending-cod';
+        return isDateToday(ts) && isApproved;
       });
       
       let paidRev = 0, codRev = 0;
