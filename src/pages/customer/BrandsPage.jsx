@@ -189,7 +189,7 @@ export default function BrandsPage() {
           </span>
           <h1 className="text-[26px] font-bold leading-snug" style={{ color: C.textPrimary }}>
             Explore medicine brands with<br />
-            <span style={{ color: C.accent }}>AI-powered health guidance.</span>
+            <span style={{ color: C.accent }}>health guidance.</span>
           </h1>
           <p className="mt-2 text-sm leading-6" style={{ color: C.textSecondary }}>
             Compare trusted global names with local catalog recommendations. Every brand is verified and categorized for your health needs.
@@ -346,7 +346,7 @@ export default function BrandsPage() {
                 <Bot size={20} />
               </div>
               <p className="mt-4 text-[10px] uppercase tracking-[0.35em] font-semibold" style={{ color: C.accent }}>
-                AI Health Advisor
+              Health Advisor
               </p>
               <h3 className="mt-3 text-2xl font-semibold" style={{ color: C.dark }}>
                 Easy health brand guidance
